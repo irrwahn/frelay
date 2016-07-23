@@ -51,165 +51,185 @@ identify itself with its credentials.
 server, offer files to others, retrieve files offered to him, and send
 files to satisfy requests made by others.
 
-- ... [TODO: what else?]
+- #TODO: what more?
 
 
 
 Message Structure
 =================
 
-Each message consists of a fixed-size message header and a variable
-length message payload segment.
+Each message consists of a 48 byte fixed-size message header and a
+variable length payload segment.
 
-All header fields are encoded in, depending on the field, 16-bit ors
-32-bit words, presented in network byte order, i.e. MSB first.
+All header fields are encoded in 16-, 32-, or 64-bit wide words, and
+transmitted in network byte order, i.e. MSB first.
 
-      3         2          1
- W\b 1098765432109876 5432109876543210
-    +----------------+----------------+  \
- 0  |TTTTTTTTTTTTTTTT|NNNNNNNNNNNNNNNN|  |
-    +----------------+----------------+  |
- 1  |           Source ID             |  |
-    +----------------+----------------+  |
- 2  |        Destination ID           |  > 5 32-bit words (20 octets)
-    +----------------+----------------+  |  message header
- 3  | Transaction ID |  Exchange ID   |  |
-    +----------------+----------------+  |
- 4  |         Option Flags (F)        |  |
-    +----------------+----------------+  /
+       6         5          4          3         2          1
+B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
+   +----------------+----------------+----------------+----------------+
+ 0 |  Message Type  | Payload Length |          Option Flags           |
+   +----------------+----------------+----------------+----------------+
+ 8 |                             Timestamp                             |
+   +----------------+----------------+----------------+----------------+
+16 |                             Source ID                             |
+   +----------------+----------------+----------------+----------------+
+24 |                          Destination ID                           |
+   +----------------+----------------+----------------+----------------+
+32 |                          Transaction ID                           |
+   +----------------+----------------+----------------+----------------+
+40 |                            Exchange ID                            |
+   +----------------+----------------+----------------+----------------+
+   +----------------+----------------+----------------+----------------+
+48 |          Payload length octets of TLV encoded attributes          |
+ . |                               . . .                               |
+ . |                 (padded to next 64 bit boundary)                  |
+   +----------------+----------------+----------------+----------------+
 
-    +----------------+----------------+  \
- 5  |        Message Payload          |  |
-    |   N octets of TLV attributes    |  > N octets message payload
-    |              . . .              |  |
-    |(padded to next 32 bit boundary) |  |
-    +----------------+----------------+  /
 
-
-Message Type (T)
-----------------
-The first 16 bits of a message header specify the type of the message.
-The four low order bits assign a general class to the message:
+Message Type
+------------
+The first 16 bits of a message header indicate the type of the message.
+From those, the four lowest order bits specify a general class to the
+message:
 
     b0000 (0x0)  Indication
     b0001 (0x1)  Request
     b0010 (0x2)  Response
     b1010 (0xa)  Error Response
 
-All other combinations of those four bits are reserved for future use
-and shall be treated as invalid message class indicators for the time
-being.
+All other possible combinations of those four bits are reserved for
+future use and shall be treated as invalid message class indicators for
+the time being.
 
-The twelve high order bits encode the individual message type. These
-message types are described in more detail below.
+The twelve high order bits encode the individual message type. The
+various message types are described in more detail below.
 
 
-Payload Length (N)
-------------------
+Payload Length
+--------------
 Sixteen bit unsigned integer representing the message payload length,
 i.e. the number of data octets encapsulated in the message, excluding
 the message header and message digest. Since the payload segment must
-be padded to the next 32 bit boundary, the two least significant bits
-must always be zero.
+be padded to the next 64 bit boundary this number must be evenly
+dividable by eight, thus the four least significant bits must always
+be zero.
 
-In theory, 32 bit would allow for up to 65532 octets of payload data
+In theory, 16 bit would allow for up to 65532 octets of payload data
 in a single message. However, the maximum supported value is limited
 to 65400, to enable implementations to fit the largest possible message
-plus some additional management data, into one single 64KiB chunk of
-memory. A message carrying no payload data at all may be used to keep
-the connection alive.
+plus some additional management data into one single 64KiB chunk of
+memory.
+
+
+Option Flags
+------------
+32 bits reserved for future use as flags to specify various message
+properties or protocol options. Undefined flags  shall be set to zero
+by the sender of a message and shall be ignored by the recipient.
+Currently no option flags are defined.
+#TODO: define flags for encryption, compression, ...?
+
+
+Timestamp
+----------
+64-bit message creation timestamp in nanosecond resolution.
 
 
 Source ID
-----------
-32-bit ID of message origin (sender). This ID is assigned and managed
-by the server and is used to identify an individual client. A client
-need not fill in this ID, as the server will in any case set it to the
-correct value based on its internal peer list. Thus, a client need not
-necessarily know its own ID.
+---------
+64-bit user ID of the message origin (sender). This ID is persistently
+assigned by the server at account creation time, and once issued will
+never be reused for another account. It is provided to uniquely identify
+each individual client.
 
-A message with a zero source ID, when received by a client, shall be
-treated as a message originating at the server.
+A client need not fill in this field when sending a message, as the
+server will in any case overwrite it with the correct value based on
+its own notion about the user account associated with the connected
+client.
+
+Messages originating at the server will always have their source ID
+set to all bits zero.
 
 
 Destination ID
 --------------
-32-bit ID of message destination (recipient). This ID is assigned and
-managed by the server and is used to identify an individual client.
+64-bit user ID specifying the message recipient. This field must always
+be filled in by the sender of a message.
 
 An all bits zero destination ID is reserved for messages directed at
-the server itself. An all bits one destination ID is reserved for use
+the server. An all bits one destination ID is reserved for future use
 as the broadcast address.
-
-An all bits one destination id is reserved for use as the broadcast
-address. Messages carrying such a destination id are relayed sent to
-all clients currently logged in to the server.
 
 
 Transaction ID
 --------------
-The transaction ID is a 32 bit pseudo-random number generated by the
-initiator of a logical transaction.  A transaction may comprise one or
-more request/response pairs (exchanges).  All exchanges pertaining to
-one logical transaction (e.g. transfer of a file bigger than 64KiB),
-shall carry the same transaction id.
+The transaction ID is a 64-bit pseudo-random number generated by the
+initiator of a logical transaction. A transaction may comprise one or
+more request/response pairs, referred to as "exchanges". All exchanges
+pertaining to one logical transaction, e.g. transfer of a file larger
+than ~64KiB, shall be tagged with the same transaction id.
 
 
 Exchange ID
 -----------
-The exchange ID is a 32 bit pseudo-random number generated by the
-initiator of the exchange (i.e. the sender of a request). This number
-identifies one single exchange (i.e. one single request/response pair),
-which may be part of a larger logical transaction.
-
-
-Option Flags (F)
-----------------
-32 bits reserved for use as flags to specify various properties of the
-message. Currently no such option flags are defined. Unused flags shall
-be set to zero by the sender and shall be ignored by the recipient of
-the message. [TODO: define flags for encryption?, compression?, ...?]
+The exchange ID is a 64-bit number generated by the initiator of an
+exchange, i.e. the sender of a request ot indication. This ID identifies
+one single exchange (one single request/response pair), which may be
+part of a larger logical transaction. This number may be implemented as
+a simple counter, counting up from an arbitrary initial value.
 
 
 Message Payload
 ---------------
-The payload data carried by the message, consisting of type-length-value
-(TLV) encoded attributes, padded to the next 32 bit boundary. The value
-of the padding bits is neither specified nor shall it be interpreted in
-any way by the recipient of the message.
+Payload data carried by the message, consisting of type-length-value
+(TLV) encoded attributes, see below.
 
 
 
-Message Types in Detail
-=======================
+Message Types
+=============
+
+REGISTER
+--------
+#TODO: description
+
+                Request             Response            Error Response
+--------------------------------------------------------------------------
+Message type    0x0001              0x0002              0x000a
+Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
+Mand. Attrib.   USERNAME, PUBKEY    OK                  ERROR
+Opt. Attrib.                        -                   NOTICE
+
 
 LOGIN
 -----
-#ToDo: description
+#TODO: description
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0011              0x0012              0x001a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   USERNAME            CHALLENGE           ERROR
-Opt. Attrib.    -                   -                   NOTICE
+Opt. Attrib.                        -                   NOTICE
 
 
 AUTH
 ----
-#ToDo: description
+#TODO: description
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0021              0x0022              0x002a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   DIGEST              -                   ERROR
-Opt. Attrib.    -                   -                   NOTICE
+Mand. Attrib.   DIGEST              OK                  ERROR
+Opt. Attrib.                        NOTICE              NOTICE
 
 
 PEERLIST
 --------
-#ToDo: description
+#TODO: description
+
+More than one peer may be included in a single response.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
@@ -221,37 +241,43 @@ Opt. Attrib.    -                   -                   NOTICE
 
 OFFER
 -----
-#ToDo: description
+#TODO: description
+
+More than one offer may be included in a single request.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0111              0x0112              0x011a
 Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
-Mand. Attrib.   OFFERID, SIZE       -                   ERROR
-Opt. Attrib.    FILENAME, MD5       -                   NOTICE
+Mand. Attrib.   OFFERID, SIZE       OK                  ERROR
+Opt. Attrib.    FILENAME, MD5,      -                   NOTICE
+                NOTICE, TTL
 
 
 GETFILE
 -------
-#ToDo: description
+#TODO: description
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0121              0x0122              0x012a
 Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
 Mand. Attrib.   OFFERID             DATA                ERROR
-Opt. Attrib.    OFFSET, SIZE        MD5                 NOTICE
+Opt. Attrib.    OFFSET, SIZE                            NOTICE
 
 
 PING
 -------
-#ToDo: description
+#TODO: description
+
+The optional NOTICE attribute may be used for the chat-like exchange of
+text messages between clients.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0201              0x0202              0x020a
 Direction       Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv
-Mand. Attrib.   -                   -                   ERROR
+Mand. Attrib.   -                   OK                  ERROR
 Opt. Attrib.    NOTICE              NOTICE              NOTICE
 
 
@@ -259,32 +285,37 @@ Opt. Attrib.    NOTICE              NOTICE              NOTICE
 Attributes
 ==========
 
-Attributes are encoded using a Type-Length-Value pattern.  The first
-sixteen bits specify the type of the attribute, followed by a 16-bit
-unsigned integer to specify the number of value octets to follow. The
-actual length may be any number between 0 and 65500. However, the value
-field is always padded up to the next 32-bit boundary. The value of the
-padding octets is unspecified. They shall be ignored by the recipient
-of the message.
+Attributes are encoded using a type-length-value (TLV) pattern.
 
-     3         2          1
- W\b 1098765432109876 5432109876543210
-    +----------------+----------------+  \
- 0  | Attribute Type |   Length (L)   |  |
-    +----------------+----------------+  |
- 1  |         L octets of data        |  > A single TLV encoded attribute
-    |              . . .              |  |
-    |(padded to next 32 bit boundary) |  |
-    +----------------+----------------+  /
+       6         5          4          3         2          1
+B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
+   +----------------+----------------+----------------+----------------+
+0  | Attribute Type |Attribute Length|          Option Flags           |
+   +----------------+----------------+----------------+----------------+
+8  |                   Attribute length value octets                   |
+.  |                               . . .                               |
+.  |                  (padded to next 64 bit boundary)                 |
+   +----------------+----------------+----------------+----------------+
 
+The first sixteen bits specify the type of the attribute. See below for
+a list of defined attributes.
+
+It is followed by a 16-bit unsigned integer to specify the number of
+value octets. Depending on the type of the this length may be any number
+between 0 and 65500. The value field however is always padded to the
+next 64-bit boundary. The value of padding bits is not specified, and it
+must be ignored, except it shall be included in, and thus affect the
+result of, any message SIGNATURE computation.
+
+The next 32 bits are reserved for future use as option flags to go with
+the individual attribute. They shall be set to zero for the time being.
 
 The order in which attributes appear in a message matters. For example,
-any SIZE, NAME or MD5 attributes must directly follow the OFFER attribute
-they refer to. Moreover, a message digest attribute, if any, shall only
+any SIZE, NAME or MD5 attributes must immediately follow the OFFER
+attribute they pertain to. Moreover, a SIGNATURE attribute shall only
 appear as the last attribute in a message.
 
 The following attributes are currently defined:
-
 
 Attr.   Attribute   Valid
 Type    Name        Lengths     Description
@@ -292,37 +323,43 @@ Type    Name        Lengths     Description
 0x0001  USERNAME    1..NAME_MAX Null-terminated UTF-8 encoded character
                                 string representing the user login name.
 --------------------------------------------------------------------------
-0x0002  CHALLENGE   1..TEXT_MAX Challenge sent by the server as reply to
+0x0002  PUBKEY      1..KEY_MAX  Public key provided by a client during
+                                account creation.
+--------------------------------------------------------------------------
+0x0003  CHALLENGE   1..KEY_MAX  Challenge sent by the server as reply to
                                 a LOGIN request. Used by the client to
-                                generate an AUTH request.
-                                In all subsequent messages the client
-                                must use the destination ID conveyed by
-                                the server and use it as the source ID .
+                                generate a subsequent AUTH request.
+                                #TODO: "nonce" encrypted with client's PUBKEY?
 --------------------------------------------------------------------------
-0x0003  DIGEST      1..TEXT_MAX Authentication digest generated by the
-                                client from CHALLENGE and client password.
+0x0004  DIGEST      1..KEY_MAX  Authentication digest generated by the
+                                client from the server CHALLENGE.
 --------------------------------------------------------------------------
-0x000a  PEERID      4           ID of a peer currently logged into the
+0x0005  SIGNATURE   1..KEY_MAX  #TODO:
+--------------------------------------------------------------------------
+0x0008  TTL         8           Timespan in nanoseconds during which a
+                                message can be considered valid.
+--------------------------------------------------------------------------
+0x0010  PEERID      8           ID of a peer currently logged into the
                                 server. This ID is dynamically assigned
                                 for each session.
 --------------------------------------------------------------------------
-0x000b  PEERNAME    1..NAME_MAX Null-terminated UTF-8 encoded character
+0x0011  PEERNAME    1..NAME_MAX Null-terminated UTF-8 encoded character
                                 string representing the friendly name
                                 associated with the user identified by
                                 the preceding PEERID.
 --------------------------------------------------------------------------
-0x0021  OFFERID     4           ID assigned to an individual offer. Used 
-                                in every transaction and exchange related 
-                                to that offer.
+0x0021  OFFERID     8           ID assigned to an offer. Used in every
+                                transaction exchange related to that
+                                individual offer.
 --------------------------------------------------------------------------
 0x0022  FILENAME    1..PATH_MAX Null-terminated UTF-8 encoded character
                                 string representing the name of the file
                                 that is offered or requested.
 --------------------------------------------------------------------------
-0x0023  SIZE        8           64 bit size in octets of the file offered, 
+0x0023  SIZE        8           64 bit size in octets of the file offered,
                                 or length of a range requested.
 --------------------------------------------------------------------------
-0x0024  MD5         16          MD5 checksum of the file. This is not a
+0x0024  MD5         16          MD5 checksum of a file. This is not a
                                 security measure, but solely intended to
                                 provide a way to easily detect accidental
                                 file corruption!
@@ -337,21 +374,28 @@ Type    Name        Lengths     Description
                                 value shall be less than or equal to the
                                 requested range in octets.
 --------------------------------------------------------------------------
-0x0041  ERROR       4           Numerical code to specify an actual error
+0x0041  OK          0           Used in simple affirmative responses, e.g.
+                                upon successful authentication, or receipt
+                                of a file offer.
+--------------------------------------------------------------------------
+0x0042  ERROR       8           Numerical code to specify an actual error
                                 condition.
 --------------------------------------------------------------------------
-0x0042  NOTICE      1..TEXT_MAX Null-terminated UTF-8 encoded character
+0x0043  NOTICE      1..TEXT_MAX Null-terminated UTF-8 encoded character
                                 string of arbitrary human readable text,
                                 Either as informative part of a PING
                                 message, or as textual description of the
                                 error code specified in an error response.
 --------------------------------------------------------------------------
 
-Symbolic constants used:
+Symbolic constants used above:
 
 NAME_MAX := 32
     Maximum length in octets of a user name, including the terminating
     null character.
+
+KEY_MAX  := 8192
+    Maximum length in octets of a cryptographic key or signature.
 
 PATH_MAX := 4096
     Maximum length in octets of a file name, including the terminating
@@ -374,13 +418,19 @@ TEXT_MAX := 1024
 
 ///////////////////////////////////////////////
 
+#TODO:
+
+ * REGISTER message type
+ * describe broadcast offers and related server-side offer caching
+ * ...
+
 /
 | Message Digest SHA-256
 | --------------
 | Eight 32-bit words containing the SHA-256 message digest, computed
 | over the entire message up to but excluding the message digest field
 | itself, i.e. the message header, message payload and padding, if any.
-|    [TODO: move to payload as an attribute?]
+|    [#TODO: move to payload as an attribute?]
 \
 
 
