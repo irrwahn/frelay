@@ -149,7 +149,9 @@ extern int mhdr_decode( mbuf_t *m );
 extern int mhdr_encode( mbuf_t *m );
 
 #ifdef DEBUG
-extern void mhdr_dump( mbuf_t *m );
+    extern void mhdr_dump( mbuf_t *m );
+#else
+    #define mhdr_dump(...)
 #endif
 
 #endif /* ndef _H_INCLUDED */

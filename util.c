@@ -35,30 +35,37 @@
 
 #include <time.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "util.h"
 
 
-uint32_t new_id( enum ID_TYPE id_type )
+int set_nonblocking( int fd )
 {
-    static int init = 0;
-    static uint32_t id[NUM_ID];
-    
-    if ( 0 > id_type || NUM_ID <= id_type )
+    int flags;
+
+    if ( 0 > ( flags = fcntl( fd, F_GETFL ) ) )
         return -1;
-    if ( !init )
-    {
-        srand( time( NULL ) );
-        for ( int i = 0; i < NUM_ID; ++i )
-            id[i] = rand();
-        init = 1;
-    }
-    ++id[id_type];
-    if ( 0xFFFF == id[id_type] || 0 == id[id_type] )
-        id[id_type] = 2;
-    return id[id_type];
+    flags = (unsigned)flags | O_NONBLOCK;
+    return -1 == fcntl( fd, F_SETFL, flags ) ? -1 : 0;
 }
 
+#ifdef DEBUG
+int drain_fd( int fd )
+{
+    int r;
+    char buf[10000];
 
+    r = read( fd, buf, sizeof buf );
+    return_if( 0 > r, -1, "read(%d) tripped: %m.\n", fd );
+    return_if( 0 == r, 0, "read(%d): remote station disconnected.\n", fd );
+    buf[r] = '\0';
+    fputs( buf, stderr );
+    DLOG( "Drained %d bytes from %d.\n", r, fd );
+    return r;
+}
+#endif
 
 
 /* EOF */

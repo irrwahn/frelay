@@ -40,16 +40,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-enum ID_TYPE { 
-    USER_ID, 
-    TRANS_ID, 
-    EXCHG_ID, 
-    /* add more here */
-    NUM_ID 
-};
-
-extern uint32_t new_id( enum ID_TYPE id_type );
-
 
 #ifdef DUMB_LOGGER
     #define XLOG_INIT(S)
@@ -92,6 +82,13 @@ extern uint32_t new_id( enum ID_TYPE id_type );
                 XLOG( LOG_WARNING, __VA_ARGS__ ); \
                 return (retval); \
             } } while(0)
+
+
+
+extern int set_nonblocking( int fd );
+#ifdef DEBUG
+extern int drain_fd( int fd );
+#endif
 
 
 #endif /* ndef _H_INCLUDED */

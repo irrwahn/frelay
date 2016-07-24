@@ -1,5 +1,5 @@
 ##
-## Makefile for project: frelay
+## Makefile for project: frelay utility library
 ##
 ## Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
 ##
@@ -33,74 +33,37 @@
 ##
 
 
-PROJECT := frelay
+PROJECT := libfrutil.a
 
-export CC      := gcc
-export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -O2 -I./lib -MMD -MP
-ifeq    ($(DEBUG),1)
-	CFLAGS  += -g3 -pg -DDEBUG
-	STRIP   := @:
-else
-	STRIP   := strip
-endif
+CC      ?= gcc
+CFLAGS  += -I.
 
-LD      := $(CC)
-LIBDIR  := ./lib
-LIBS    := -lfrutil
-LDFLAGS := -L$(LIBDIR)
-
+AR      := ar -rs
+STRIP   := strip
 RM      := rm -f
 
-COMSRC  := message.c util.c
-
-SRVBIN  := $(PROJECT)srv
-SRVSRC  := server.c $(COMSRC)
-SRVOBJ  := $(SRVSRC:%.c=%.o)
-SRVDEP  := $(SRVOBJ:%.o=%.d)
-
-CLTBIN  := $(PROJECT)clt
-CLTSRC  := client.c  $(COMSRC)
-CLTOBJ  := $(CLTSRC:%.c=%.o)
-CLTDEP  := $(CLTOBJ:%.o=%.d)
-
+LIB     := $(PROJECT)
+SRC     := $(wildcard *.c)
+OBJ     := $(SRC:%.c=%.o)
+DEP     := $(OBJ:%.o=%.d)
 SELF    := $(lastword $(MAKEFILE_LIST))
 
 
-.PHONY: all lib clean distclean
+.PHONY: all clean distclean
 
-all: $(SRVBIN) $(CLTBIN)
+all: $(LIB)
 
-$(SRVBIN): $(SRVOBJ) $(SELF) lib
-	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
-	$(STRIP) $(SRVBIN)
+$(LIB): $(OBJ) $(SELF)
+	$(AR) $(LIB) $(OBJ)
 
-$(CLTBIN): $(CLTOBJ) $(SELF) lib
-	$(LD) $(LDFLAGS) $(CLTOBJ) $(LIBS) -o $(CLTBIN)
-	$(STRIP) $(CLTBIN)
-
-$(SRVOBJ): srvcfg.h
-
-$(CLTOBJ): cltcfg.h
-
-lib:
-	$(MAKE) -C $(LIBDIR)
-
-%.o: %.c $(SELF) config.h
+%.o: %.c $(SELF)
 	$(CC) -c $(CFLAGS) -o $*.o $*.c
 
-srvcfg.h: srvcfg.def.h
-	cp $< $@
-
-cltcfg.h: cltcfg.def.h
-	cp $< $@
-
 clean:
-	$(MAKE) -C $(LIBDIR) $@
-	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) $(DEP)
+	$(RM) $(LIB) $(OBJ) $(DEP)
 
 distclean: clean
-	$(MAKE) -C $(LIBDIR) $@
-	$(RM) srvcfg.h cltcfg.h *.d
+	$(RM) *.o *.d
 
 -include $(DEP)
 
