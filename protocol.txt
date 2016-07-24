@@ -193,7 +193,7 @@ REGISTER
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0001              0x0002              0x000a
+Message type    0x0011              0x0012              0x001a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   USERNAME, PUBKEY    OK                  ERROR
 Opt. Attrib.                        -                   NOTICE
@@ -205,7 +205,7 @@ LOGIN
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0011              0x0012              0x001a
+Message type    0x0021              0x0022              0x002a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   USERNAME            CHALLENGE           ERROR
 Opt. Attrib.                        -                   NOTICE
@@ -217,7 +217,7 @@ AUTH
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0021              0x0022              0x002a
+Message type    0x0031              0x0032              0x003a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   DIGEST              OK                  ERROR
 Opt. Attrib.                        NOTICE              NOTICE

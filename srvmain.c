@@ -1,5 +1,5 @@
 /*
- * server.c
+ * srvmain.c
  *
  * Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
  *
@@ -36,6 +36,7 @@
 #define _POSIX_C_SOURCE 201112L
 
 #include <errno.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,6 +63,13 @@
 #include "util.h"
 
 
+enum CLT_STATE {
+    CLT_INVALID = 0,
+    CLT_CONNECTED,
+    CLT_LOGIN_OK,
+    CLT_AUTH_OK
+};
+
 /* Client structure type */
 typedef
     struct CLIENT_T_STRUCT
@@ -71,7 +79,8 @@ struct CLIENT_T_STRUCT {
     int fd;                     /* client socket file descriptor  */
     socklen_t addrlen;          /* client remote address length */
     struct sockaddr_in addr;    /* client remote address */
-    uint32_t id;                /* client id */
+    uint64_t id;                /* client id */
+    enum CLT_STATE st;          /* client state */
     time_t act;                 /* time of last activity (s since epoch) */
     mbuf_t *rbuf;               /* receive buffer */
     mbuf_t *qhead, *qtail;      /* send buffer queue pointers */
@@ -162,8 +171,8 @@ static int init_server( client_t **clients )
         else
         {   /* all went well */
             struct sockaddr_in *ain = (struct sockaddr_in *)ai->ai_addr;
-            XLOG( LOG_INFO, "Server bound to interface %s (%hu).\n",
-                    inet_ntoa( ain->sin_addr ), ain->sin_port );
+            XLOG( LOG_INFO, "Server bound to interface %s.\n",
+                    inet_ntoa( ain->sin_addr ) );
             break;
         }
     }
@@ -183,6 +192,8 @@ static int close_client( client_t *cp, fd_set *m_rfds, fd_set *m_wfds )
     FD_CLR( cp->fd, m_wfds );
     close( cp->fd );
     cp->fd = -1;
+    cp->id = 0ULL;
+    cp->st = CLT_INVALID;
     mbuf_free( &cp->rbuf );
     for ( mbuf_t *qp = cp->qhead, *next; qp; qp = next )
     {
@@ -230,7 +241,8 @@ static int accept_client( client_t *clients, int lfd, int *pmaxfd, fd_set *m_rfd
     clients[i].fd = fd;
     clients[i].addrlen = addrlen;
     clients[i].addr = addr;
-    /* TODO: assign unique id. */
+    clients[i].id = 0ULL;  /* Set upon successful authentication! */
+    clients[i].st = CLT_CONNECTED;
     clients[i].act = time( NULL );
     clients[i].rbuf = NULL;
     clients[i].qhead = NULL;
@@ -292,19 +304,100 @@ static int upkeep( client_t *clients, int *maxfd, fd_set *m_rfds, fd_set *m_wfds
     return 0;
 }
 
-static int process_message( mbuf_t *m )
+static int process_server_msg( client_t *c, int c_idx, fd_set *m_wfds )
 {
-    DLOG("\n");
-    mhdr_dump( m );
-
-    /* TODO: move message directed at client to its send queue,
-        or handle message directed at server, respectively. */
-
-    mbuf_free( &m ); // for the time being
-    return 0;
+    switch ( c[c_idx].rbuf->hdr.type )
+    {
+    case MSG_TYPE_REGISTER_REQ:
+    case MSG_TYPE_LOGIN_REQ:
+    case MSG_TYPE_AUTH_REQ:  
+    case MSG_TYPE_PEERLIST_REQ:
+    case MSG_TYPE_PING_IND:
+    case MSG_TYPE_PING_REQ:           
+        DLOG( "TODO: process message directed at server.\n" );
+            (void)c_idx; (void)m_wfds; mbuf_free( &c[c_idx].rbuf );//REMOVE THIS LATER!
+        return 0;
+        break;
+    // Anything else is nonsense
+    default: 
+        break;
+    }
+    DLOG( "TODO: message type 0x%04x not understood by server.\n", c[c_idx].rbuf->hdr.type );
+    return -1;
 }
 
-static int handle_clients( client_t *clients, int nset,
+static int process_broadcast_msg( client_t *c, int c_idx, fd_set *m_wfds )
+{
+    DLOG( "TODO: implement processing of broadcast messages.\n" );
+    (void)c;
+    (void)c_idx;
+    (void)m_wfds;
+    return -1;
+}
+
+static int process_forward_msg( client_t *c, int c_idx, fd_set *m_wfds )
+{
+    int i;
+    
+    for ( i = 0; i < cfg.max_clients; ++i )
+    {
+        if ( 0 <= c[i].fd 
+            && CLT_AUTH_OK == c[i].st
+            && c[c_idx].rbuf->hdr.dstid == c[i].id )
+            break;
+    }
+    if ( i == cfg.max_clients )
+    {
+        DLOG( "TODO: process messages directed at invalid or unknown client.\n" );
+        return -1;
+    }
+    switch ( c[c_idx].rbuf->hdr.type )
+    {
+    case MSG_TYPE_OFFER_IND:
+    case MSG_TYPE_OFFER_REQ:  
+    case MSG_TYPE_OFFER_RES:  
+    case MSG_TYPE_OFFER_ERR:  
+    case MSG_TYPE_GETFILE_REQ:
+    case MSG_TYPE_GETFILE_RES:
+    case MSG_TYPE_GETFILE_ERR:
+    case MSG_TYPE_PING_IND:
+    case MSG_TYPE_PING_REQ:   
+    case MSG_TYPE_PING_RES:   
+    case MSG_TYPE_PING_ERR:   
+        DLOG( "TODO: Add message to clients[%d] send queue, and add client to m_wfds.\n", i );
+            (void)m_wfds; (void)c_idx; mbuf_free( &c[c_idx].rbuf );//REMOVE THIS LATER!
+        return 0;
+        break;
+    // Anything else is nonsense
+    default: 
+        break;
+    }
+    DLOG( "TODO: message type not suited for destination.\n" );
+    return -1;
+}
+
+static int process_msg( client_t *c, int c_idx, fd_set *m_wfds )
+{
+    int r;
+    
+    DLOG("\n");
+    mhdr_dump( c[c_idx].rbuf );
+
+    DLOG( "TODO: fill in *real* source ID.\n" );
+    c[c_idx].id = c[c_idx].rbuf->hdr.srcid;
+    
+    if ( 0ULL == c[c_idx].rbuf->hdr.dstid )
+        r = process_server_msg( c, c_idx, m_wfds );
+    else if ( 0xFFFFFFFFFFFFFFFFULL == c[c_idx].rbuf->hdr.dstid )
+        r = process_broadcast_msg( c, c_idx, m_wfds );
+    else
+        r = process_forward_msg( c, c_idx, m_wfds );
+    if ( 0 != r )
+        mbuf_free( &c[c_idx].rbuf );
+    return r;
+}
+
+static int handle_clients( client_t *c, int nset,
             fd_set *rfds, fd_set *wfds, fd_set *m_rfds, fd_set *m_wfds )
 {
     int i, r;
@@ -312,34 +405,32 @@ static int handle_clients( client_t *clients, int nset,
 
     for ( i = 0; i < cfg.max_clients && 0 < nset; ++i )
     {
-        client_t *cp = &clients[i];
-
-        if ( 0 > cp->fd )
+        if ( 0 > c[i].fd )
             continue;
 
         /* Handle fds ready for reading. */
-        if ( FD_ISSET( cp->fd, rfds ) )
+        if ( FD_ISSET( c[i].fd, rfds ) )
         {
             --nset;
             /* Detect message timeouts. */
-            resync_client( &clients[i], now );
+            resync_client( &c[i], now );
             /* Prepare receive buffer. */
-            if ( NULL == cp->rbuf )
-                cp->rbuf = mbuf_new();
-            cp->act = now;
+            if ( NULL == c[i].rbuf )
+                c[i].rbuf = mbuf_new();
+            c[i].act = now;
 
-            if ( cp->rbuf->boff < cp->rbuf->bsize )
+            if ( c[i].rbuf->boff < c[i].rbuf->bsize )
             {   /* Message buffer not yet filled. */
                 errno = 0;
-                r = read( cp->fd, cp->rbuf->b + cp->rbuf->boff,
-                            cp->rbuf->bsize - cp->rbuf->boff );
+                r = read( c[i].fd, c[i].rbuf->b + c[i].rbuf->boff,
+                            c[i].rbuf->bsize - c[i].rbuf->boff );
                 if ( 0 > r )
                 {
                     if ( EAGAIN != errno
                         && EWOULDBLOCK != errno && EINTR != errno )
                     {
                         XLOG( LOG_ERR, "read() failed: %m.\n" );
-                        close_client( cp, m_rfds, m_wfds );
+                        close_client( &c[i], m_rfds, m_wfds );
                         continue;
                     }
                     goto SKIP_TO_WRITE;
@@ -347,36 +438,37 @@ static int handle_clients( client_t *clients, int nset,
                 if ( 0 == r )
                 {
                     DLOG( "Client closed connection.\n" );
-                    close_client( cp, m_rfds, m_wfds );
+                    close_client( &c[i], m_rfds, m_wfds );
                     continue;
                 }
-                DLOG( "%d bytes received from %d\n", r, cp->fd );
-                cp->rbuf->boff += r;
+                DLOG( "%d bytes received from %d\n", r, c[i].fd );
+                c[i].rbuf->boff += r;
             }
-            if ( cp->rbuf->boff == cp->rbuf->bsize )
+            if ( c[i].rbuf->boff == c[i].rbuf->bsize )
             {   /* Buffer filled. */
-                if ( cp->rbuf->boff == MSG_HDR_SIZE )
+                if ( c[i].rbuf->boff == MSG_HDR_SIZE )
                 {   /* Only received header yet. */
-                    mhdr_decode( cp->rbuf );
-                    if ( cp->rbuf->hdr.paylen > 0 )
+                    mhdr_decode( c[i].rbuf );
+                    if ( c[i].rbuf->hdr.paylen > 0 )
                     {   /* Prepare for receiving payload next. */
-                        DLOG( "Grow message buffer by %lu.\n", cp->rbuf->hdr.paylen );
-                        mbuf_resize( &cp->rbuf, cp->rbuf->hdr.paylen );
+                        DLOG( "Grow message buffer by %lu.\n", c[i].rbuf->hdr.paylen );
+                        mbuf_resize( &c[i].rbuf, c[i].rbuf->hdr.paylen );
                     }
+                    DLOG( "Expecting %"PRIu16" bytes of payload data.\n", c[i].rbuf->hdr.paylen );
                 }
-                if ( cp->rbuf->boff == cp->rbuf->bsize )
-                {   /* Message _still_ complete, process it. */
-                    process_message( cp->rbuf );
-                    cp->rbuf = NULL;
+                if ( c[i].rbuf->boff == c[i].rbuf->bsize )
+                {   /* Payload data complete. */
+                    process_msg( c, i, m_wfds );                    
+                    c[i].rbuf = NULL;
                 }
             }
         }
     SKIP_TO_WRITE:
         /* Handle fds ready for writing. */
-        if ( FD_ISSET( clients[i].fd, wfds ) )
+        if ( FD_ISSET( c[i].fd, wfds ) )
         {
             --nset;
-            clients[i].act = time( NULL );
+            c[i].act = time( NULL );
             /* TODO: write to fd from client's send queue,
                remove fd from m_wfds once queue runs empty. */
         }

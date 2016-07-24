@@ -39,9 +39,8 @@ export CC      := gcc
 export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -O2 -I./lib -MMD -MP
 ifeq    ($(DEBUG),1)
 	CFLAGS  += -g3 -pg -DDEBUG
-	STRIP   := @:
 else
-	STRIP   := strip
+	CFLAGS  += -s
 endif
 
 LD      := $(CC)
@@ -54,12 +53,12 @@ RM      := rm -f
 COMSRC  := message.c util.c
 
 SRVBIN  := $(PROJECT)srv
-SRVSRC  := server.c $(COMSRC)
+SRVSRC  := srvmain.c $(COMSRC)
 SRVOBJ  := $(SRVSRC:%.c=%.o)
 SRVDEP  := $(SRVOBJ:%.o=%.d)
 
 CLTBIN  := $(PROJECT)clt
-CLTSRC  := client.c  $(COMSRC)
+CLTSRC  := cltmain.c  $(COMSRC)
 CLTOBJ  := $(CLTSRC:%.c=%.o)
 CLTDEP  := $(CLTOBJ:%.o=%.d)
 
@@ -72,11 +71,9 @@ all: $(SRVBIN) $(CLTBIN)
 
 $(SRVBIN): $(SRVOBJ) $(SELF) lib
 	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
-	$(STRIP) $(SRVBIN)
 
 $(CLTBIN): $(CLTOBJ) $(SELF) lib
 	$(LD) $(LDFLAGS) $(CLTOBJ) $(LIBS) -o $(CLTBIN)
-	$(STRIP) $(CLTBIN)
 
 $(SRVOBJ): srvcfg.h
 

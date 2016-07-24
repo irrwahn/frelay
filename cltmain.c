@@ -1,5 +1,5 @@
 /*
- * client.c
+ * cltmain.c
  *
  * Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
  *

@@ -105,12 +105,59 @@ defines __linux__ but provides the OpenBSD API. Go figure.
 #define HDR_SET_TRID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_TRID)  =(uint64_t)(V))
 #define HDR_SET_EXID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_EXID)  =(uint64_t)(V))
 
-/* Message types. */
-// TODO
 
-/* Attribute types. */
-// TODO
+/* Message types. (invalid commented out) */
+enum HDR_MSG_TYPE {
+    MSG_TYPE_REGISTER_IND   = 0x0010,
+    MSG_TYPE_REGISTER_REQ   = 0x0011,
+    MSG_TYPE_REGISTER_RES   = 0x0012,
+    MSG_TYPE_REGISTER_ERR   = 0x001a,
+    MSG_TYPE_LOGIN_IND      = 0x0020,
+    MSG_TYPE_LOGIN_REQ      = 0x0021,
+    MSG_TYPE_LOGIN_RES      = 0x0022,
+    MSG_TYPE_LOGIN_ERR      = 0x002a,
+    MSG_TYPE_AUTH_IND       = 0x0030,
+    MSG_TYPE_AUTH_REQ       = 0x0031,
+    MSG_TYPE_AUTH_RES       = 0x0032,
+    MSG_TYPE_AUTH_ERR       = 0x003a,
+    MSG_TYPE_PEERLIST_IND   = 0x0040,
+    MSG_TYPE_PEERLIST_REQ   = 0x0041,
+    MSG_TYPE_PEERLIST_RES   = 0x0042,
+    MSG_TYPE_PEERLIST_ERR   = 0x004a,
+    MSG_TYPE_OFFER_IND      = 0x0110,
+    MSG_TYPE_OFFER_REQ      = 0x0111,
+    MSG_TYPE_OFFER_RES      = 0x0112,
+    MSG_TYPE_OFFER_ERR      = 0x011a,
+    MSG_TYPE_GETFILE_IND    = 0x0120,
+    MSG_TYPE_GETFILE_REQ    = 0x0121,
+    MSG_TYPE_GETFILE_RES    = 0x0122,
+    MSG_TYPE_GETFILE_ERR    = 0x012a,
+    MSG_TYPE_PING_IND       = 0x0200,
+    MSG_TYPE_PING_REQ       = 0x0201,
+    MSG_TYPE_PING_RES       = 0x0202,
+    MSG_TYPE_PING_ERR       = 0x020a,
+};
 
+/* Attributes. */
+enum HDR_MSG_ATTRIB {
+    MSG_ATTR_USERNAME   = 0x0001,
+    MSG_ATTR_PUBKEY     = 0x0002,
+    MSG_ATTR_CHALLENGE  = 0x0003,
+    MSG_ATTR_DIGEST     = 0x0004,
+    MSG_ATTR_SIGNATURE  = 0x0005,
+    MSG_ATTR_TTL        = 0x0008,
+    MSG_ATTR_PEERID     = 0x0010,
+    MSG_ATTR_PEERNAME   = 0x0011,
+    MSG_ATTR_OFFERID    = 0x0021,
+    MSG_ATTR_FILENAME   = 0x0022,
+    MSG_ATTR_SIZE       = 0x0023,
+    MSG_ATTR_MD5        = 0x0024,
+    MSG_ATTR_OFFSET     = 0x0025,
+    MSG_ATTR_DATA       = 0x0026,
+    MSG_ATTR_OK         = 0x0041,
+    MSG_ATTR_ERROR      = 0x0042,
+    MSG_ATTR_NOTICE     = 0x0043,
+};
 
 
 typedef
