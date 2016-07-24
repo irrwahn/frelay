@@ -81,11 +81,12 @@ int mhdr_decode( mbuf_t *m )
     return_if( !m || !m->b || m->boff < MSG_HDR_SIZE, -1, "Invalid parameter.\n" );
     m->hdr.type   = HDR_GET_TYPE( m->b );
     m->hdr.paylen = HDR_GET_PAYLEN( m->b );
+    m->hdr.rfu    = HDR_GET_RFU( m->b );
+    m->hdr.ts     = HDR_GET_TS( m->b );
     m->hdr.srcid  = HDR_GET_SRCID( m->b );
     m->hdr.dstid  = HDR_GET_DSTID( m->b );
     m->hdr.trid   = HDR_GET_TRID( m->b );
     m->hdr.exid   = HDR_GET_EXID( m->b );
-    m->hdr.flags  = HDR_GET_FLAGS( m->b );
     return 0;
 }
 
@@ -94,14 +95,34 @@ int mhdr_encode( mbuf_t *m )
     return_if( !m || !m->b || m->bsize < MSG_HDR_SIZE, -1, "Invalid parameter.\n" );
     HDR_SET_TYPE( m->b, m->hdr.type );
     HDR_SET_PAYLEN( m->b, m->hdr.paylen );
+    HDR_SET_RFU( m->b, m->hdr.rfu );
+    HDR_SET_TS( m->b, m->hdr.ts );
     HDR_SET_SRCID( m->b, m->hdr.srcid );
     HDR_SET_DSTID( m->b, m->hdr.dstid );
     HDR_SET_TRID( m->b, m->hdr.trid );
     HDR_SET_EXID( m->b, m->hdr.exid );
-    HDR_SET_FLAGS( m->b, m->hdr.flags );
     return 0;
 }
 
-
+#ifdef DEBUG
+#include <inttypes.h>
+extern void mhdr_dump( mbuf_t *m )
+{
+    DLOG( "Header:\n" );
+    DLOG( "Type  : %04"PRIX16"\n", m->hdr.type );
+    DLOG( "Paylen: %04"PRIX16"\n", m->hdr.paylen );
+    DLOG( "Rfu   : %08"PRIX32"\n", m->hdr.rfu );
+    DLOG( "Ts    : %016"PRIX64"\n", m->hdr.ts );
+    DLOG( "SrcID : %016"PRIX64"\n", m->hdr.srcid );
+    DLOG( "DstID : %016"PRIX64"\n", m->hdr.dstid );
+    DLOG( "TrID  : %016"PRIX64"\n", m->hdr.trid );
+    DLOG( "ExID  : %016"PRIX64"\n", m->hdr.exid );
+    if ( 0 != m->hdr.paylen )
+    {
+        DLOG( "Payload:\n" );
+        DLOGHEX( m->b + MSG_HDR_SIZE, m->hdr.paylen, 8 );
+    }
+}
+#endif
 
 /* EOF */

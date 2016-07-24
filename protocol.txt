@@ -67,7 +67,7 @@ transmitted in network byte order, i.e. MSB first.
        6         5          4          3         2          1
 B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
    +----------------+----------------+----------------+----------------+
- 0 |  Message Type  | Payload Length |          Option Flags           |
+ 0 |  Message Type  | Payload Length |            Reserved             |
    +----------------+----------------+----------------+----------------+
  8 |                             Timestamp                             |
    +----------------+----------------+----------------+----------------+
@@ -121,13 +121,11 @@ plus some additional management data into one single 64KiB chunk of
 memory.
 
 
-Option Flags
-------------
-32 bits reserved for future use as flags to specify various message
-properties or protocol options. Undefined flags  shall be set to zero
-by the sender of a message and shall be ignored by the recipient.
-Currently no option flags are defined.
-#TODO: define flags for encryption, compression, ...?
+Reserved
+--------
+32 bits reserved for future use as e.g. option flags or version tag.
+For the time being these shall be set to zero by the sender of a message
+and shall be ignored by the recipient.
 
 
 Timestamp
@@ -229,6 +227,9 @@ PEERLIST
 --------
 #TODO: description
 
+#CONSIDER: server uses unsolicited indication to inform client about
+           changes (peers appearing, others disconnecting)?
+
 More than one peer may be included in a single response.
 
                 Request             Response            Error Response
@@ -270,12 +271,12 @@ PING
 -------
 #TODO: description
 
-The optional NOTICE attribute may be used for the chat-like exchange of
-text messages between clients.
+The optional NOTICE attribute may be used for chat-like exchange of text
+messages between clients.
 
-                Request             Response            Error Response
+                Indication|Request Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0201              0x0202              0x020a
+Message type    0x0200|0x0201       0x0202              0x020a
 Direction       Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv
 Mand. Attrib.   -                   OK                  ERROR
 Opt. Attrib.    NOTICE              NOTICE              NOTICE
@@ -302,13 +303,14 @@ a list of defined attributes.
 
 It is followed by a 16-bit unsigned integer to specify the number of
 value octets. Depending on the type of the this length may be any number
-between 0 and 65500. The value field however is always padded to the
+between 0 and 65400. The value field however is always padded to the
 next 64-bit boundary. The value of padding bits is not specified, and it
 must be ignored, except it shall be included in, and thus affect the
 result of, any message SIGNATURE computation.
 
-The next 32 bits are reserved for future use as option flags to go with
-the individual attribute. They shall be set to zero for the time being.
+The next 32 bits are reserved for future use as e.g. option flags or
+version tag. For the time being these shall be set to zero by the sender
+of a message and shall be ignored by the recipient.
 
 The order in which attributes appear in a message matters. For example,
 any SIZE, NAME or MD5 attributes must immediately follow the OFFER

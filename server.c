@@ -247,7 +247,7 @@ static int resync_client( client_t *cp, time_t now )
     /* Detect message timeouts (gaps). */
     if ( NULL != cp->rbuf && now - cp->act > cfg.msg_timeout )
     {
-        DLOG( "Message gap detected, resynching.\n" );
+        DLOG( "Intra-message gap detected, resynching.\n" );
         mbuf_free( &cp->rbuf );
         return 1;
     }
@@ -295,23 +295,8 @@ static int upkeep( client_t *clients, int *maxfd, fd_set *m_rfds, fd_set *m_wfds
 
 static int process_message( mbuf_t *m )
 {
-    DLOG( "type  : %u\n", m->hdr.type );
-    DLOG( "paylen: %u\n", m->hdr.paylen );
-    DLOG( "srcid : %x\n", m->hdr.srcid );
-    DLOG( "dstid : %x\n", m->hdr.dstid );
-    DLOG( "trid  : %x\n", m->hdr.trid );
-    DLOG( "exid  : %x\n", m->hdr.exid );
-    DLOG( "flags : %x\n", m->hdr.flags );
-    
-    if ( 0 == m->hdr.paylen )
-    {   
-        DLOG( "Message without payload, ignored.\n" );
-        mbuf_free( &m );
-        return 0;
-    }
-
-    DLOG( "Payload:\n" );
-    DLOGHEX( m->b + MSG_HDR_SIZE, m->hdr.paylen, 4 );
+    DLOG("\n");
+    mhdr_dump( m );
 
     /* TODO: move message directed at client to its send queue,
         or handle message directed at server, respectively. */
@@ -347,11 +332,11 @@ static int handle_clients( client_t *clients, int nset,
             if ( cp->rbuf->boff < cp->rbuf->bsize )
             {   /* Message buffer not yet filled. */
                 errno = 0;
-                r = read( cp->fd, cp->rbuf->b + cp->rbuf->boff, 
+                r = read( cp->fd, cp->rbuf->b + cp->rbuf->boff,
                             cp->rbuf->bsize - cp->rbuf->boff );
                 if ( 0 > r )
                 {
-                    if ( EAGAIN != errno 
+                    if ( EAGAIN != errno
                         && EWOULDBLOCK != errno && EINTR != errno )
                     {
                         XLOG( LOG_ERR, "read() failed: %m.\n" );

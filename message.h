@@ -37,73 +37,80 @@
 #define MESSAGE_H_INCLUDED
 
 
-#include <stdlib.h>
-#include <stdint.h>
+/* Sigh. There's a POSIX standard for everything except the most useful 
+things. The following is a cheap attempt at making the code at least 
+somewhat portable. It however reportedly breaks on Android, which 
+defines __linux__ but provides the OpenBSD API. Go figure.
+*/
+#define _DEFAULT_SOURCE
+#if defined(__linux__)
+    #include <endian.h>
+#elif defined(__FreeBSD__) || defined(__NetBSD__)
+    #include <sys/endian.h>
+#elif defined(__OpenBSD__)
+    #include <sys/types.h>
+    #define be16toh(x) betoh16(x)
+    #define be32toh(x) betoh32(x)
+    #define be64toh(x) betoh64(x)
+#endif
 
-#include <arpa/inet.h>  /* ntohs and friends */
+#include <stdint.h>
+#include <stdlib.h>
 
 #include "util.h"
 
-
 /* Size constants. */
-#define MSG_HDR_SIZE        20
-#define MSG_MAX_PAY_SIZE    65000
+#define MSG_HDR_SIZE        48
+#define MSG_MAX_PAY_SIZE    65400
 #define MSG_MAX_SIZE        (MSG_HDR_SIZE + MSG_MAX_PAY_SIZE)
 
-/* Convert raw data at word-offset W from buffer P to host-order
-   32-bit unsigned. */
 
-
+/* Network byte <--> host byte order conversion. */
 #define ADDOFF(P,B)         (((uint8_t *)(P))+(B))
-
-#define NTOH16(P,B)         ntohs( *(uint16_t *)ADDOFF(P,B) )
-#define NTOH32(P,B)         ntohl( *(uint32_t *)ADDOFF(P,B) )
-
-#define HTON16(V)           htons( V )
-#define HTON32(V)           htonl( V )
+#define NTOH16(P,B)         be16toh( *(uint16_t *)ADDOFF(P,B) )
+#define NTOH32(P,B)         be32toh( *(uint32_t *)ADDOFF(P,B) )
+#define NTOH64(P,B)         be64toh( *(uint64_t *)ADDOFF(P,B) )
+#define HTON16(V)           htobe16( V )
+#define HTON32(V)           htobe32( V )
+#define HTON64(V)           htobe64( V )
 
 
 /* Byte offsets of header fields. */
 #define HDR_OFF_TYPE        0
 #define HDR_OFF_PAYLEN      2
-#define HDR_OFF_SRCID       4
-#define HDR_OFF_DSTID       8
-#define HDR_OFF_TRID        12
-#define HDR_OFF_EXID        14
-#define HDR_OFF_FLAGS       16
+#define HDR_OFF_RFU         4       
+#define HDR_OFF_TS          8
+#define HDR_OFF_SRCID       16
+#define HDR_OFF_DSTID       24
+#define HDR_OFF_TRID        32
+#define HDR_OFF_EXID        40
 
 /* Macros to get individual header fields from a raw message. */
 #define HDR_GET_TYPE(P)     NTOH16(P,HDR_OFF_TYPE)
 #define HDR_GET_PAYLEN(P)   NTOH16(P,HDR_OFF_PAYLEN)
-#define HDR_GET_SRCID(P)    NTOH32(P,HDR_OFF_SRCID)
-#define HDR_GET_DSTID(P)    NTOH32(P,HDR_OFF_DSTID)
-#define HDR_GET_TRID(P)     NTOH16(P,HDR_OFF_TRID)
-#define HDR_GET_EXID(P)     NTOH16(P,HDR_OFF_EXID)
-#define HDR_GET_FLAGS(P)    NTOH32(P,HDR_OFF_FLAGS)
+#define HDR_GET_RFU(P)      NTOH32(P,HDR_OFF_RFU)
+#define HDR_GET_TS(P)       NTOH64(P,HDR_OFF_TS)
+#define HDR_GET_SRCID(P)    NTOH64(P,HDR_OFF_SRCID)
+#define HDR_GET_DSTID(P)    NTOH64(P,HDR_OFF_DSTID)
+#define HDR_GET_TRID(P)     NTOH64(P,HDR_OFF_TRID)
+#define HDR_GET_EXID(P)     NTOH64(P,HDR_OFF_EXID)
 
-/* Macros to set individual header fields from host order value. */
+/* Macros to set individual header fields in a raw message. */
 #define HDR_SET_TYPE(P,V)   (*(uint16_t *)ADDOFF(P,HDR_OFF_TYPE)  =(uint16_t)(V))
 #define HDR_SET_PAYLEN(P,V) (*(uint16_t *)ADDOFF(P,HDR_OFF_PAYLEN)=(uint16_t)(V))
-#define HDR_SET_SRCID(P,V)  (*(uint32_t *)ADDOFF(P,HDR_OFF_SRCID) =(uint32_t)(V))
-#define HDR_SET_DSTID(P,V)  (*(uint32_t *)ADDOFF(P,HDR_OFF_DSTID) =(uint32_t)(V))
-#define HDR_SET_TRID(P,V)   (*(uint16_t *)ADDOFF(P,HDR_OFF_TRID)  =(uint16_t)(V))
-#define HDR_SET_EXID(P,V)   (*(uint16_t *)ADDOFF(P,HDR_OFF_EXID)  =(uint16_t)(V))
-#define HDR_SET_FLAGS(P,V)  (*(uint32_t *)ADDOFF(P,HDR_OFF_FLAGS) =(uint32_t)(V))
+#define HDR_SET_RFU(P,V)    (*(uint32_t *)ADDOFF(P,HDR_OFF_RFU)   =(uint32_t)(V))
+#define HDR_SET_TS(P,V)     (*(uint64_t *)ADDOFF(P,HDR_OFF_TS)    =(uint64_t)(V))
+#define HDR_SET_SRCID(P,V)  (*(uint64_t *)ADDOFF(P,HDR_OFF_SRCID) =(uint64_t)(V))
+#define HDR_SET_DSTID(P,V)  (*(uint64_t *)ADDOFF(P,HDR_OFF_DSTID) =(uint64_t)(V))
+#define HDR_SET_TRID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_TRID)  =(uint64_t)(V))
+#define HDR_SET_EXID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_EXID)  =(uint64_t)(V))
+
+/* Message types. */
+// TODO
 
 /* Attribute types. */
-// TODO: sync with protocol.txt !!!
-#define ATT_PING        0x0001
-#define ATT_LIST        0x1001
-#define ATT_USERID      0x1101
-#define ATT_USERNAME    0x1102
-#define ATT_CATALOG     0x2001
-#define ATT_GET         0x2002
-#define ATT_SIZE        0x2003
-#define ATT_OFFSET      0x2004
-#define ATT_OFFER       0x2101
-#define ATT_NAME        0x2102
-#define ATT_MD5         0x2104
-#define ATT_DATA        0x2105
+// TODO
+
 
 
 typedef
@@ -117,11 +124,12 @@ typedef
 struct MHDR_T_STRUCT {
     uint16_t type;
     uint16_t paylen;
-    uint32_t srcid;
-    uint32_t dstid;
-    uint16_t trid;
-    uint16_t exid;
-    uint32_t flags;
+    uint32_t rfu;
+    uint64_t ts;
+    uint64_t srcid;
+    uint64_t dstid;
+    uint64_t trid;
+    uint64_t exid;
 };
 
 struct MBUF_T_STRUCT {
@@ -139,6 +147,10 @@ extern void mbuf_free( mbuf_t **p );
 
 extern int mhdr_decode( mbuf_t *m );
 extern int mhdr_encode( mbuf_t *m );
+
+#ifdef DEBUG
+extern void mhdr_dump( mbuf_t *m );
+#endif
 
 #endif /* ndef _H_INCLUDED */
 
