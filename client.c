@@ -39,7 +39,6 @@
 
 #include "cltcfg.h"
 #include "message.h"
-#include "sockutil.h"
 #include "util.h"
 
 
