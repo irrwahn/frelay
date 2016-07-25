@@ -7,16 +7,20 @@
  * modification, are permitted provided that the following conditions are
  * met:
  *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 
  * * Redistributions of source code must retain the above copyright
  *   notice, this list of conditions and the following disclaimer.
- * * Redistributions in binary form must reproduce the above
- *   copyright notice, this list of conditions and the following disclaimer
+ * * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer
  *   in the documentation and/or other materials provided with the
  *   distribution.
- * * Neither the name of the  nor the names of its
- *   contributors may be used to endorse or promote products derived from
- *   this software without specific prior written permission.
- *
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived
+ *   from this software without specific prior written permission.
+ * 
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -267,7 +271,7 @@ static int resync_client( client_t *cp, time_t now )
     return 0;
 }
 
-static int enq_message( client_t *cp, mbuf_t *m )
+static int enqueue_msg( client_t *cp, mbuf_t *m )
 {
     DLOG( "%p\n", m );
     m->next = NULL;
@@ -279,7 +283,7 @@ static int enq_message( client_t *cp, mbuf_t *m )
     return 0;
 }
 
-static int deq_message( client_t *cp )
+static int dequeue_msg( client_t *cp )
 {
     mbuf_t *next;
 
@@ -333,7 +337,9 @@ static int upkeep( client_t *c, int *maxfd, fd_set *m_rfds, fd_set *m_wfds )
 
 static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
-    switch ( c[i_src].rbuf->hdr.type )
+    uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
+
+    switch ( mtype )
     {
     case MSG_TYPE_REGISTER_REQ:
     case MSG_TYPE_LOGIN_REQ:
@@ -349,7 +355,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
     default: 
         break;
     }
-    DLOG( "TODO: message type 0x%04x not understood by server.\n", c[i_src].rbuf->hdr.type );
+    XLOG( LOG_WARNING, "Message type 0x%04"PRIx16" not understood by server.\n", mtype );
     return -1;
 }
 
@@ -365,12 +371,13 @@ static int process_broadcast_msg( client_t *c, int i_src, fd_set *m_wfds )
 static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     int i_dst;
+    uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
     
     for ( i_dst = 0; i_dst < cfg.max_clients; ++i_dst )
     {
         if ( 0 <= c[i_dst].fd 
             && CLT_AUTH_OK == c[i_dst].st
-            && c[i_src].rbuf->hdr.dstid == c[i_dst].id )
+            && HDR_GET_DSTID( c[i_src].rbuf ) == c[i_dst].id )
             break;
     }
     if ( i_dst == cfg.max_clients )
@@ -378,7 +385,7 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
         DLOG( "TODO: process messages directed at invalid or unknown client.\n" );
         return -1;
     }
-    switch ( c[i_src].rbuf->hdr.type )
+    switch ( mtype )
     {
     case MSG_TYPE_OFFER_IND:
     case MSG_TYPE_OFFER_REQ:  
@@ -391,9 +398,9 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     case MSG_TYPE_PING_REQ:   
     case MSG_TYPE_PING_RES:   
     case MSG_TYPE_PING_ERR:   
-        DLOG( "Add message to c[%d] send queues and add client to m_wfds.\n", i_dst );
+        DLOG( "Add message to c[%d] send queue.\n", i_dst );
         c[i_src].rbuf->boff = 0;
-        enq_message( &c[i_dst], c[i_src].rbuf );
+        enqueue_msg( &c[i_dst], c[i_src].rbuf );
         FD_SET( c[i_dst].fd, m_wfds );
         return 0;
         break;
@@ -401,23 +408,25 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     default: 
         break;
     }
-    DLOG( "TODO: message type not suited for destination.\n" );
+    XLOG( LOG_WARNING, "Message type 0x%04"PRIx16" not suited for destination.\n", mtype );
     return -1;
 }
 
 static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     int r;
+    uint64_t dstid = HDR_GET_DSTID( c[i_src].rbuf );
+    uint64_t srcid = HDR_GET_SRCID( c[i_src].rbuf );
     
     DLOG("\n");
     mhdr_dump( c[i_src].rbuf );
 
     DLOG( "TODO: fill in *real* source ID.\n" );
-    c[i_src].id = c[i_src].rbuf->hdr.srcid;
+    c[i_src].id = srcid;
     
-    if ( 0ULL == c[i_src].rbuf->hdr.dstid )
+    if ( 0ULL == dstid )
         r = process_server_msg( c, i_src, m_wfds );
-    else if ( -1ULL == c[i_src].rbuf->hdr.dstid )
+    else if ( -1ULL == dstid )
         r = process_broadcast_msg( c, i_src, m_wfds );
     else
         r = process_forward_msg( c, i_src, m_wfds );
@@ -478,13 +487,13 @@ static int handle_clients( client_t *c, int nset,
             {   /* Buffer filled. */
                 if ( c[i].rbuf->boff == MSG_HDR_SIZE )
                 {   /* Only received header yet. */
-                    mhdr_decode( c[i].rbuf );
-                    if ( c[i].rbuf->hdr.paylen > 0 )
+                    uint16_t paylen = HDR_GET_PAYLEN( c[i].rbuf );
+                    if ( paylen > 0 )
                     {   /* Prepare for receiving payload next. */
-                        DLOG( "Grow message buffer by %lu.\n", c[i].rbuf->hdr.paylen );
-                        mbuf_resize( &c[i].rbuf, c[i].rbuf->hdr.paylen );
+                        DLOG( "Grow message buffer by %lu.\n", paylen );
+                        mbuf_resize( &c[i].rbuf, paylen );
                     }
-                    DLOG( "Expecting %"PRIu16" bytes of payload data.\n", c[i].rbuf->hdr.paylen );
+                    DLOG( "Expecting %"PRIu16" bytes of payload data.\n", paylen );
                 }
                 if ( c[i].rbuf->boff == c[i].rbuf->bsize )
                 {   /* Payload data complete. */
@@ -526,7 +535,7 @@ static int handle_clients( client_t *c, int nset,
             }
             if ( c[i].qhead->boff == c[i].qhead->bsize )
             {   /* Message sent, remove from queue. */
-                deq_message( &c[i] );
+                dequeue_msg( &c[i] );
                 if ( NULL == c[i].qhead )
                     FD_CLR( c[i].fd, m_wfds );
             }
