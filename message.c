@@ -90,17 +90,14 @@ mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount )
     return mbuf_resize( pp, (*pp)->bsize - MSG_HDR_SIZE + amount );
 }
 
-
-enum AVTYPE {
-    AVTYPE_NONE,
-    AVTYPE_UI64,
-    AVTYPE_STR,
-    AVTYPE_BLOB,
-};
-
 int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
 {
-    enum AVTYPE avtype = AVTYPE_NONE;
+    enum AVTYPE {
+        AVTYPE_NONE,
+        AVTYPE_UI64,
+        AVTYPE_STR,
+        AVTYPE_BLOB,
+    } avtype = AVTYPE_NONE;
     size_t aoff;
     uint8_t *ap;
     va_list arglist;
@@ -125,7 +122,7 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     case MSG_ATTR_ERROR:        avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_NOTICE:       avtype = AVTYPE_STR;  break;
     default:
-        die_if( 1, "Unrecognized attribute: 0x%04"PRIx16".\n", attrib );
+        die_if( 1, "Unrecognized attribute: 0x%04"PRIX16".\n", attrib );
         break;
     }
     aoff = (*pp)->bsize;
@@ -164,7 +161,6 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     return 0;
 }
 
-
 mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
                     uint64_t srcid, uint64_t dstid,
                     uint64_t trid, uint64_t exid )
@@ -186,12 +182,30 @@ mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
     return p;
 }
 
-mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
+mbuf_t *mbuf_to_response( mbuf_t **pp )
 {
-    const char *errmsg = sc_msgstr( ec );
-
     die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
     mbuf_resize( pp, 0 );
+
+    mbuf_t *p = *pp;
+    p->boff = 0;
+    HDR_TYPE_TO_RES( p );
+    HDR_SET_PAYLEN( p, 0 );
+    HDR_SET_RFU( p, 0 );
+    HDR_SET_TS( p, ntime_get() );
+    uint64_t srcid = HDR_GET_SRCID( p );
+    HDR_SET_SRCID( p, HDR_GET_DSTID( p ) );
+    HDR_SET_DSTID( p, srcid );
+    /* keep TRID! */
+    HDR_SET_EXID( p, HDR_GET_EXID( p ) + 1 );
+    return p;
+}
+
+mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
+{
+    die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
+    mbuf_resize( pp, 0 );
+    const char *errmsg = sc_msgstr( ec );
     mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, ec );
     mbuf_addattrib( pp, MSG_ATTR_NOTICE, strlen( errmsg ) + 1, errmsg );
 
@@ -201,8 +215,10 @@ mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
     HDR_SET_PAYLEN( p, p->bsize - MSG_HDR_SIZE );
     HDR_SET_RFU( p, 0 );
     HDR_SET_TS( p, ntime_get() );
-    HDR_SET_DSTID( p, HDR_GET_SRCID( p ) );
-    HDR_SET_SRCID( p, 0 );
+    
+    uint64_t srcid = HDR_GET_SRCID( p );
+    HDR_SET_SRCID( p, HDR_GET_DSTID( p ) );
+    HDR_SET_DSTID( p, srcid );
     /* keep TRID! */
     HDR_SET_EXID( p, HDR_GET_EXID( p ) + 1 );
     return p;
@@ -210,21 +226,23 @@ mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
 
 
 
-
 #ifdef DEBUG
 #include <inttypes.h>
-extern void mhdr_dump( mbuf_t *m )
+extern void mbuf_dump( mbuf_t *m )
 {
     uint16_t paylen = HDR_GET_PAYLEN( m );
+    DLOG( "mbuf  : %p\n", m );
+    DLOG( "b     : %p\n", m->b );
+    DLOG( "bsize : %zu\n", m->bsize );
     DLOG( "Header:\n" );
-    DLOG( "Type  : %04" PRIX16"\n", HDR_GET_TYPE( m ) );
-    DLOG( "Paylen: %04" PRIX16"\n", paylen );
-    DLOG( "Rfu   : %08" PRIX32"\n", HDR_GET_RFU( m ) );
-    DLOG( "Ts    : %016"PRIX64"\n", HDR_GET_TS( m ) );
-    DLOG( "SrcID : %016"PRIX64"\n", HDR_GET_SRCID( m ) );
-    DLOG( "DstID : %016"PRIX64"\n", HDR_GET_DSTID( m ) );
-    DLOG( "TrID  : %016"PRIX64"\n", HDR_GET_TRID( m ) );
-    DLOG( "ExID  : %016"PRIX64"\n", HDR_GET_EXID( m ) );
+    DLOG( "Type  : 0x%04" PRIX16"\n", HDR_GET_TYPE( m ) );
+    DLOG( "Paylen: 0x%04" PRIu16"\n", paylen );
+    DLOG( "Rfu   : 0x%08" PRIX32"\n", HDR_GET_RFU( m ) );
+    DLOG( "Ts    : 0x%016"PRIX64"\n", HDR_GET_TS( m ) );
+    DLOG( "SrcID : 0x%016"PRIX64"\n", HDR_GET_SRCID( m ) );
+    DLOG( "DstID : 0x%016"PRIX64"\n", HDR_GET_DSTID( m ) );
+    DLOG( "TrID  : 0x%016"PRIX64"\n", HDR_GET_TRID( m ) );
+    DLOG( "ExID  : 0x%016"PRIX64"\n", HDR_GET_EXID( m ) );
     if ( 0 != paylen )
     {
         DLOG( "Payload:\n" );

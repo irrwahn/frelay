@@ -85,10 +85,18 @@
 #define HDR_SET_TRID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_TRID)  = HTON64(V))
 #define HDR_SET_EXID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_EXID)  = HTON64(V))
 
-/* Macros to change message type classes */
+/* Macros to inspect and convert message type classes */
+#define MTYPE_IS_IND(T)     (0x0000 == ((T) & 0x000F))
+#define MTYPE_IS_REQ(T)     (0x0001 == ((T) & 0x000F))
+#define MTYPE_IS_RES(T)     (0x0002 == ((T) & 0x000F))
+#define MTYPE_IS_ERR(T)     (0x000a == ((T) & 0x000F))
+#define HDR_TYPE_IS_IND(P)  MTYPE_IS_IND(HDR_GET_TYPE(P))
+#define HDR_TYPE_IS_REQ(P)  MTYPE_IS_REQ(HDR_GET_TYPE(P))
+#define HDR_TYPE_IS_RES(P)  MTYPE_IS_RES(HDR_GET_TYPE(P))
+#define HDR_TYPE_IS_ERR(P)  MTYPE_IS_ERR(HDR_GET_TYPE(P))
+
 #define MTYPE_TO_RES(T)     (((T) & 0xFFF0 ) | 0x0002)
 #define MTYPE_TO_ERR(T)     (((T) & 0xFFF0 ) | 0x000a)
-
 #define HDR_TYPE_TO_RES(P)  HDR_SET_TYPE((P),MTYPE_TO_RES(HDR_GET_TYPE(P)))
 #define HDR_TYPE_TO_ERR(P)  HDR_SET_TYPE((P),MTYPE_TO_ERR(HDR_GET_TYPE(P)))
 
@@ -169,13 +177,14 @@ extern mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
                     uint64_t srcid, uint64_t dstid,
                     uint64_t trid, uint64_t exid );
 
+extern mbuf_t *mbuf_to_response( mbuf_t **pp );
 extern mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec );
 
 
 #ifdef DEBUG
-    extern void mhdr_dump( mbuf_t *m );
+    extern void mbuf_dump( mbuf_t *m );
 #else
-    #define mhdr_dump(m)  ((void)0)
+    #define mbuf_dump(m)  ((void)0)
 #endif
 
 #endif /* ndef _H_INCLUDED */

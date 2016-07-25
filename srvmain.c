@@ -328,7 +328,7 @@ static int upkeep( client_t *c, int *maxfd, fd_set *m_rfds, fd_set *m_wfds )
  *
  */
 
-static int enqueue_msg( client_t *cp, mbuf_t *m )
+static int enqueue_msg( client_t *cp, mbuf_t *m, fd_set *m_wfds )
 {
     DLOG( "%p\n", m );
     m->boff = 0;
@@ -338,20 +338,24 @@ static int enqueue_msg( client_t *cp, mbuf_t *m )
     cp->qtail = m;
     if ( NULL == cp->qhead )
         cp->qhead = m;
+    FD_SET( cp->fd, m_wfds );
     return 0;
 }
 
-static int dequeue_msg( client_t *cp )
+static int dequeue_msg( client_t *cp, fd_set *m_wfds )
 {
     mbuf_t *next;
 
-    DLOG( "%p\n", cp->qhead );
-    mhdr_dump( cp->qhead );
+    DLOG( "dump:\n" );
+    mbuf_dump( cp->qhead );
+
     next = cp->qhead->next;
     if ( cp->qtail == cp->qhead )
         cp->qtail = NULL;
     mbuf_free( &cp->qhead );
     cp->qhead = next;
+    if ( NULL == cp->qhead )
+        FD_CLR( cp->fd, m_wfds );
     return 0;
 }
 
@@ -361,39 +365,53 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
 
     switch ( mtype )
     {
+    case MSG_TYPE_PING_IND:
+        /* Nothing to be done - client activity already recorded. */
+        mbuf_free( &c[i_src].rbuf );
+        break;
+    case MSG_TYPE_PING_REQ:
+        mbuf_to_response( &c[i_src].rbuf );
+        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+        break;
     case MSG_TYPE_REGISTER_REQ:
     case MSG_TYPE_LOGIN_REQ:
     case MSG_TYPE_AUTH_REQ:
     case MSG_TYPE_PEERLIST_REQ:
-    case MSG_TYPE_PING_IND:
-    case MSG_TYPE_PING_REQ:
+        DLOG( "TODO: process message directed at server.\n" );
+        mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
+        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
         break;
     // Anything else is nonsense
     default:
-        XLOG( LOG_WARNING, "Message type 0x%04"PRIx16" not supported by server.\n", mtype );
-        DLOG( "Add error response to c[%d] send queue.\n", i_src );
-        mbuf_to_error_response( &c[i_src].rbuf, SC_I_AM_A_TEAPOT );
-        enqueue_msg( &c[i_src], c[i_src].rbuf );
-        FD_SET( c[i_src].fd, m_wfds );
-        c[i_src].rbuf = NULL;
+        XLOG( LOG_INFO, "Message type 0x%04"PRIX16" not supported by server.\n", mtype );
+        /* Non-requests are silently dropped! */
+        if ( MTYPE_IS_REQ( mtype ) )
+        {
+            DLOG( "Add error response to c[%d] send queue.\n", i_src );
+            mbuf_to_error_response( &c[i_src].rbuf, SC_I_AM_A_TEAPOT );
+            enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+            return 1;
+        }
         return -1;
         break;
     }
-    DLOG( "TODO: process message directed at server.\n" );
-        (void)i_src; (void)m_wfds; mbuf_free( &c[i_src].rbuf );//REMOVE THIS LATER!
     return 0;
 }
 
 static int process_broadcast_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
-    XLOG( LOG_WARNING, "Broadcast messages not supported by server.\n" );
-    DLOG( "Add error response to c[%d] send queue.\n", i_src );
-    mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
-    enqueue_msg( &c[i_src], c[i_src].rbuf );
-    FD_SET( c[i_src].fd, m_wfds );
-    c[i_src].rbuf = NULL;
-    return -1;
+    uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
 
+    XLOG( LOG_WARNING, "Broadcast messages not implemented in server.\n" );
+    /* Non-requests are silently dropped! */
+    if ( MTYPE_IS_REQ( mtype ) )
+    {
+        DLOG( "Add error response to c[%d] send queue.\n", i_src );
+        mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
+        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+        return 1;
+    }
+    return -1;
 }
 
 static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
@@ -410,8 +428,10 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     }
     if ( i_dst == cfg.max_clients )
     {
-        DLOG( "TODO: process messages directed at invalid or unknown client.\n" );
-        return -1;
+        DLOG( "Add error response to c[%d] send queue.\n", i_src );
+        mbuf_to_error_response( &c[i_src].rbuf, SC_MISDIRECTED_REQUEST );
+        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+        return 1;
     }
     switch ( mtype )
     {
@@ -429,18 +449,19 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
         break;
     // Anything else is nonsense
     default:
-        XLOG( LOG_WARNING, "Message type 0x%04"PRIx16" not supported by client.\n", mtype );
-        DLOG( "Add error response to c[%d] send queue.\n", i_src );
-        mbuf_to_error_response( &c[i_src].rbuf, SC_MISDIRECTED_REQUEST );
-        enqueue_msg( &c[i_src], c[i_src].rbuf );
-        FD_SET( c[i_src].fd, m_wfds );
-        c[i_src].rbuf = NULL;
+        XLOG( LOG_WARNING, "Message type 0x%04"PRIX16" not forwarded to client.\n", mtype );
+        if ( MTYPE_IS_REQ( mtype ) )
+        {   /* Non-requests are silently dropped ! */
+            DLOG( "Add error response to c[%d] send queue.\n", i_src );
+            mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+            enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+            return 1;
+        }
         return -1;
         break;
     }
-    DLOG( "Add message to c[%d] send queue.\n", i_dst );
-    enqueue_msg( &c[i_dst], c[i_src].rbuf );
-    FD_SET( c[i_dst].fd, m_wfds );
+    DLOG( "Forwarding message to c[%d] send queue.\n", i_dst );
+    enqueue_msg( &c[i_dst], c[i_src].rbuf, m_wfds );
     return 0;
 }
 
@@ -450,8 +471,8 @@ static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
     uint64_t dstid = HDR_GET_DSTID( c[i_src].rbuf );
     uint64_t srcid = HDR_GET_SRCID( c[i_src].rbuf );
 
-    DLOG("\n");
-    mhdr_dump( c[i_src].rbuf );
+    DLOG( "dump:\n" );
+    mbuf_dump( c[i_src].rbuf );
 
     DLOG( "TODO: fill in *real* source ID.\n" );
     c[i_src].id = srcid;
@@ -462,7 +483,7 @@ static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
         r = process_broadcast_msg( c, i_src, m_wfds );
     else
         r = process_forward_msg( c, i_src, m_wfds );
-    if ( 0 != r )
+    if ( 0 > r )
         mbuf_free( &c[i_src].rbuf );
     return r;
 }
@@ -573,9 +594,7 @@ static int handle_io( client_t *c, int nset,
             }
             if ( c[i].qhead->boff == c[i].qhead->bsize )
             {   /* Message sent, remove from queue. */
-                dequeue_msg( &c[i] );
-                if ( NULL == c[i].qhead )
-                    FD_CLR( c[i].fd, m_wfds );
+                dequeue_msg( &c[i], m_wfds );
             }
         }
     }
