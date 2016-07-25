@@ -69,7 +69,6 @@
 
 #define WHOAMI()    DLOG( "<-- YOU ARE HERE. WE ARE NOT.\n" );
 
-
 #define die_if(expr,...) \
             do { if ( (expr) ) { \
                 XLOG( LOG_ERR, __VA_ARGS__ ); \
@@ -84,10 +83,13 @@
             } } while(0)
 
 
-
 extern int set_nonblocking( int fd );
+
+
 #ifdef DEBUG
-extern int drain_fd( int fd );
+    extern int drain_fd( int fd );
+#else
+    #define drain_fd(f)     (-1)
 #endif
 
 

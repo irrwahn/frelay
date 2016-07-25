@@ -40,7 +40,10 @@
 #include <stdlib.h>
 
 #include "bendian.h"
+
+#include "statcodes.h"
 #include "util.h"
+
 
 /* Round up to the next higher multiple of 8 */
 #define ROUNDUP8(N)     (((N)+7)/8*8)
@@ -82,8 +85,14 @@
 #define HDR_SET_TRID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_TRID)  = HTON64(V))
 #define HDR_SET_EXID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_EXID)  = HTON64(V))
 
+/* Macros to change message type classes */
+#define MTYPE_TO_RES(T)     (((T) & 0xFFF0 ) | 0x0002)
+#define MTYPE_TO_ERR(T)     (((T) & 0xFFF0 ) | 0x000a)
 
-/* Message types. (invalid commented out) */
+#define HDR_TYPE_TO_RES(P)  HDR_SET_TYPE((P),MTYPE_TO_RES(HDR_GET_TYPE(P)))
+#define HDR_TYPE_TO_ERR(P)  HDR_SET_TYPE((P),MTYPE_TO_ERR(HDR_GET_TYPE(P)))
+
+/* Message types. */
 enum MSG_TYPE {
     MSG_TYPE_REGISTER_IND   = 0x0010,
     MSG_TYPE_REGISTER_REQ   = 0x0011,
@@ -138,23 +147,8 @@ enum MSG_ATTRIB {
 
 
 typedef
-    struct MHDR_T_STRUCT
-    mhdr_t;
-
-typedef
     struct MBUF_T_STRUCT
     mbuf_t;
-
-struct MHDR_T_STRUCT {
-    uint16_t type;
-    uint16_t paylen;
-    uint32_t rfu;
-    uint64_t ts;
-    uint64_t srcid;
-    uint64_t dstid;
-    uint64_t trid;
-    uint64_t exid;
-};
 
 struct MBUF_T_STRUCT {
     mbuf_t *next;
@@ -164,17 +158,24 @@ struct MBUF_T_STRUCT {
 };
 
 
-extern mbuf_t *mbuf_new( void );
+extern mbuf_t *mbuf_new( mbuf_t **pp );
 extern void mbuf_free( mbuf_t **p );
 extern mbuf_t *mbuf_resize( mbuf_t **pp, size_t size );
 extern mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount );
+
 extern int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... );
+
+extern mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
+                    uint64_t srcid, uint64_t dstid,
+                    uint64_t trid, uint64_t exid );
+
+extern mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec );
 
 
 #ifdef DEBUG
     extern void mhdr_dump( mbuf_t *m );
 #else
-    #define mhdr_dump(...)
+    #define mhdr_dump(m)  ((void)0)
 #endif
 
 #endif /* ndef _H_INCLUDED */

@@ -1,0 +1,112 @@
+/*
+ * statcodes.h
+ * 
+ * Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
+ * 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 
+ * * Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ * * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer
+ *   in the documentation and/or other materials provided with the
+ *   distribution.
+ * * Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived
+ *   from this software without specific prior written permission.
+ * 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * 
+ * 
+ */
+
+
+#ifndef STATCODES_H_INCLUDED
+#define STATCODES_H_INCLUDED
+
+/* Borrowed from HTTP specification. */
+
+enum SC_ENUM {
+    SC_CONTINUE = 100,
+    SC_SWITCHING_PROTOCOLS = 101,
+    SC_PROCESSING = 102,
+
+    SC_OK = 200,
+    SC_CREATED = 201,
+    SC_ACCEPTED = 202,
+    SC_NON_AUTHORITATIVE_INFORMATION = 203,
+    SC_NO_CONTENT = 204,
+    SC_RESET_CONTENT = 205,
+    SC_PARTIAL_CONTENT = 206,
+    SC_MULTI_STATUS = 207,
+    SC_ALREADY_REPORTED = 208,
+    SC_IM_USED = 226,
+
+    SC_MULTIPLE_CHOICES = 300,
+    SC_MOVED_PERMANENTLY = 301,
+    SC_FOUND = 302,
+    SC_SEE_OTHER = 303,
+    SC_NOT_MODIFIED = 304,
+    SC_USE_PROXY = 305,
+    SC_TEMPORARY_REDIRECT = 307,
+    SC_PERMANENT_REDIRECT = 308,
+
+    SC_BAD_REQUEST = 400,
+    SC_UNAUTHORIZED = 401,
+    SC_PAYMENT_REQUIRED = 402,
+    SC_FORBIDDEN = 403,
+    SC_NOT_FOUND = 404,
+    SC_METHOD_NOT_ALLOWED = 405,
+    SC_NOT_ACCEPTABLE = 406,
+    SC_PROXY_AUTHENTICATION_REQUIRED = 407,
+    SC_REQUEST_TIMEOUT = 408,
+    SC_CONFLICT = 409,
+    SC_GONE = 410,
+    SC_LENGTH_REQUIRED = 411,
+    SC_PRECONDITION_FAILED = 412,
+    SC_PAYLOAD_TOO_LARGE = 413,
+    SC_URI_TOO_LONG = 414,
+    SC_UNSUPPORTED_MEDIA_TYPE = 415,
+    SC_RANGE_NOT_SATISFIABLE = 416,
+    SC_EXPECTATION_FAILED = 417,
+    SC_I_AM_A_TEAPOT = 418, 
+    SC_MISDIRECTED_REQUEST = 421,
+    SC_UNPROCESSABLE_ENTITY = 422,
+    SC_LOCKED = 423,
+    SC_FAILED_DEPENDENCY = 424,
+    SC_UPGRADE_REQUIRED = 426,
+    SC_PRECONDITION_REQUIRED = 428,
+    SC_TOO_MANY_REQUESTS = 429,
+    SC_REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
+    SC_UNAVAILABLE_FOR_LEGAL_REASONS = 451,
+
+    SC_INTERNAL_SERVER_ERROR = 500,
+    SC_NOT_IMPLEMENTED = 501,
+    SC_BAD_GATEWAY = 502,
+    SC_SERVICE_UNAVAILABLE = 503,
+    SC_GATEWAY_TIMEOUT = 504,
+    SC_HTTP_VERSION_NOT_SUPPORTED = 505,
+    SC_VARIANT_ALSO_NEGOTIATES = 506,
+    SC_INSUFFICIENT_STORAGE = 507,
+    SC_LOOP_DETECTED = 508,
+    SC_NOT_EXTENDED = 510,
+    SC_NETWORK_AUTHENTICATION_REQUIRED = 511,
+};
+
+extern const char *sc_msgstr( enum SC_ENUM sc );
+
+#endif /* ndef _H_INCLUDED */
+
+/* EOF */

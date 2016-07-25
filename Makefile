@@ -50,7 +50,7 @@ LDFLAGS := -L$(LIBDIR)
 
 RM      := rm -f
 
-COMSRC  := message.c util.c
+COMSRC  := message.c statcodes.c util.c
 
 SRVBIN  := $(PROJECT)srv
 SRVSRC  := srvmain.c $(COMSRC)

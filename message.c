@@ -6,7 +6,7 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 
+ *
  * * Redistributions of source code must retain the above copyright
  *   notice, this list of conditions and the following disclaimer.
  * * Redistributions in binary form must reproduce the above copyright
@@ -16,7 +16,7 @@
  * * Neither the name of the copyright holder nor the names of its
  *   contributors may be used to endorse or promote products derived
  *   from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -38,10 +38,12 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "ntime.h"
+
 #include "util.h"
 
 
-mbuf_t *mbuf_new( void )
+mbuf_t *mbuf_new( mbuf_t **pp )
 {
     mbuf_t *p;
 
@@ -52,6 +54,8 @@ mbuf_t *mbuf_new( void )
     p->bsize = MSG_HDR_SIZE;
     p->boff = 0;
     p->b = (uint8_t *)p + sizeof *p;
+    if ( NULL != pp )
+        *pp = p;
     DLOG( "New buffer address: %p\n", p );
     return p;
 }
@@ -82,8 +86,10 @@ mbuf_t *mbuf_resize( mbuf_t **pp, size_t paylen )
 
 mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount )
 {
-    return mbuf_resize( pp, (*pp)->bsize + amount );
+    DLOG( "p=%p amount=%u\n", *pp, amount );
+    return mbuf_resize( pp, (*pp)->bsize - MSG_HDR_SIZE + amount );
 }
+
 
 enum AVTYPE {
     AVTYPE_NONE,
@@ -98,7 +104,7 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     size_t aoff;
     uint8_t *ap;
     va_list arglist;
-    
+
     switch ( attrib )
     {
     case MSG_ATTR_USERNAME:     avtype = AVTYPE_STR;  break;
@@ -106,24 +112,24 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     case MSG_ATTR_CHALLENGE:    avtype = AVTYPE_BLOB; break;
     case MSG_ATTR_DIGEST:       avtype = AVTYPE_BLOB; break;
     case MSG_ATTR_SIGNATURE:    avtype = AVTYPE_BLOB; break;
-    case MSG_ATTR_TTL:          avtype = AVTYPE_UI64; break;
-    case MSG_ATTR_PEERID:       avtype = AVTYPE_UI64; break;
+    case MSG_ATTR_TTL:          avtype = AVTYPE_UI64; length = 8; break;
+    case MSG_ATTR_PEERID:       avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_PEERNAME:     avtype = AVTYPE_STR;  break;
-    case MSG_ATTR_OFFERID:      avtype = AVTYPE_UI64; break;
+    case MSG_ATTR_OFFERID:      avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_FILENAME:     avtype = AVTYPE_STR;  break;
-    case MSG_ATTR_SIZE:         avtype = AVTYPE_UI64; break;
+    case MSG_ATTR_SIZE:         avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_MD5:          avtype = AVTYPE_BLOB; break;
-    case MSG_ATTR_OFFSET:       avtype = AVTYPE_UI64; break;
+    case MSG_ATTR_OFFSET:       avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_DATA:         avtype = AVTYPE_BLOB; break;
-    case MSG_ATTR_OK:           avtype = AVTYPE_NONE; break;
-    case MSG_ATTR_ERROR:        avtype = AVTYPE_UI64; break;
+    case MSG_ATTR_OK:           avtype = AVTYPE_NONE; length = 0; break;
+    case MSG_ATTR_ERROR:        avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_NOTICE:       avtype = AVTYPE_STR;  break;
     default:
         die_if( 1, "Unrecognized attribute: 0x%04"PRIx16".\n", attrib );
         break;
     }
     aoff = (*pp)->bsize;
-    mbuf_grow( pp, ROUNDUP8( length ) );
+    mbuf_grow( pp, ROUNDUP8( length ) + 8 );
     ap = (*pp)->b + aoff;
     *(uint16_t *)(ap + 0) = HTON16( attrib );
     *(uint16_t *)(ap + 2) = HTON16( length );
@@ -131,7 +137,7 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     va_start( arglist, length );
     switch ( avtype )
     {
-    case AVTYPE_UI64: 
+    case AVTYPE_UI64:
         {
             uint64_t v = va_arg( arglist, uint64_t );
             *(uint64_t *)(ap + 8) = HTON64( v );
@@ -157,6 +163,52 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     va_end( arglist );
     return 0;
 }
+
+
+mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
+                    uint64_t srcid, uint64_t dstid,
+                    uint64_t trid, uint64_t exid )
+{
+    if ( NULL == *pp )
+        mbuf_new( pp );
+    else
+        mbuf_resize( pp, 0 );
+    mbuf_t *p = *pp;
+    p->boff = 0;
+    HDR_SET_TYPE( p, type );
+    HDR_SET_PAYLEN( p, p->bsize );
+    HDR_SET_RFU( p, 0 );
+    HDR_SET_TS( p, ntime_get() );
+    HDR_SET_SRCID( p, srcid );
+    HDR_SET_DSTID( p, dstid );
+    HDR_SET_TRID( p, trid );
+    HDR_SET_EXID( p, exid );
+    return p;
+}
+
+mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
+{
+    const char *errmsg = sc_msgstr( ec );
+
+    die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
+    mbuf_resize( pp, 0 );
+    mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, ec );
+    mbuf_addattrib( pp, MSG_ATTR_NOTICE, strlen( errmsg ) + 1, errmsg );
+
+    mbuf_t *p = *pp;
+    p->boff = 0;
+    HDR_TYPE_TO_ERR( p );
+    HDR_SET_PAYLEN( p, p->bsize - MSG_HDR_SIZE );
+    HDR_SET_RFU( p, 0 );
+    HDR_SET_TS( p, ntime_get() );
+    HDR_SET_DSTID( p, HDR_GET_SRCID( p ) );
+    HDR_SET_SRCID( p, 0 );
+    /* keep TRID! */
+    HDR_SET_EXID( p, HDR_GET_EXID( p ) + 1 );
+    return p;
+}
+
+
 
 
 #ifdef DEBUG

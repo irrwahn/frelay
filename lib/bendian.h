@@ -97,12 +97,12 @@
            (((V) >> 24) & 0x0000000000FF0000) | (((V) >>  8) & 0x00000000FF000000) | \
            (((V) <<  8) & 0x000000FF00000000) | (((V) << 24) & 0x0000FF0000000000) | \
            (((V) << 40) & 0x00FF000000000000) | (((V) << 56) & 0xFF00000000000000) )
-        #define NTOH16(V)   SWAP2(V)
-        #define NTOH32(V)   SWAP4(V)
-        #define NTOH64(V)   SWAP8(V)
-        #define HTON16(V)   SWAP2(V)
-        #define HTON32(V)   SWAP4(V)
-        #define HTON64(V)   SWAP8(V)
+        #define NTOH16(V)   SWAP2((uint16_t)(V))
+        #define NTOH32(V)   SWAP4((uint32_t)(V))
+        #define NTOH64(V)   SWAP8((uint64_t)(V))
+        #define HTON16(V)   SWAP2((uint16_t)(V))
+        #define HTON32(V)   SWAP4((uint32_t)(V))
+        #define HTON64(V)   SWAP8((uint64_t)(V))
     #else
         #error "Oh no, not these endians again! Go trade your PDP for a real computer!"
     #endif
