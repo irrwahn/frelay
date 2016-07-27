@@ -121,6 +121,7 @@ static int udb_load( const char *path )
             *p = '\0';
         udb_addentry_( id, name, key );
     }
+    fclose( fp );
     return 0;
 }
 
@@ -128,7 +129,8 @@ static int udb_save( const char *path )
 {
     FILE *fp;
 
-    if ( NULL == ( fp = fopen( path, "r" ) ) )
+    DLOG( "Save user db as '%s'.\n", path );
+    if ( NULL == ( fp = fopen( path, "w" ) ) )
     {
         XLOG( LOG_ERR, "Error opening user db '%s': %m\n", path );
         return -1;
@@ -139,6 +141,7 @@ static int udb_save( const char *path )
         fprintf( fp, "%016"PRIx64"%c%s%c%s\n", p->id, DELIM, p->name, DELIM, p->key );
         // TODO: error checking
     }
+    fclose( fp );
     return 0;
 }
 
@@ -155,7 +158,7 @@ const udb_t *udb_addentry( uint64_t id, const char *name, const char *key )
 {
     const udb_t *u;
     udb_load( userdb_path );
-    u = udb_addentry( id, name, key );
+    u = udb_addentry_( id, name, key );
     udb_save( userdb_path );
     return u;
 }

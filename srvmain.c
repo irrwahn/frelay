@@ -381,7 +381,9 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
     const udb_t *pu;
     
     if ( CLT_AUTH_OK != c[i_src].st 
-        && MSG_TYPE_LOGIN_REQ != mtype && MSG_TYPE_AUTH_REQ != mtype )
+        && MSG_TYPE_LOGIN_REQ != mtype 
+        && MSG_TYPE_AUTH_REQ != mtype 
+        && MSG_TYPE_REGISTER_REQ != mtype )
     {
         mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
         return -1;
@@ -397,8 +399,38 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
         mbuf_to_response( &c[i_src].rbuf );
         break;
     case MSG_TYPE_REGISTER_REQ:
-        DLOG( "TODO: process REGISTER request.\n" );
-        mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
+        DLOG( "Process REGISTER request.\n" );
+        {
+            char *name = NULL, *key = NULL;
+            if ( CLT_PRE_LOGIN != c[i_src].st
+                || 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
+                || at != MSG_ATTR_USERNAME )
+            {
+                mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+                goto ERR;
+            }
+            name = strdup( (const char*)av );
+            die_if( NULL == name, "malloc() failed: %m.\n" );
+            if ( 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
+                || at != MSG_ATTR_PUBKEY )
+            {
+                mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+                goto ERR;
+            }
+            key = strdup( (const char*)av );
+            die_if( NULL == key, "malloc() failed: %m.\n" );
+            if ( NULL == ( pu = udb_addentry( 0, name, key ) ) )
+            {
+                mbuf_to_error_response( &c[i_src].rbuf, SC_LOCKED );
+                goto ERR;
+            }
+            mbuf_to_response( &c[i_src].rbuf );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, 23, "Registered, now login." );
+        ERR:
+            free( name );
+            free( key );
+        }
         break;
     case MSG_TYPE_LOGIN_REQ:
         DLOG( "WIP: Process LOGIN request.\n" );
@@ -407,21 +439,20 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
             || at != MSG_ATTR_USERNAME )
         {
             mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+            break;
         }
         else if ( NULL == ( pu = udb_lookupname( (char *)av ) ) )
         {
             mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
+            break;
         }
-        else
-        {
-            c[i_src].st = CLT_LOGIN_OK;
-            c[i_src].id = pu->id;
-            c[i_src].name = strdup( pu->name );
-            c[i_src].key = strdup( pu->key );
-            mbuf_to_response( &c[i_src].rbuf );
-            /* DEBUG ONLY (road works ahead): */
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( c[i_src].key ) + 1, c[i_src].key );
-        }
+        c[i_src].st = CLT_LOGIN_OK;
+        c[i_src].id = pu->id;
+        c[i_src].name = strdup( pu->name );
+        c[i_src].key = strdup( pu->key );
+        mbuf_to_response( &c[i_src].rbuf );
+        /* DEBUG ONLY (road works ahead): */
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( c[i_src].key ) + 1, c[i_src].key );
         break;
     case MSG_TYPE_AUTH_REQ:
         DLOG( "WIP: Process AUTH request.\n" );

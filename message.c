@@ -88,7 +88,7 @@ mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount )
 {
     DLOG( "Grow buffer %p by %zu\n", *pp, amount );
     mbuf_t *p = mbuf_resize( pp, (*pp)->bsize - MSG_HDR_SIZE + amount );
-    memset( ADDOFF( *pp, (*pp)->bsize - amount ), 0, amount ); 
+    memset( ADDOFF( *pp, (*pp)->bsize - amount ), 0, amount );
     return p;
 }
 
