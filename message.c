@@ -72,37 +72,89 @@ mbuf_t *mbuf_resize( mbuf_t **pp, size_t paylen )
     /* CAVEAT: _Never_ resize an already chain-linked mbuf! */
     mbuf_t *p = *pp;
 
-    die_if( MSG_MAX_SIZE < MSG_HDR_SIZE + paylen,
-            "%d > MSG_MAX_SIZE!\n", paylen );
-    p = realloc( p, sizeof *p + MSG_HDR_SIZE + paylen );
+    paylen += MSG_HDR_SIZE;
+    die_if( MSG_MAX_SIZE < paylen, "%d > MSG_MAX_SIZE!\n", paylen );
+    p = realloc( p, sizeof *p + paylen );
     die_if( NULL == p, "realloc() failed: %m.\n" );
+    DLOG( "Resized buffer %p: %zu to %zu\n", p, p->bsize, paylen );
     p->b = (uint8_t *)p + sizeof *p;
-    p->bsize = MSG_HDR_SIZE + paylen;
+    p->bsize = paylen;
     if ( p->boff > p->bsize )
         p->boff = p->bsize;
-    DLOG( "Resized buffer address: %p\n", p );
     return *pp = p;
 }
 
 mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount )
 {
-    DLOG( "p=%p amount=%u\n", *pp, amount );
+    DLOG( "Grow buffer %p by %zu\n", *pp, amount );
     return mbuf_resize( pp, (*pp)->bsize - MSG_HDR_SIZE + amount );
 }
 
-int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
+mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
+                    uint64_t srcid, uint64_t dstid,
+                    uint64_t trid, uint64_t exid )
 {
-    enum AVTYPE {
-        AVTYPE_NONE,
-        AVTYPE_UI64,
-        AVTYPE_STR,
-        AVTYPE_BLOB,
-    } avtype = AVTYPE_NONE;
+    if ( NULL == *pp )
+        mbuf_new( pp );
+    else
+        mbuf_resize( pp, 0 );
+    mbuf_t *p = *pp;
+    p->boff = 0;
+    HDR_SET_TYPE( p, type );
+    HDR_SET_PAYLEN( p, p->bsize );
+    HDR_SET_RFU( p, 0 );
+    HDR_SET_TS( p, ntime_get() );
+    HDR_SET_SRCID( p, srcid );
+    HDR_SET_DSTID( p, dstid );
+    HDR_SET_TRID( p, trid );
+    HDR_SET_EXID( p, exid );
+    return p;
+}
+
+mbuf_t *mbuf_to_response( mbuf_t **pp )
+{
+    die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
+    mbuf_resize( pp, 0 );
+    (*pp)->boff = 0;
+    HDR_TYPE_TO_RES( *pp );
+    HDR_SET_PAYLEN( *pp, 0 );
+    HDR_SET_RFU( *pp, 0 );
+    HDR_SET_TS( *pp, ntime_get() );
+    /* swap SRCID and DSTID, keep TRID and EXID! */
+    uint64_t srcid = HDR_GET_SRCID( *pp );
+    HDR_SET_SRCID( *pp, HDR_GET_DSTID( *pp ) );
+    HDR_SET_DSTID( *pp, srcid );
+    return *pp;
+}
+
+mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
+{
+    const char *errmsg;
+
+    mbuf_to_response( pp );
+    HDR_TYPE_TO_ERR( *pp );
+    errmsg = sc_msgstr( ec );
+    mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, ec );
+    mbuf_addattrib( pp, MSG_ATTR_NOTICE, strlen( errmsg ) + 1, errmsg );
+    return *pp;
+}
+
+
+enum AVTYPE {
+    AVTYPE_NONE,
+    AVTYPE_UI64,
+    AVTYPE_STR,
+    AVTYPE_BLOB,
+};
+
+int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attype, size_t length, ... )
+{
+    enum AVTYPE avtype = AVTYPE_NONE;
     size_t aoff;
     uint8_t *ap;
     va_list arglist;
 
-    switch ( attrib )
+    switch ( attype )
     {
     case MSG_ATTR_USERNAME:     avtype = AVTYPE_STR;  break;
     case MSG_ATTR_PUBKEY:       avtype = AVTYPE_BLOB; break;
@@ -122,13 +174,15 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     case MSG_ATTR_ERROR:        avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_NOTICE:       avtype = AVTYPE_STR;  break;
     default:
-        die_if( 1, "Unrecognized attribute: 0x%04"PRIX16".\n", attrib );
+        die_if( 1, "Unrecognized attribute: 0x%04"PRIX16".\n", attype );
         break;
     }
+
     aoff = (*pp)->bsize;
     mbuf_grow( pp, ROUNDUP8( length ) + 8 );
+    HDR_SET_PAYLEN( (*pp), (*pp)->bsize - MSG_HDR_SIZE );
     ap = (*pp)->b + aoff;
-    *(uint16_t *)(ap + 0) = HTON16( attrib );
+    *(uint16_t *)(ap + 0) = HTON16( attype );
     *(uint16_t *)(ap + 2) = HTON16( length );
     *(uint32_t *)(ap + 4) = HTON32( 0 );
     va_start( arglist, length );
@@ -161,69 +215,30 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... )
     return 0;
 }
 
-mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
-                    uint64_t srcid, uint64_t dstid,
-                    uint64_t trid, uint64_t exid )
+int mbuf_getnextattrib( mbuf_t *p, enum MSG_ATTRIB *ptype, size_t *plen, void **pval )
 {
-    if ( NULL == *pp )
-        mbuf_new( pp );
-    else
-        mbuf_resize( pp, 0 );
-    mbuf_t *p = *pp;
-    p->boff = 0;
-    HDR_SET_TYPE( p, type );
-    HDR_SET_PAYLEN( p, p->bsize );
-    HDR_SET_RFU( p, 0 );
-    HDR_SET_TS( p, ntime_get() );
-    HDR_SET_SRCID( p, srcid );
-    HDR_SET_DSTID( p, dstid );
-    HDR_SET_TRID( p, trid );
-    HDR_SET_EXID( p, exid );
-    return p;
+    if ( p->bsize < p->boff + 8 )
+    {
+    ERR:
+        *ptype = MSG_ATTR_INVALID;
+        *plen  = 0;
+        *pval  = NULL;
+        return -1;
+    }
+    *plen = NTOH16( *(uint16_t *)ADDOFF( p, p->boff + 2 ) );
+    if ( p->bsize < p->boff + 8 + *plen )
+        goto ERR;
+    *ptype = NTOH16( *(uint16_t *)ADDOFF( p, p->boff ) );
+    *pval  = ADDOFF( p, p->boff + 8 );
+    p->boff = p->boff + 8 + ROUNDUP8( *plen );
+    return 0;
 }
 
-mbuf_t *mbuf_to_response( mbuf_t **pp )
+int mbuf_resetgetattrib( mbuf_t *p )
 {
-    die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
-    mbuf_resize( pp, 0 );
-
-    mbuf_t *p = *pp;
-    p->boff = 0;
-    HDR_TYPE_TO_RES( p );
-    HDR_SET_PAYLEN( p, 0 );
-    HDR_SET_RFU( p, 0 );
-    HDR_SET_TS( p, ntime_get() );
-    uint64_t srcid = HDR_GET_SRCID( p );
-    HDR_SET_SRCID( p, HDR_GET_DSTID( p ) );
-    HDR_SET_DSTID( p, srcid );
-    /* keep TRID! */
-    HDR_SET_EXID( p, HDR_GET_EXID( p ) + 1 );
-    return p;
+    p->boff = MSG_HDR_SIZE;
+    return 0;
 }
-
-mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
-{
-    die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
-    mbuf_resize( pp, 0 );
-    const char *errmsg = sc_msgstr( ec );
-    mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, ec );
-    mbuf_addattrib( pp, MSG_ATTR_NOTICE, strlen( errmsg ) + 1, errmsg );
-
-    mbuf_t *p = *pp;
-    p->boff = 0;
-    HDR_TYPE_TO_ERR( p );
-    HDR_SET_PAYLEN( p, p->bsize - MSG_HDR_SIZE );
-    HDR_SET_RFU( p, 0 );
-    HDR_SET_TS( p, ntime_get() );
-    
-    uint64_t srcid = HDR_GET_SRCID( p );
-    HDR_SET_SRCID( p, HDR_GET_DSTID( p ) );
-    HDR_SET_DSTID( p, srcid );
-    /* keep TRID! */
-    HDR_SET_EXID( p, HDR_GET_EXID( p ) + 1 );
-    return p;
-}
-
 
 
 #ifdef DEBUG

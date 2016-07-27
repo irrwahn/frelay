@@ -64,12 +64,13 @@
 
 #include "message.h"
 #include "srvcfg.h"
+#include "srvuserdb.h"
 #include "util.h"
 
 
 enum CLT_STATE {
     CLT_INVALID = 0,
-    CLT_CONNECTED,
+    CLT_PRE_LOGIN,
     CLT_LOGIN_OK,
     CLT_AUTH_OK
 };
@@ -84,9 +85,11 @@ struct CLIENT_T_STRUCT {
     socklen_t addrlen;          /* client remote address length */
     struct sockaddr_in addr;    /* client remote address */
     uint64_t id;                /* client id */
+    char *name;
+    char *key;
     enum CLT_STATE st;          /* client state */
     time_t act;                 /* time of last activity (s since epoch) */
-    mbuf_t *rbuf;               /* receive buffer */
+    mbuf_t *rbuf;               /* receive buffer pointer */
     mbuf_t *qhead, *qtail;      /* send buffer queue pointers */
 };
 
@@ -209,9 +212,10 @@ static int close_client( client_t *cp, fd_set *m_rfds, fd_set *m_wfds )
     close( cp->fd );
     cp->fd = -1;
     cp->id = 0ULL;
+    free( cp->name ); cp->name = NULL;
+    free( cp->key ); cp->key = NULL;
     cp->st = CLT_INVALID;
-    if ( NULL != cp->rbuf )
-        mbuf_free( &cp->rbuf );
+    mbuf_free( &cp->rbuf );
     for ( mbuf_t *qp = cp->qhead, *next; NULL != qp; qp = next )
     {
         next = qp->next;
@@ -258,9 +262,10 @@ static int accept_client( client_t *clients, int lfd, int *pmaxfd, fd_set *m_rfd
     clients[i].fd = fd;
     clients[i].addrlen = addrlen;
     clients[i].addr = addr;
-    clients[i].id = 0ULL;  /* Set upon successful authentication! */
-    XLOG( LOG_WARNING, "!!!!!!!!!!!!!!!!!! Remove AUTH_OK override in production!!!!!!!!!!!!!!\n" );
-    clients[i].st = CLT_AUTH_OK; // !!! CLT_CONNECTED;
+    clients[i].id = 0ULL;   /* Set upon login. */
+    clients[i].name = NULL; /* Set upon login. */
+    clients[i].key = NULL;  /* Set upon login. */
+    clients[i].st = CLT_PRE_LOGIN;
     clients[i].act = time( NULL );
     clients[i].rbuf = NULL;
     clients[i].qhead = NULL;
@@ -362,7 +367,12 @@ static int dequeue_msg( client_t *cp, fd_set *m_wfds )
 static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
+    enum MSG_ATTRIB at;
+    size_t al;
+    void *av;
+    const udb_t *pu;
 
+    mbuf_resetgetattrib( c[i_src].rbuf );
     switch ( mtype )
     {
     case MSG_TYPE_PING_IND:
@@ -371,47 +381,100 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
         break;
     case MSG_TYPE_PING_REQ:
         mbuf_to_response( &c[i_src].rbuf );
-        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
         break;
     case MSG_TYPE_REGISTER_REQ:
-    case MSG_TYPE_LOGIN_REQ:
-    case MSG_TYPE_AUTH_REQ:
-    case MSG_TYPE_PEERLIST_REQ:
-        DLOG( "TODO: process message directed at server.\n" );
+        DLOG( "TODO: process REGISTER request.\n" );
         mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
-        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+        break;
+    case MSG_TYPE_LOGIN_REQ:
+        DLOG( "WIP: Process LOGIN request.\n" );
+        if ( CLT_PRE_LOGIN != c[i_src].st
+            || 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
+            || at != MSG_ATTR_USERNAME )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+        }
+        else if ( NULL == ( pu = udb_lookupname( (char *)av ) ) )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
+        }
+        else
+        {
+            c[i_src].st = CLT_LOGIN_OK;
+            c[i_src].id = pu->id;
+            c[i_src].name = strdup( pu->name );
+            c[i_src].key = strdup( pu->key );
+            mbuf_to_response( &c[i_src].rbuf );
+            /* DEBUG ONLY (road works ahead): */
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( c[i_src].key ) + 1, c[i_src].key );
+        }
+        break;
+    case MSG_TYPE_AUTH_REQ:
+        DLOG( "WIP: Process AUTH request.\n" );
+        if ( CLT_LOGIN_OK != c[i_src].st
+            || 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
+            || at != MSG_ATTR_DIGEST )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+        }
+                /* DEBUG ONLY (road works ahead): */
+        else if ( 0 != strcmp( (const char *)av, c[i_src].key ) )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
+        }
+        else
+        {
+            c[i_src].st = CLT_AUTH_OK;
+            mbuf_to_response( &c[i_src].rbuf );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, 9, "Welcome!" );
+        }
+        break;
+    case MSG_TYPE_PEERLIST_REQ:
+        DLOG( "TODO: process PEERLIST request.\n" );
+        mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
         break;
     // Anything else is nonsense
     default:
         XLOG( LOG_INFO, "Message type 0x%04"PRIX16" not supported by server.\n", mtype );
-        /* Non-requests are silently dropped! */
         if ( MTYPE_IS_REQ( mtype ) )
         {
             DLOG( "Add error response to c[%d] send queue.\n", i_src );
             mbuf_to_error_response( &c[i_src].rbuf, SC_I_AM_A_TEAPOT );
-            enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
-            return 1;
+        }
+        else
+        {   /* Non-requests are silently dropped! */
+            mbuf_free( &c[i_src].rbuf );
         }
         return -1;
         break;
     }
     return 0;
+    (void)m_wfds;
 }
 
 static int process_broadcast_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
 
-    XLOG( LOG_WARNING, "Broadcast messages not implemented in server.\n" );
-    /* Non-requests are silently dropped! */
-    if ( MTYPE_IS_REQ( mtype ) )
+    switch ( mtype )
     {
-        DLOG( "Add error response to c[%d] send queue.\n", i_src );
-        mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
-        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
-        return 1;
+    default:
+        XLOG( LOG_WARNING, "Broadcast messages not implemented in server.\n" );
+        if ( MTYPE_IS_REQ( mtype ) )
+        {
+            DLOG( "Add error response to c[%d] send queue.\n", i_src );
+            mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
+        }
+        else
+        {   /* Non-requests are silently dropped! */
+            mbuf_free( &c[i_src].rbuf );
+        }
+        return -1;
+        break;
     }
-    return -1;
+    return 0;
+    (void)m_wfds;
 }
 
 static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
@@ -430,8 +493,7 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     {
         DLOG( "Add error response to c[%d] send queue.\n", i_src );
         mbuf_to_error_response( &c[i_src].rbuf, SC_MISDIRECTED_REQUEST );
-        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
-        return 1;
+        return -1;
     }
     switch ( mtype )
     {
@@ -446,22 +508,25 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     case MSG_TYPE_PING_REQ:
     case MSG_TYPE_PING_RES:
     case MSG_TYPE_PING_ERR:
+        DLOG( "Forwarding message to c[%d] send queue.\n", i_dst );
+        enqueue_msg( &c[i_dst], c[i_src].rbuf, m_wfds );
+        c[i_src].rbuf = NULL;
         break;
     // Anything else is nonsense
     default:
         XLOG( LOG_WARNING, "Message type 0x%04"PRIX16" not forwarded to client.\n", mtype );
         if ( MTYPE_IS_REQ( mtype ) )
-        {   /* Non-requests are silently dropped ! */
+        {
             DLOG( "Add error response to c[%d] send queue.\n", i_src );
             mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
-            enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
-            return 1;
+        }
+        else
+        {   /* Non-requests are silently dropped! */
+            mbuf_free( &c[i_src].rbuf );
         }
         return -1;
         break;
     }
-    DLOG( "Forwarding message to c[%d] send queue.\n", i_dst );
-    enqueue_msg( &c[i_dst], c[i_src].rbuf, m_wfds );
     return 0;
 }
 
@@ -479,12 +544,13 @@ static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
 
     if ( 0ULL == dstid )
         r = process_server_msg( c, i_src, m_wfds );
-    else if ( -1ULL == dstid )
+    else if ( ~0ULL == dstid )
         r = process_broadcast_msg( c, i_src, m_wfds );
     else
         r = process_forward_msg( c, i_src, m_wfds );
-    if ( 0 > r )
-        mbuf_free( &c[i_src].rbuf );
+    /* Send back the response, if any: */
+    if ( NULL != c[i_src].rbuf )
+        enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
     return r;
 }
 

@@ -134,6 +134,7 @@ enum MSG_TYPE {
 
 /* Attributes. */
 enum MSG_ATTRIB {
+    MSG_ATTR_INVALID    = 0x0000,
     MSG_ATTR_USERNAME   = 0x0001,
     MSG_ATTR_PUBKEY     = 0x0002,
     MSG_ATTR_CHALLENGE  = 0x0003,
@@ -170,15 +171,15 @@ extern mbuf_t *mbuf_new( mbuf_t **pp );
 extern void mbuf_free( mbuf_t **p );
 extern mbuf_t *mbuf_resize( mbuf_t **pp, size_t size );
 extern mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount );
-
-extern int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... );
-
 extern mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
                     uint64_t srcid, uint64_t dstid,
                     uint64_t trid, uint64_t exid );
-
 extern mbuf_t *mbuf_to_response( mbuf_t **pp );
 extern mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec );
+
+extern int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... );
+extern int mbuf_getnextattrib( mbuf_t *p, enum MSG_ATTRIB *ptype, size_t *plen, void **pval );
+extern int mbuf_resetgetattrib( mbuf_t *p );
 
 
 #ifdef DEBUG

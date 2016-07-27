@@ -320,8 +320,10 @@ The following attributes are currently defined:
 Attr.   Attribute   Valid
 Type    Name        Lengths     Description
 --------------------------------------------------------------------------
-0x0001  USERNAME    1..NAME_MAX Null-terminated UTF-8 encoded character
-                                string representing the user login name.
+0x0001  USERNAME    3..NAME_MAX Null-terminated UTF-8 encoded character
+                                string representing the user login name; 
+                                matched against the regular expression
+                                "^[a-zA-Z_0-9]{3,31}$".
 --------------------------------------------------------------------------
 0x0002  PUBKEY      1..KEY_MAX  Public key provided by a client during
                                 account creation.
@@ -343,10 +345,10 @@ Type    Name        Lengths     Description
                                 server. This ID is dynamically assigned
                                 for each session.
 --------------------------------------------------------------------------
-0x0011  PEERNAME    1..NAME_MAX Null-terminated UTF-8 encoded character
+0x0011  PEERNAME    3..NAME_MAX Null-terminated UTF-8 encoded character
                                 string representing the friendly name
                                 associated with the user identified by
-                                the preceding PEERID.
+                                the preceding PEERID, cref. USERNAME.
 --------------------------------------------------------------------------
 0x0021  OFFERID     8           ID assigned to an offer. Used in every
                                 transaction exchange related to that
@@ -420,7 +422,6 @@ TEXT_MAX := 1024
 
 #TODO:
 
- * REGISTER message type
  * describe broadcast offers and related server-side offer caching
  * ...
 
