@@ -36,6 +36,14 @@
  *
  */
 
+/*
+ * TODO:
+ * - implement nonce generation, encryption, decryption auth logic
+ * - implement REGISTER request
+ * - motd command output capture :-)
+ * - broadcast messages
+ * - ...
+ */
 
 #define _POSIX_C_SOURCE 201112L
 
@@ -371,7 +379,13 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
     size_t al;
     void *av;
     const udb_t *pu;
-
+    
+    if ( CLT_AUTH_OK != c[i_src].st 
+        && MSG_TYPE_LOGIN_REQ != mtype && MSG_TYPE_AUTH_REQ != mtype )
+    {
+        mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
+        return -1;
+    }
     mbuf_resetgetattrib( c[i_src].rbuf );
     switch ( mtype )
     {
@@ -416,25 +430,33 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
             || at != MSG_ATTR_DIGEST )
         {
             mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+            break;
         }
                 /* DEBUG ONLY (road works ahead): */
-        else if ( 0 != strcmp( (const char *)av, c[i_src].key ) )
+        if ( 0 != strcmp( (const char *)av, c[i_src].key ) )
         {
             mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
+            break;
         }
-        else
-        {
-            c[i_src].st = CLT_AUTH_OK;
-            mbuf_to_response( &c[i_src].rbuf );
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, 9, "Welcome!" );
-        }
+        c[i_src].st = CLT_AUTH_OK;
+        mbuf_to_response( &c[i_src].rbuf );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, 9, "Welcome!" );
         break;
     case MSG_TYPE_PEERLIST_REQ:
-        DLOG( "TODO: process PEERLIST request.\n" );
-        mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
+        DLOG( "Process PEERLIST request.\n" );
+        mbuf_to_response( &c[i_src].rbuf );
+        for ( int i = 0; i < cfg.max_clients; ++i )
+        {
+            if ( CLT_AUTH_OK == c[i].st )
+            {
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_PEERID, 8, c[i].id );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_PEERNAME,
+                                strlen( c[i].name ) + 1, c[i].name );
+            }
+        }
         break;
-    // Anything else is nonsense
+    /* Anything else is nonsense: */
     default:
         XLOG( LOG_INFO, "Message type 0x%04"PRIX16" not supported by server.\n", mtype );
         if ( MTYPE_IS_REQ( mtype ) )
@@ -457,6 +479,11 @@ static int process_broadcast_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
 
+    if ( CLT_AUTH_OK != c[i_src].st )
+    {
+        mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
+        return -1;
+    }
     switch ( mtype )
     {
     default:
@@ -481,6 +508,12 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     int i_dst;
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
+
+    if ( CLT_AUTH_OK != c[i_src].st )
+    {
+        mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
+        return -1;
+    }
 
     for ( i_dst = 0; i_dst < cfg.max_clients; ++i_dst )
     {
@@ -512,7 +545,7 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
         enqueue_msg( &c[i_dst], c[i_src].rbuf, m_wfds );
         c[i_src].rbuf = NULL;
         break;
-    // Anything else is nonsense
+    /* Anything else is nonsense: */
     default:
         XLOG( LOG_WARNING, "Message type 0x%04"PRIX16" not forwarded to client.\n", mtype );
         if ( MTYPE_IS_REQ( mtype ) )
@@ -534,13 +567,12 @@ static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
 {
     int r;
     uint64_t dstid = HDR_GET_DSTID( c[i_src].rbuf );
-    uint64_t srcid = HDR_GET_SRCID( c[i_src].rbuf );
 
+    /* Fill in the *real* client ID! */
+    if ( CLT_LOGIN_OK == c[i_src].st || CLT_AUTH_OK == c[i_src].st )
+        HDR_SET_SRCID( c[i_src].rbuf, c[i_src].id );
     DLOG( "dump:\n" );
     mbuf_dump( c[i_src].rbuf );
-
-    DLOG( "TODO: fill in *real* source ID.\n" );
-    c[i_src].id = srcid;
 
     if ( 0ULL == dstid )
         r = process_server_msg( c, i_src, m_wfds );
