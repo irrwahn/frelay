@@ -52,7 +52,7 @@
 
 static udb_t *userdb = NULL;
 static const char *userdb_path = "./user.db";
-static uint64_t next_id = 0ULL;
+static uint64_t next_id = 1ULL;
 
 static int udb_nameisvalid( const char *s )
 {

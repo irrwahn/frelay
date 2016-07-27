@@ -372,17 +372,17 @@ static int dequeue_msg( client_t *cp, fd_set *m_wfds )
     return 0;
 }
 
-static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
+static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m_wfds )
 {
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
     enum MSG_ATTRIB at;
     size_t al;
     void *av;
     const udb_t *pu;
-    
-    if ( CLT_AUTH_OK != c[i_src].st 
-        && MSG_TYPE_LOGIN_REQ != mtype 
-        && MSG_TYPE_AUTH_REQ != mtype 
+
+    if ( CLT_AUTH_OK != c[i_src].st
+        && MSG_TYPE_LOGIN_REQ != mtype
+        && MSG_TYPE_AUTH_REQ != mtype
         && MSG_TYPE_REGISTER_REQ != mtype )
     {
         mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
@@ -469,6 +469,9 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_wfds )
             mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
             break;
         }
+        for ( int i = 0; i < cfg.max_clients; ++i )
+            if ( c[i_src].id == c[i].id && i_src != i && 0 <= c[i].fd )
+                close_client( &c[i], m_rfds, m_wfds );
         c[i_src].st = CLT_AUTH_OK;
         mbuf_to_response( &c[i_src].rbuf );
         mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
@@ -594,7 +597,7 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     return 0;
 }
 
-static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
+static int process_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m_wfds )
 {
     int r;
     uint64_t dstid = HDR_GET_DSTID( c[i_src].rbuf );
@@ -606,7 +609,7 @@ static int process_msg( client_t *c, int i_src, fd_set *m_wfds )
     mbuf_dump( c[i_src].rbuf );
 
     if ( 0ULL == dstid )
-        r = process_server_msg( c, i_src, m_wfds );
+        r = process_server_msg( c, i_src, m_rfds, m_wfds );
     else if ( ~0ULL == dstid )
         r = process_broadcast_msg( c, i_src, m_wfds );
     else
@@ -685,7 +688,7 @@ static int handle_io( client_t *c, int nset,
                 }
                 if ( c[i].rbuf->boff == c[i].rbuf->bsize )
                 {   /* Payload data complete. */
-                    process_msg( c, i, m_wfds );
+                    process_msg( c, i, m_rfds, m_wfds );
                     c[i].rbuf = NULL;
                 }
             }
