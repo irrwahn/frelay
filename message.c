@@ -103,7 +103,7 @@ mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
     mbuf_t *p = *pp;
     p->boff = 0;
     HDR_SET_TYPE( p, type );
-    HDR_SET_PAYLEN( p, p->bsize );
+    HDR_SET_PAYLEN( p, 0 );
     HDR_SET_RFU( p, 0 );
     HDR_SET_TS( p, ntime_get() );
     HDR_SET_SRCID( p, srcid );

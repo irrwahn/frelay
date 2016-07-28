@@ -367,6 +367,10 @@ static int dequeue_msg( client_t *cp, fd_set *m_wfds )
     return 0;
 }
 
+#define TXT_REGISTERED  "Registered, now log in."
+#define TXT_WELCOME     "Welcome!"
+#define TXT_BYE         "Bye."
+
 static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m_wfds )
 {
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
@@ -421,7 +425,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
             }
             mbuf_to_response( &c[i_src].rbuf );
             mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, 23, "Registered, now login." );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_REGISTERED, TXT_REGISTERED );
         ERR:
             free( name );
             free( key );
@@ -470,7 +474,22 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         c[i_src].st = CLT_AUTH_OK;
         mbuf_to_response( &c[i_src].rbuf );
         mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, 9, "Welcome!" );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME, TXT_WELCOME );
+        break;
+    case MSG_TYPE_LOGOUT_REQ:
+        DLOG( "Process LOGOUT request.\n" );
+        if ( CLT_AUTH_OK != c[i_src].st && CLT_LOGIN_OK != c[i_src].st )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
+            break;
+        }
+        c[i_src].st = CLT_PRE_LOGIN;
+        c[i_src].id = 0ULL;
+        free( c[i_src].name ); c[i_src].name = NULL;
+        free( c[i_src].key ); c[i_src].key = NULL;
+        mbuf_to_response( &c[i_src].rbuf );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_BYE, TXT_BYE );
         break;
     case MSG_TYPE_PEERLIST_REQ:
         DLOG( "Process PEERLIST request.\n" );
@@ -501,7 +520,6 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         break;
     }
     return 0;
-    (void)m_wfds;
 }
 
 static int process_broadcast_msg( client_t *c, int i_src, fd_set *m_wfds )

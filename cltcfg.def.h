@@ -39,7 +39,7 @@
 
 #define DEF_PORT        "64740"     /* neighbor of the mumbler ^.^ */
 
-#define SEL_TIMEOUT_MS  2000        /* select idle timeout in ms */
+#define SEL_TIMEOUT_MS  30000       /* select idle timeout in ms */
 
 #define MSG_TIMEOUT_S   5           /* maximum intra-message receive gap */
 

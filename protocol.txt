@@ -194,7 +194,7 @@ REGISTER
 Message type    0x0011              0x0012              0x001a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   USERNAME, PUBKEY    OK                  ERROR
-Opt. Attrib.                        -                   NOTICE
+Opt. Attrib.                        NOTICE              NOTICE
 
 
 LOGIN
@@ -206,7 +206,7 @@ LOGIN
 Message type    0x0021              0x0022              0x002a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   USERNAME            CHALLENGE           ERROR
-Opt. Attrib.                        -                   NOTICE
+Opt. Attrib.    -                   -                   NOTICE
 
 
 AUTH
@@ -218,7 +218,19 @@ AUTH
 Message type    0x0031              0x0032              0x003a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   DIGEST              OK                  ERROR
-Opt. Attrib.                        NOTICE              NOTICE
+Opt. Attrib.    -                   NOTICE              NOTICE
+
+
+LOGOUT
+------
+#TODO: description
+
+                Request             Response            Error Response
+--------------------------------------------------------------------------
+Message type    0x0041              0x0042              0x004a
+Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
+Mand. Attrib.   -                   OK                  ERROR
+Opt. Attrib.    -                   NOTICE              NOTICE
 
 
 PEERLIST
@@ -232,7 +244,7 @@ More than one peer may be included in a single response.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0041              0x0042              0x004a
+Message type    0x0051              0x0052              0x005a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   -                   PEERID, PEERNAME    ERROR
 Opt. Attrib.    -                   -                   NOTICE
@@ -321,7 +333,7 @@ Attr.   Attribute   Valid
 Type    Name        Lengths     Description
 --------------------------------------------------------------------------
 0x0001  USERNAME    3..NAME_MAX Null-terminated UTF-8 encoded character
-                                string representing the user login name; 
+                                string representing the user login name;
                                 matched against the regular expression
                                 "^[a-zA-Z_0-9]{3,31}$".
 --------------------------------------------------------------------------

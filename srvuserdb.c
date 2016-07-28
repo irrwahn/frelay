@@ -69,13 +69,21 @@ static int udb_nameisvalid( const char *s )
     return regexec( &re, s, 0, NULL, 0 );
 }
 
+static const udb_t *udb_lookupname_( const char *s )
+{
+    for ( udb_t *p = userdb; p; p = p->next )
+        if ( 0 == strcmp( s, p->name ) )
+            return p;
+    return NULL;
+}
+
 static const udb_t *udb_addentry_( uint64_t id, const char *name, const char *key )
 {
     udb_t *p;
 
     if ( NULL == name || NULL == key || 0 != udb_nameisvalid( name ) )
         return errno = EINVAL, NULL;
-    if ( NULL != udb_lookupname( name ) )
+    if ( NULL != udb_lookupname_( name ) )
         return errno = EEXIST, NULL;
     p = malloc( sizeof *p ); die_if( NULL == p, "malloc() failed: %m.\n" );
     p->name = strdup( name ); die_if( NULL == p->name, "strdup() failed: %m.\n" );
@@ -148,10 +156,7 @@ static int udb_save( const char *path )
 const udb_t *udb_lookupname( const char *s )
 {
     udb_load( userdb_path );
-    for ( udb_t *p = userdb; p; p = p->next )
-        if ( 0 == strcmp( s, p->name ) )
-            return p;
-    return NULL;
+    return udb_lookupname_( s );
 }
 
 const udb_t *udb_addentry( uint64_t id, const char *name, const char *key )

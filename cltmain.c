@@ -76,6 +76,8 @@ static struct {
     int msg_timeout;
     int conn_timeout;
     const char *username;
+    const char *pubkey;
+    const char *privkey;
     enum CLT_STATE st;
 } cfg = {
     /* .select_timeout = */
@@ -86,6 +88,10 @@ static struct {
     CONN_TIMEOUT_S,
     /* .username = */
     "user",
+    /* .pubkey = */
+    "userpubkey",
+    /* .privkey = */
+    "userprivkey",
     /* .st = */
     CLT_INVALID,
 };
@@ -120,12 +126,20 @@ static int eval_cmdline( int argc, char *argv[] )
  *
  */
 
-static int connect_srv( const char *host, const char *service )
+static int disconnect_srv( int *pfd )
+{
+    close( *pfd );
+    *pfd = -1;
+    return 0;
+}
+
+static int connect_srv( int *pfd, const char *host, const char *service )
 {
     int res = 0;
     int fd = -1;
     struct addrinfo hints, *info, *ai;
 
+    disconnect_srv( pfd );
     /* Create socket, set SO_REUSEADDR, and connect. */
     memset( &hints, 0, sizeof hints );
     hints.ai_family = AF_INET;
@@ -194,14 +208,8 @@ static int connect_srv( const char *host, const char *service )
         XLOG( LOG_ERR, "Unable to connect.\n" );
         return -1;
     }
-    DLOG( "Connected to [%s:%s].\n", host, service );
-    return fd;
-}
-
-static int disconnect_srv( int *srvfd )
-{
-    close( *srvfd );
-    *srvfd = -1;
+    XLOG( LOG_INFO, "Connected to [%s:%s].\n", host, service );
+    *pfd = fd;
     return 0;
 }
 
@@ -210,16 +218,12 @@ static int disconnect_srv( int *srvfd )
  *
  */
 
-static time_t act = 0;
-static int maxfd = -1;
-static int srvfd = -1;
-static fd_set rfds, wfds;
 static mbuf_t *rbuf = NULL;
 static mbuf_t *qhead = NULL, *qtail = NULL; /* send queue pointers */
 
 static int enqueue_msg( mbuf_t *m )
 {
-    DLOG( "%p\n", m );
+    //DLOG( "\n" ); mbuf_dump( m );
     m->boff = 0;
     m->next = NULL;
     if ( NULL != qtail )
@@ -234,9 +238,7 @@ static int dequeue_msg( void )
 {
     mbuf_t *next;
 
-    DLOG( "%p\n", qhead );
-    mbuf_dump( qhead );
-
+    //DLOG( "\n" ); mbuf_dump( qhead );
     next = qhead->next;
     if ( qtail == qhead )
         qtail = NULL;
@@ -250,13 +252,15 @@ static int dequeue_msg( void )
  *
  */
 
-static int process_stdin( void )
+static int process_stdin( int *srvfd )
 {
 #define MAX_ARG     10
 #define MAX_CMDLINE 4000
+    mbuf_t *mp = NULL;
     int r;
     int a;
-    char *arg[MAX_ARG], *cp;
+    char *cp;
+    const char *arg[MAX_ARG];
     static char line[MAX_CMDLINE];
 
     r = read( STDIN_FILENO, line, sizeof line - 1 );
@@ -269,8 +273,7 @@ static int process_stdin( void )
         return -1;
     }
     else if ( 0 == r )
-    {
-        /* EOF on stdin. */
+    {   /* EOF on stdin. */
         return 0;
     }
     line[r] = '\0';
@@ -284,44 +287,76 @@ static int process_stdin( void )
         while ( isspace( (unsigned char)*cp ) )
             *cp++ = '\0';
     }
+#undef MAX_ARG
+#undef MAX_CMDLINE
 
     /* Ye shoddy command pars0r. */
-    if ( a > 0 && 0 == strcmp( "connect", arg[0] ) )
+    if ( 1 > a )
+        return -1;
+    if ( 0 == strcmp( "connect", arg[0] ) )
     {
-        mbuf_t *mp = NULL;
-        close( srvfd );
-        srvfd = connect_srv( a > 1 ? arg[1] : "localhost", a > 2 ? arg[2] : DEF_PORT );
-        if ( 0 > srvfd )
+        if ( 3 > a )
+            arg[2] = DEF_PORT;
+        if ( 2 > a )
+            arg[1] = "localhost";
+        connect_srv( srvfd, arg[1], arg[2] );
+        if ( 0 > *srvfd )
+        {
+            cfg.st = CLT_INVALID;
             return -1;
+        }
         cfg.st = CLT_PRE_LOGIN;
-        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random(), 1 );
-        mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( cfg.username ) + 1, cfg.username );
-        enqueue_msg( mp );
     }
-    else if ( a > 0 && 0 == strcmp( "disconnect", arg[0] ) )
+    else if ( 0 == strcmp( "disconnect", arg[0] ) )
     {
         DLOG( "Closing connection.\n" );
-        disconnect_srv( &srvfd );
+        disconnect_srv( srvfd );
+        cfg.st = CLT_INVALID;
     }
-    else if ( a > 0 && 0 == strcmp( "exit", arg[0] ) )
+    else if ( 0 == strcmp( "register", arg[0] ) )
     {
-        r = 0;
+        DLOG( "Registering.\n" );
+        if ( 3 > a )
+            arg[2] = cfg.username;
+        if ( 2 > a )
+            arg[1] = cfg.pubkey;
+        mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random(), 1 );
+        mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
+        mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[2] ) + 1, arg[2] );
+    }
+    else if ( 0 == strcmp( "login", arg[0] ) )
+    {
+        DLOG( "Logging in.\n" );
+        if ( 2 > a )
+            arg[1] = cfg.username;
+        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random(), 1 );
+        mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
+    }
+    else if ( 0 == strcmp( "logout", arg[0] ) )
+    {
+        DLOG( "Logging out.\n" );
+        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random(), 1 );
+    }
+    else if ( 0 == strcmp( "exit", arg[0] ) )
+    {
+        disconnect_srv( srvfd );
+        cfg.st = CLT_INVALID;
+        return 0;
     }
     else
     {
-        printf( "unknowmn command sequence: " );
+        XLOG( LOG_WARNING, "unknown command sequence: \n" );
         for ( int i = 0; i < a; ++i )
-            printf( "%s ", arg[i] );
+            XLOG( LOG_WARNING, "%s \n", arg[i] );
         puts( "" );
     }
+    if ( NULL != mp )
+        enqueue_msg( mp );
     return r;
 }
 
 static int process_srvmsg( mbuf_t **pp )
 {
-    DLOG( "dump:\n" );
-    mbuf_dump( *pp );
-
     uint16_t mtype = HDR_GET_TYPE( *pp );
     uint64_t srcid = HDR_GET_SRCID( *pp );
     uint64_t trid = HDR_GET_TRID( *pp );
@@ -329,74 +364,108 @@ static int process_srvmsg( mbuf_t **pp )
     enum MSG_ATTRIB at;
     size_t al;
     void *av;
+    int res = 0;
 
     mbuf_resetgetattrib( *pp );
-    if ( CLT_AUTH_OK == cfg.st )
+    switch ( mtype )
     {
-        DLOG( "TODO: normal message processing.\n" );
-        mbuf_free( pp );
-    }
-    else if ( CLT_PRE_LOGIN == cfg.st && 0ULL == srcid
-        && MSG_TYPE_LOGIN_RES == mtype
-        && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
-        && MSG_ATTR_CHALLENGE == at )
-    {
-        DLOG( "Process LOGIN response.\n" );
-        cfg.st = CLT_LOGIN_OK;
-        void *avcopy = memdup( av, al );
-        mbuf_compose( pp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
-        // TODO: hashing, crypt, whatever
-        mbuf_addattrib( pp, MSG_ATTR_DIGEST, al, avcopy );
-        enqueue_msg( *pp );
-        free( avcopy );
-        *pp = NULL;
-    }
-    else if ( CLT_LOGIN_OK == cfg.st && 0ULL == srcid
-        && MSG_TYPE_AUTH_RES == mtype
-        && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
-        && MSG_ATTR_OK == at )
-    {
-        DLOG( "Process AUTH response.\n" );
-        cfg.st = CLT_AUTH_OK;
-        if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
-            && MSG_ATTR_NOTICE == at )
+    case MSG_TYPE_REGISTER_RES:
+        if ( CLT_PRE_LOGIN == cfg.st
+            && 0ULL == srcid
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OK == at )
         {
-            DLOG( "\n--- Server MotD ---\n%s\n-------------------\n", (char *)av );
+            DLOG( "Process REGISTER response.\n" );
+            cfg.st = CLT_AUTH_OK;
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
+            mbuf_free( pp );
         }
-        mbuf_free( pp );
+        break;
+    case MSG_TYPE_LOGIN_RES:
+        if ( CLT_PRE_LOGIN == cfg.st
+            && 0ULL == srcid
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_CHALLENGE == at )
+        {
+            DLOG( "Process LOGIN response.\n" );
+            cfg.st = CLT_LOGIN_OK;
+            void *avcopy = memdup( av, al );
+            mbuf_compose( pp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
+            // TODO: hashing, crypt, whatever
+            mbuf_addattrib( pp, MSG_ATTR_DIGEST, al, avcopy );
+            enqueue_msg( *pp );
+            free( avcopy );
+            *pp = NULL;
+        }
+        break;
+    case MSG_TYPE_AUTH_RES:
+        if ( CLT_LOGIN_OK == cfg.st
+            && 0ULL == srcid
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OK == at )
+        {
+            DLOG( "Process AUTH response.\n" );
+            cfg.st = CLT_AUTH_OK;
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
+            mbuf_free( pp );
+        }
+        break;
+    case MSG_TYPE_LOGOUT_RES:
+        if ( ( CLT_LOGIN_OK == cfg.st || CLT_AUTH_OK == cfg.st  )
+            && 0ULL == srcid
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OK == at )
+        {
+            DLOG( "Process LOGOUT response.\n" );
+            cfg.st = CLT_PRE_LOGIN;
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
+            mbuf_free( pp );
+        }
+        break;
+    default:
+        if ( CLT_AUTH_OK == cfg.st )
+        {
+            DLOG( "TODO: process message:\n" );
+            mbuf_dump( *pp );
+            mbuf_free( pp );
+        }
+        else
+        {
+            XLOG( LOG_WARNING, "Message not handled, not logged in!\n" );
+            mbuf_dump( *pp );
+            mbuf_free( pp );
+            res = -1;
+        }
+        break;
     }
-    else
-    {
-        XLOG( LOG_WARNING, "Message not handled.\n" );
-        mbuf_free( pp );
-    }
-    return 0;
+    return res;
 }
 
-static int handle_srvio( int nset )
+static int handle_srvio( int nset, int *srvfd, fd_set *rfds, fd_set *wfds )
 {
-    time_t now = time( NULL );
-
     /* Read from server. */
-    if ( FD_ISSET( srvfd, &rfds ) )
+    if ( FD_ISSET( *srvfd, rfds ) )
     {
         --nset;
         /* Prepare receive buffer. */
         if ( NULL == rbuf )
             mbuf_new( &rbuf );
-        act = now;
 
         if ( rbuf->boff < rbuf->bsize )
         {   /* Message buffer not yet filled. */
             int r;
             errno = 0;
-            r = read( srvfd, rbuf->b + rbuf->boff, rbuf->bsize - rbuf->boff );
+            r = read( *srvfd, rbuf->b + rbuf->boff, rbuf->bsize - rbuf->boff );
             if ( 0 > r )
             {
                 if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
                 {
                     XLOG( LOG_ERR, "read() failed: %m.\n" );
-                    disconnect_srv( &srvfd );
+                    disconnect_srv( srvfd );
+                    cfg.st = CLT_INVALID;
                     goto DONE;
                 }
                 goto SKIP_TO_WRITE;
@@ -404,7 +473,8 @@ static int handle_srvio( int nset )
             if ( 0 == r )
             {
                 DLOG( "Remote host closed connection.\n" );
-                disconnect_srv( &srvfd );
+                disconnect_srv( srvfd );
+                cfg.st = CLT_INVALID;
                 goto DONE;
             }
             DLOG( "%d bytes received.\n", r );
@@ -430,28 +500,29 @@ static int handle_srvio( int nset )
     }
 SKIP_TO_WRITE:
     /* Write to server. */
-    if ( 0 < nset && FD_ISSET( srvfd, &wfds ) )
+    if ( 0 < nset && FD_ISSET( *srvfd, wfds ) )
     {
         --nset;
-        act = now;
         if ( qhead->boff < qhead->bsize )
         {   /* Message buffer not yet fully sent. */
             int w;
             errno = 0;
-            w = write( srvfd, qhead->b + qhead->boff, qhead->bsize - qhead->boff );
+            w = write( *srvfd, qhead->b + qhead->boff, qhead->bsize - qhead->boff );
             if ( 0 > w )
             {
                 if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
                 {
                     XLOG( LOG_ERR, "write() failed: %m.\n" );
-                    disconnect_srv( &srvfd );
+                    disconnect_srv( srvfd );
+                    cfg.st = CLT_INVALID;
                 }
                 goto DONE;
             }
             if ( 0 == w )
             {
                 DLOG( "WTF, write() returned 0: %m.\n" );
-                disconnect_srv( &srvfd );
+                disconnect_srv( srvfd );
+                cfg.st = CLT_INVALID;
                 goto DONE;
             }
             DLOG( "%d bytes sent to server.\n", w );
@@ -468,9 +539,11 @@ DONE:
 
 int main( int argc, char *argv[] )
 {
+    int srvfd = -1;
+
     /* Initialization. */
     XLOG_INIT( argv[0] );
-    srandom( time( NULL ) );
+    srandom( time( NULL ) ^ getpid() );
     eval_cmdline( argc, argv );
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     /* TODO: ignore or handle other signals? */
@@ -479,16 +552,11 @@ int main( int argc, char *argv[] )
     cfg.st = CLT_INVALID;
     while ( 1 )
     {
-        static time_t last_upkeep = 0;
-        time_t now = time( NULL );
         int nset;
+        int maxfd;
+        fd_set rfds, wfds;
         struct timeval to;
 
-        if ( now - last_upkeep > cfg.select_timeout.tv_sec )
-        {   /* Avoid doing upkeep continuously under load. */
-            last_upkeep = now;
-            /* TODO: send ping to server!? */
-        }
         FD_ZERO( &rfds );
         FD_ZERO( &wfds );
         FD_SET( STDIN_FILENO, &rfds );
@@ -496,7 +564,9 @@ int main( int argc, char *argv[] )
         {
             FD_SET( srvfd, &rfds );
             if ( NULL != qhead )
+            {
                 FD_SET( srvfd, &wfds );
+            }
             maxfd = srvfd;
         }
         else
@@ -505,14 +575,12 @@ int main( int argc, char *argv[] )
         nset = select( maxfd + 1, &rfds, &wfds, NULL, &to );
         if ( 0 < nset )
         {
-            /* DLOG( "%d fds ready.\n", nset ); */
-            nset = handle_srvio( nset );
+            nset = handle_srvio( nset, &srvfd, &rfds, &wfds );
             if ( 0 < nset && FD_ISSET( STDIN_FILENO, &rfds ) )
             {
                 --nset;
-                /* EOF on stdin terminates server. */
-                if ( 0 ==  process_stdin() )
-                    break;
+                if ( 0 ==  process_stdin( &srvfd ) )
+                    break;  /* EOF on stdin terminates server. */
             }
             if ( 0 < nset )
             {
@@ -520,8 +588,13 @@ int main( int argc, char *argv[] )
             }
         }
         else if ( 0 == nset )
-        {
-            /* DLOG( "select timed out.\n" ); */
+        {   /* Select timed out */
+            if ( CLT_AUTH_OK == cfg.st )
+            {   /* Send ping to server. */
+                mbuf_t *mb = NULL;
+                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random(), 1 );
+                enqueue_msg( mb );
+            }
         }
         else if ( EINTR == errno )
         {
