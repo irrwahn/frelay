@@ -117,9 +117,9 @@ static struct {
     DEF_PORT,
     /* .select_timeout = */
     { .tv_sec=SEL_TIMEOUT_MS/1000, .tv_usec=SEL_TIMEOUT_MS%1000*1000 },
-    /* msg_timeout = */
+    /* .msg_timeout = */
     MSG_TIMEOUT_S,
-    /* conn_timeout = */
+    /* .conn_timeout = */
     CONN_TIMEOUT_S,
     /* .max_clients = */
     MAX_CLIENTS,
@@ -133,14 +133,9 @@ static struct {
 
 static int eval_cmdline( int argc, char *argv[] )
 {
-    XLOG_INIT( argv[0] );
-
-    DLOG( "MSG_HDR_SIZE = %d\n", MSG_HDR_SIZE );
-    DLOG( "MSG_MAX_PAY_SIZE = %d\n", MSG_MAX_PAY_SIZE );
-    DLOG( "MSG_MAX_SIZE = %d\n", MSG_MAX_SIZE );
-
     return 0;
     (void)argc;
+    (void)argv;
 }
 
 static int init_server( client_t **clients )
@@ -616,7 +611,10 @@ static int process_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m_wfds )
         r = process_forward_msg( c, i_src, m_wfds );
     /* Send back the response, if any: */
     if ( NULL != c[i_src].rbuf )
+    {
         enqueue_msg( &c[i_src], c[i_src].rbuf, m_wfds );
+        c[i_src].rbuf = NULL;
+    }
     return r;
 }
 
@@ -698,7 +696,7 @@ static int handle_io( client_t *c, int nset,
         if ( FD_ISSET( c[i].fd, wfds ) )
         {
             --nset;
-            c[i].act = time( NULL );
+            c[i].act = now;
             if ( c[i].qhead->boff < c[i].qhead->bsize )
             {   /* Message buffer not yet fully sent. */
                 int w;
@@ -741,6 +739,7 @@ int main( int argc, char *argv[] )
     client_t *clients;
 
     /* Initialization. */
+    XLOG_INIT( argv[0] );
     eval_cmdline( argc, argv );
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     /* TODO: ignore or handle other signals? */

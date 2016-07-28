@@ -36,11 +36,18 @@
 #ifndef CONFIG_H_INCLUDED
 #define CONFIG_H_INCLUDED
 
-#define DEF_PORT        "64740"   /* neighbor of the mumbler */
 
-#define SEL_TIMEOUT_MS  5000
+#define DEF_PORT        "64740"     /* neighbor of the mumbler ^.^ */
 
-#define CONN_TIMEOUT_S  10
+#define SEL_TIMEOUT_MS  2000        /* select idle timeout in ms */
+
+#define MSG_TIMEOUT_S   5           /* maximum intra-message receive gap */
+
+#ifdef DEBUG
+#define CONN_TIMEOUT_S  60
+#else
+#define CONN_TIMEOUT_S  240         /* TCP connection idle timeout in s */
+#endif
 
 
 #endif /* ndef _H_INCLUDED */
