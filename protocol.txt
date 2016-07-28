@@ -284,7 +284,7 @@ PING
 The optional NOTICE attribute may be used for chat-like exchange of text
 messages between clients.
 
-                Indication|Request Response            Error Response
+                Indication|Request  Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0200|0x0201       0x0202              0x020a
 Direction       Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv

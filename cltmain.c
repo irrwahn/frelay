@@ -279,11 +279,26 @@ static int process_stdin( int *srvfd )
     line[r] = '\0';
 
     /* Ye lousy tokeniz0r. */
-    for ( a = 0, cp = line; a < MAX_ARG && *cp; ++a )
+    for ( a = 0, cp = line; *cp && a < MAX_ARG; ++a )
     {
-        arg[a] = cp;
-        while ( *cp && !isspace( (unsigned char)*cp ) )
-            ++cp;
+        if ( '"' == *cp )
+        {
+            arg[a] = ++cp;
+            while ( *cp && '"' != *cp )
+            {
+                if ( '\\' == *cp && '"' == *(cp + 1) )
+                    ++cp;
+                ++cp;
+            }
+            if ( '"' == *cp )
+                *cp++ = '\0';
+        }
+        else
+        {
+            arg[a] = cp;
+            while ( *cp && !isspace( (unsigned char)*cp ) )
+                ++cp;
+        }
         while ( isspace( (unsigned char)*cp ) )
             *cp++ = '\0';
     }
@@ -293,7 +308,18 @@ static int process_stdin( int *srvfd )
     /* Ye shoddy command pars0r. */
     if ( 1 > a )
         return -1;
-    if ( 0 == strcmp( "connect", arg[0] ) )
+    if ( 0 == strcmp( "ping", arg[0] ) )
+    {
+        mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
+                ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random(), 1 );
+        if ( 2 < a )
+            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[2] ) + 1, arg[2] );
+    }
+    else if ( 0 == strcmp( "peerlist", arg[0] ) )
+    {
+        mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random(), 1 );
+    }
+    else if ( 0 == strcmp( "connect", arg[0] ) )
     {
         if ( 3 > a )
             arg[2] = DEF_PORT;
@@ -361,6 +387,7 @@ static int process_srvmsg( mbuf_t **pp )
     uint64_t srcid = HDR_GET_SRCID( *pp );
     uint64_t trid = HDR_GET_TRID( *pp );
     uint64_t exid = HDR_GET_EXID( *pp );
+    mbuf_t *mp = NULL;
     enum MSG_ATTRIB at;
     size_t al;
     void *av;
@@ -369,6 +396,46 @@ static int process_srvmsg( mbuf_t **pp )
     mbuf_resetgetattrib( *pp );
     switch ( mtype )
     {
+    /* Requests */
+    case MSG_TYPE_PING_REQ:
+        if ( CLT_AUTH_OK == cfg.st )
+        {
+            char *s = NULL;
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                s = (char *)av;
+            DLOG( "Received PING request from %016"PRIx64"%s%s.\n", srcid,
+                s?": ":"", s?s:"");
+            mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, ++exid );
+            mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
+            enqueue_msg( mp );
+        }
+        break;
+    /* Responses */
+    case MSG_TYPE_PING_RES:
+        if ( CLT_AUTH_OK == cfg.st
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OK == at )
+        {
+            DLOG( "Received PING response from %016"PRIx64".\n", srcid );
+        }
+        break;
+    case MSG_TYPE_PEERLIST_RES:
+        if ( CLT_AUTH_OK == cfg.st && 0ULL == srcid )
+        {
+            enum MSG_ATTRIB at2;
+            size_t al2;
+            void *av2;
+            DLOG( "Process PEERLIST response.\n" );
+            while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+                && MSG_ATTR_PEERID == at
+                && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
+                && MSG_ATTR_PEERNAME == at2 )
+            {
+                printf( "PEER %016"PRIx64" %s\n", NTOH64( *(uint64_t *)av ), (char *)av2 );
+            }
+            DLOG( "PEERLIST done.\n" );
+        }
+        break;
     case MSG_TYPE_REGISTER_RES:
         if ( CLT_PRE_LOGIN == cfg.st
             && 0ULL == srcid
@@ -379,7 +446,6 @@ static int process_srvmsg( mbuf_t **pp )
             cfg.st = CLT_AUTH_OK;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
-            mbuf_free( pp );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -390,13 +456,10 @@ static int process_srvmsg( mbuf_t **pp )
         {
             DLOG( "Process LOGIN response.\n" );
             cfg.st = CLT_LOGIN_OK;
-            void *avcopy = memdup( av, al );
-            mbuf_compose( pp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
+            mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
             // TODO: hashing, crypt, whatever
-            mbuf_addattrib( pp, MSG_ATTR_DIGEST, al, avcopy );
-            enqueue_msg( *pp );
-            free( avcopy );
-            *pp = NULL;
+            mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
+            enqueue_msg( mp );
         }
         break;
     case MSG_TYPE_AUTH_RES:
@@ -409,11 +472,10 @@ static int process_srvmsg( mbuf_t **pp )
             cfg.st = CLT_AUTH_OK;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
-            mbuf_free( pp );
         }
         break;
     case MSG_TYPE_LOGOUT_RES:
-        if ( ( CLT_LOGIN_OK == cfg.st || CLT_AUTH_OK == cfg.st  )
+        if ( ( CLT_LOGIN_OK == cfg.st || CLT_AUTH_OK == cfg.st )
             && 0ULL == srcid
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
@@ -422,25 +484,37 @@ static int process_srvmsg( mbuf_t **pp )
             cfg.st = CLT_PRE_LOGIN;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
-            mbuf_free( pp );
         }
         break;
     default:
         if ( CLT_AUTH_OK == cfg.st )
         {
-            DLOG( "TODO: process message:\n" );
-            mbuf_dump( *pp );
-            mbuf_free( pp );
+            if ( HDR_TYPE_IS_ERR( *pp )
+                && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+                && MSG_ATTR_ERROR == at )
+            {
+                uint64_t ec = NTOH64( *(uint64_t *)av );
+                char *es = NULL;
+                if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                    es = (char *)av;
+                DLOG( "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
+                    mtype, ec, es?" ":"", es?es:"" );
+            }
+            else
+            {
+                DLOG( "TODO: process message:\n" );
+                mbuf_dump( *pp );
+            }
         }
         else
         {
             XLOG( LOG_WARNING, "Message not handled, not logged in!\n" );
             mbuf_dump( *pp );
-            mbuf_free( pp );
             res = -1;
         }
         break;
     }
+    mbuf_free( pp );
     return res;
 }
 
@@ -477,7 +551,7 @@ static int handle_srvio( int nset, int *srvfd, fd_set *rfds, fd_set *wfds )
                 cfg.st = CLT_INVALID;
                 goto DONE;
             }
-            DLOG( "%d bytes received.\n", r );
+            //DLOG( "%d bytes received.\n", r );
             rbuf->boff += r;
         }
         if ( rbuf->boff == rbuf->bsize )
@@ -487,10 +561,10 @@ static int handle_srvio( int nset, int *srvfd, fd_set *rfds, fd_set *wfds )
                 uint16_t paylen = HDR_GET_PAYLEN( rbuf );
                 if ( paylen > 0 )
                 {   /* Prepare for receiving payload next. */
-                    DLOG( "Grow message buffer by %lu.\n", paylen );
+                    //DLOG( "Grow message buffer by %lu.\n", paylen );
                     mbuf_resize( &rbuf, paylen );
                 }
-                DLOG( "Expecting %"PRIu16" bytes of payload data.\n", paylen );
+                //DLOG( "Expecting %"PRIu16" bytes of payload data.\n", paylen );
             }
             if ( rbuf->boff == rbuf->bsize )
             {   /* Payload data complete. */
@@ -525,7 +599,7 @@ SKIP_TO_WRITE:
                 cfg.st = CLT_INVALID;
                 goto DONE;
             }
-            DLOG( "%d bytes sent to server.\n", w );
+            //DLOG( "%d bytes sent to server.\n", w );
             qhead->boff += w;
         }
         if ( qhead->boff == qhead->bsize )
@@ -592,7 +666,7 @@ int main( int argc, char *argv[] )
             if ( CLT_AUTH_OK == cfg.st )
             {   /* Send ping to server. */
                 mbuf_t *mb = NULL;
-                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random(), 1 );
+                mbuf_compose( &mb, MSG_TYPE_PING_REQ, 0ULL, 0ULL, random(), 1 );
                 enqueue_msg( mb );
             }
         }

@@ -396,6 +396,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         break;
     case MSG_TYPE_PING_REQ:
         mbuf_to_response( &c[i_src].rbuf );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
         break;
     case MSG_TYPE_REGISTER_REQ:
         DLOG( "Process REGISTER request.\n" );

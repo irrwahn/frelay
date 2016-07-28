@@ -56,13 +56,13 @@ mbuf_t *mbuf_new( mbuf_t **pp )
     p->b = (uint8_t *)p + sizeof *p;
     if ( NULL != pp )
         *pp = p;
-    DLOG( "New buffer address: %p\n", p );
+    //DLOG( "New buffer address: %p\n", p );
     return p;
 }
 
 void mbuf_free( mbuf_t **pp )
 {
-    DLOG( "Freeing buffer address: %p\n", *pp );
+    //DLOG( "Freeing buffer address: %p\n", *pp );
     free( *pp );
     *pp = NULL;
 }
@@ -76,7 +76,7 @@ mbuf_t *mbuf_resize( mbuf_t **pp, size_t paylen )
     die_if( MSG_MAX_SIZE < paylen, "%d > MSG_MAX_SIZE!\n", paylen );
     p = realloc( p, sizeof *p + paylen );
     die_if( NULL == p, "realloc() failed: %m.\n" );
-    DLOG( "Resized buffer %p: %zu to %zu\n", p, p->bsize, paylen );
+    //DLOG( "Resized buffer %p: %zu to %zu\n", p, p->bsize, paylen );
     p->b = (uint8_t *)p + sizeof *p;
     p->bsize = paylen;
     if ( p->boff > p->bsize )
@@ -86,7 +86,7 @@ mbuf_t *mbuf_resize( mbuf_t **pp, size_t paylen )
 
 mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount )
 {
-    DLOG( "Grow buffer %p by %zu\n", *pp, amount );
+    //DLOG( "Grow buffer %p by %zu\n", *pp, amount );
     mbuf_t *p = mbuf_resize( pp, (*pp)->bsize - MSG_HDR_SIZE + amount );
     memset( ADDOFF( *pp, (*pp)->bsize - amount ), 0, amount );
     return p;

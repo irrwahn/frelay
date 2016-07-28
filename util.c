@@ -72,7 +72,7 @@ int drain_fd( int fd )
     return_if( 0 == r, 0, "read(%d): remote station disconnected.\n", fd );
     buf[r] = '\0';
     fputs( buf, stderr );
-    DLOG( "Drained %d bytes from %d.\n", r, fd );
+    //DLOG( "Drained %d bytes from %d.\n", r, fd );
     return r;
 }
 #endif
