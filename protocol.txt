@@ -87,7 +87,7 @@ B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
 Message Type
 ------------
 The first 16 bits of a message header indicate the type of the message.
-From those, the four lowest order bits specify a general class to the
+Of those, the four lowest order bits specify the general class of the
 message:
 
     b0000 (0x0)  Indication
@@ -96,7 +96,7 @@ message:
     b1010 (0xa)  Error Response
 
 All other possible combinations of those four bits are reserved for
-future use and shall be treated as invalid message class indicators for
+future use and shall be treated as invalid message class specifiers for
 the time being.
 
 The twelve high order bits encode the individual message type. The
@@ -289,7 +289,7 @@ messages between clients.
 Message type    0x0200|0x0201       0x0202              0x020a
 Direction       Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv
 Mand. Attrib.   -                   OK                  ERROR
-Opt. Attrib.    NOTICE              NOTICE              NOTICE
+Opt. Attrib.    NOTICE              -                   NOTICE
 
 
 

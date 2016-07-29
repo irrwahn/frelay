@@ -85,55 +85,76 @@
 #define HDR_SET_TRID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_TRID)  = HTON64(V))
 #define HDR_SET_EXID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_EXID)  = HTON64(V))
 
-/* Macros to inspect and convert message type classes */
-#define MTYPE_IS_IND(T)     (0x0000 == ((T) & 0x000F))
-#define MTYPE_IS_REQ(T)     (0x0001 == ((T) & 0x000F))
-#define MTYPE_IS_RES(T)     (0x0002 == ((T) & 0x000F))
-#define MTYPE_IS_ERR(T)     (0x000a == ((T) & 0x000F))
+/* Macros to construct or inspect message types. */
+#define MCLASS_IND       0x0000
+#define MCLASS_REQ       0x0001
+#define MCLASS_RES       0x0002
+#define MCLASS_ERR       0x000a
+
+#define MTYPE_REGISTER   0x0010
+#define MTYPE_LOGIN      0x0020
+#define MTYPE_AUTH       0x0030
+#define MTYPE_LOGOUT     0x0040
+#define MTYPE_PEERLIST   0x0050
+#define MTYPE_OFFER      0x0110
+#define MTYPE_GETFILE    0x0120
+#define MTYPE_PING       0x0200
+
+#define MTYPE_GET_CLASS(T)  ((T) & 0x000f)
+#define MTYPE_CUT_CLASS(T)  ((T) & 0xfff0)
+
+#define MCLASS_IS_IND(T)     (MCLASS_IND == MTYPE_GET_CLASS(T))
+#define MCLASS_IS_REQ(T)     (MCLASS_REQ == MTYPE_GET_CLASS(T))
+#define MCLASS_IS_RES(T)     (MCLASS_RES == MTYPE_GET_CLASS(T))
+#define MCLASS_IS_ERR(T)     (MCLASS_ERR == MTYPE_GET_CLASS(T))
+
 #define HDR_TYPE_IS_IND(P)  MTYPE_IS_IND(HDR_GET_TYPE(P))
 #define HDR_TYPE_IS_REQ(P)  MTYPE_IS_REQ(HDR_GET_TYPE(P))
 #define HDR_TYPE_IS_RES(P)  MTYPE_IS_RES(HDR_GET_TYPE(P))
 #define HDR_TYPE_IS_ERR(P)  MTYPE_IS_ERR(HDR_GET_TYPE(P))
 
-#define MTYPE_TO_RES(T)     (((T) & 0xFFF0 ) | 0x0002)
-#define MTYPE_TO_ERR(T)     (((T) & 0xFFF0 ) | 0x000a)
-#define HDR_TYPE_TO_RES(P)  HDR_SET_TYPE((P),MTYPE_TO_RES(HDR_GET_TYPE(P)))
-#define HDR_TYPE_TO_ERR(P)  HDR_SET_TYPE((P),MTYPE_TO_ERR(HDR_GET_TYPE(P)))
+/* Macros to convert message classes. */
+#define MCLASS_TO_RES(T)     (MTYPE_CUT_CLASS(T) | 0x0002)
+#define MCLASS_TO_ERR(T)     (MTYPE_CUT_CLASS(T) | 0x000a)
 
-/* Message types. */
+#define HDR_CLASS_TO_RES(P)  HDR_SET_TYPE((P),MCLASS_TO_RES(HDR_GET_TYPE(P)))
+#define HDR_CLASS_TO_ERR(P)  HDR_SET_TYPE((P),MCLASS_TO_ERR(HDR_GET_TYPE(P)))
+
+
+/* Fully qualified message types, unused commented out. */
 enum MSG_TYPE {
-    MSG_TYPE_REGISTER_IND   = 0x0010,
-    MSG_TYPE_REGISTER_REQ   = 0x0011,
-    MSG_TYPE_REGISTER_RES   = 0x0012,
-    MSG_TYPE_REGISTER_ERR   = 0x001a,
-    MSG_TYPE_LOGIN_IND      = 0x0020,
-    MSG_TYPE_LOGIN_REQ      = 0x0021,
-    MSG_TYPE_LOGIN_RES      = 0x0022,
-    MSG_TYPE_LOGIN_ERR      = 0x002a,
-    MSG_TYPE_AUTH_IND       = 0x0030,
-    MSG_TYPE_AUTH_REQ       = 0x0031,
-    MSG_TYPE_AUTH_RES       = 0x0032,
-    MSG_TYPE_AUTH_ERR       = 0x003a,
-    MSG_TYPE_LOGOUT_IND     = 0x0040,
-    MSG_TYPE_LOGOUT_REQ     = 0x0041,
-    MSG_TYPE_LOGOUT_RES     = 0x0042,
-    MSG_TYPE_LOGOUT_ERR     = 0x004a,
-    MSG_TYPE_PEERLIST_IND   = 0x0050,
-    MSG_TYPE_PEERLIST_REQ   = 0x0051,
-    MSG_TYPE_PEERLIST_RES   = 0x0052,
-    MSG_TYPE_PEERLIST_ERR   = 0x005a,
-    MSG_TYPE_OFFER_IND      = 0x0110,
-    MSG_TYPE_OFFER_REQ      = 0x0111,
-    MSG_TYPE_OFFER_RES      = 0x0112,
-    MSG_TYPE_OFFER_ERR      = 0x011a,
-    MSG_TYPE_GETFILE_IND    = 0x0120,
-    MSG_TYPE_GETFILE_REQ    = 0x0121,
-    MSG_TYPE_GETFILE_RES    = 0x0122,
-    MSG_TYPE_GETFILE_ERR    = 0x012a,
-    MSG_TYPE_PING_IND       = 0x0200,
-    MSG_TYPE_PING_REQ       = 0x0201,
-    MSG_TYPE_PING_RES       = 0x0202,
-    MSG_TYPE_PING_ERR       = 0x020a,
+  //MSG_TYPE_REGISTER_IND  = (MTYPE_REGISTER | MCLASS_IND),   // 0x0010,
+    MSG_TYPE_REGISTER_REQ  = (MTYPE_REGISTER | MCLASS_REQ),   // 0x0011,
+    MSG_TYPE_REGISTER_RES  = (MTYPE_REGISTER | MCLASS_RES),   // 0x0012,
+    MSG_TYPE_REGISTER_ERR  = (MTYPE_REGISTER |MCLASS_ERR),    // 0x001a,
+  //MSG_TYPE_LOGIN_IND     = (MTYPE_LOGIN | MCLASS_IND),      // 0x0020,
+    MSG_TYPE_LOGIN_REQ     = (MTYPE_LOGIN | MCLASS_REQ),      // 0x0021,
+    MSG_TYPE_LOGIN_RES     = (MTYPE_LOGIN | MCLASS_RES),      // 0x0022,
+    MSG_TYPE_LOGIN_ERR     = (MTYPE_LOGIN | MCLASS_ERR),      // 0x002a,
+  //MSG_TYPE_AUTH_IND      = (MTYPE_AUTH | MCLASS_IND),       // 0x0030,
+    MSG_TYPE_AUTH_REQ      = (MTYPE_AUTH | MCLASS_REQ),       // 0x0031,
+    MSG_TYPE_AUTH_RES      = (MTYPE_AUTH | MCLASS_RES),       // 0x0032,
+    MSG_TYPE_AUTH_ERR      = (MTYPE_AUTH | MCLASS_ERR),       // 0x003a,
+  //MSG_TYPE_LOGOUT_IND    = (MTYPE_LOGOUT | MCLASS_IND),     // 0x0040,
+    MSG_TYPE_LOGOUT_REQ    = (MTYPE_LOGOUT | MCLASS_REQ),     // 0x0041,
+    MSG_TYPE_LOGOUT_RES    = (MTYPE_LOGOUT | MCLASS_RES),     // 0x0042,
+    MSG_TYPE_LOGOUT_ERR    = (MTYPE_LOGOUT | MCLASS_ERR),     // 0x004a,
+  //MSG_TYPE_PEERLIST_IND  = (MTYPE_PEERLIST | MCLASS_IND),   // 0x0050,
+    MSG_TYPE_PEERLIST_REQ  = (MTYPE_PEERLIST | MCLASS_REQ),   // 0x0051,
+    MSG_TYPE_PEERLIST_RES  = (MTYPE_PEERLIST | MCLASS_RES),   // 0x0052,
+    MSG_TYPE_PEERLIST_ERR  = (MTYPE_PEERLIST | MCLASS_ERR),   // 0x005a,
+    MSG_TYPE_OFFER_IND     = (MTYPE_OFFER | MCLASS_IND),      // 0x0110,
+    MSG_TYPE_OFFER_REQ     = (MTYPE_OFFER | MCLASS_REQ),      // 0x0111,
+    MSG_TYPE_OFFER_RES     = (MTYPE_OFFER | MCLASS_RES),      // 0x0112,
+    MSG_TYPE_OFFER_ERR     = (MTYPE_OFFER | MCLASS_ERR),      // 0x011a,
+  //MSG_TYPE_GETFILE_IND   = (MTYPE_GETFILE | MCLASS_IND),    // 0x0120,
+    MSG_TYPE_GETFILE_REQ   = (MTYPE_GETFILE | MCLASS_REQ),    // 0x0121,
+    MSG_TYPE_GETFILE_RES   = (MTYPE_GETFILE | MCLASS_RES),    // 0x0122,
+    MSG_TYPE_GETFILE_ERR   = (MTYPE_GETFILE | MCLASS_ERR),    // 0x012a,
+    MSG_TYPE_PING_IND      = (MTYPE_PING | MCLASS_IND),       // 0x0200,
+    MSG_TYPE_PING_REQ      = (MTYPE_PING | MCLASS_REQ),       // 0x0201,
+    MSG_TYPE_PING_RES      = (MTYPE_PING | MCLASS_RES),       // 0x0202,
+    MSG_TYPE_PING_ERR      = (MTYPE_PING | MCLASS_ERR),       // 0x020a,
 };
 
 /* Attributes. */
@@ -184,6 +205,9 @@ extern mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec );
 extern int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attrib, size_t length, ... );
 extern int mbuf_getnextattrib( mbuf_t *p, enum MSG_ATTRIB *ptype, size_t *plen, void **pval );
 extern int mbuf_resetgetattrib( mbuf_t *p );
+
+extern const char *mtype2str( int mtype );
+extern const char *mclass2str( int mtype );
 
 
 #ifdef DEBUG

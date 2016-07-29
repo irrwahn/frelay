@@ -507,7 +507,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
     /* Anything else is nonsense: */
     default:
         XLOG( LOG_INFO, "Message type 0x%04"PRIX16" not supported by server.\n", mtype );
-        if ( MTYPE_IS_REQ( mtype ) )
+        if ( MCLASS_IS_REQ( mtype ) )
         {
             DLOG( "Add error response to c[%d] send queue.\n", i_src );
             mbuf_to_error_response( &c[i_src].rbuf, SC_I_AM_A_TEAPOT );
@@ -535,7 +535,7 @@ static int process_broadcast_msg( client_t *c, int i_src, fd_set *m_wfds )
     {
     default:
         XLOG( LOG_WARNING, "Broadcast messages not implemented in server.\n" );
-        if ( MTYPE_IS_REQ( mtype ) )
+        if ( MCLASS_IS_REQ( mtype ) )
         {
             DLOG( "Add error response to c[%d] send queue.\n", i_src );
             mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_IMPLEMENTED );
@@ -595,7 +595,7 @@ static int process_forward_msg( client_t *c, int i_src, fd_set *m_wfds )
     /* Anything else is nonsense: */
     default:
         XLOG( LOG_WARNING, "Message type 0x%04"PRIX16" not forwarded to client.\n", mtype );
-        if ( MTYPE_IS_REQ( mtype ) )
+        if ( MCLASS_IS_REQ( mtype ) )
         {
             DLOG( "Add error response to c[%d] send queue.\n", i_src );
             mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
@@ -806,7 +806,8 @@ int main( int argc, char *argv[] )
                     break;  /* EOF on stdin terminates server. */
             }
 #endif
-            die_if ( 0 < nset, "%d file descriptors still set!\n", nset );
+            if ( 0 < nset ) /* Can happen on read errors. */
+                XLOG( LOG_INFO, "%d file descriptors still set!\n", nset );
         }
         else if ( 0 == nset )
         {

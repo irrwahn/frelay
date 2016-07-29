@@ -118,7 +118,7 @@ mbuf_t *mbuf_to_response( mbuf_t **pp )
     die_if( NULL == pp, "Need an already filled mbuf struct!\n" );
     mbuf_resize( pp, 0 );
     (*pp)->boff = 0;
-    HDR_TYPE_TO_RES( *pp );
+    HDR_CLASS_TO_RES( *pp );
     HDR_SET_PAYLEN( *pp, 0 );
     HDR_SET_RFU( *pp, 0 );
     HDR_SET_TS( *pp, ntime_get() );
@@ -134,7 +134,7 @@ mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
     const char *errmsg;
 
     mbuf_to_response( pp );
-    HDR_TYPE_TO_ERR( *pp );
+    HDR_CLASS_TO_ERR( *pp );
     errmsg = sc_msgstr( ec );
     mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, ec );
     mbuf_addattrib( pp, MSG_ATTR_NOTICE, strlen( errmsg ) + 1, errmsg );
@@ -242,6 +242,37 @@ int mbuf_resetgetattrib( mbuf_t *p )
     return 0;
 }
 
+const char *mtype2str( int mtype )
+{
+    switch ( MTYPE_CUT_CLASS( mtype ) )
+    {
+    case MTYPE_REGISTER: return "REGISTER";  break;
+    case MTYPE_LOGIN:    return "LOGIN";     break;
+    case MTYPE_AUTH:     return "AUTH";      break;
+    case MTYPE_LOGOUT:   return "LOGOUT";    break;
+    case MTYPE_PEERLIST: return "PEERLIST";  break;
+    case MTYPE_OFFER:    return "OFFER";     break;
+    case MTYPE_GETFILE:  return "GETFILE";   break;
+    case MTYPE_PING:     return "PING";      break;
+    default:
+        break;
+    }
+    return "UNKNOWN";
+}
+
+const char *mclass2str( int mtype )
+{
+    switch ( MTYPE_GET_CLASS( mtype ) )
+    {
+    case MCLASS_IND: return "IND";  break;
+    case MCLASS_REQ: return "REQ";  break;
+    case MCLASS_RES: return "RES";  break;
+    case MCLASS_ERR: return "ERR";  break;
+    default:
+        break;
+    }
+    return "INVALID";
+}
 
 #ifdef DEBUG
 #include <inttypes.h>

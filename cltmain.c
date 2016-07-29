@@ -62,6 +62,7 @@
 #include "util.h"
 
 #include <prng.h>
+#include <stricmp.h>
 
 
 enum CLT_STATE {
@@ -129,6 +130,8 @@ static int eval_cmdline( int argc, char *argv[] )
 
 static int disconnect_srv( int *pfd )
 {
+    if ( 0 > *pfd )
+        return -1;
     close( *pfd );
     *pfd = -1;
     return 0;
@@ -252,16 +255,16 @@ static int dequeue_msg( void )
  * I/O HANDLING AND MAIN()
  *
  */
- 
+
 /*
- * Just to have a single point where we can control console output. 
+ * Just to have a central function to control console output.
  */
 static int printcon( const char *fmt, ... )
 {
     int r;
     va_list arglist;
     FILE *ofp = stdout;
-    
+
     va_start( arglist, fmt );
     r = vfprintf( ofp, fmt, arglist );
     va_end( arglist );
@@ -323,20 +326,21 @@ static int process_stdin( int *srvfd )
 #undef MAX_CMDLINE
 
     /* Ye shoddy command pars0r. */
+#define MATCH_CMD(S)   ( 0 == strnicmp((S),arg[0],strlen(arg[0])) )
     if ( '\0' == arg[0][0] )
         return -1;
-    if ( 0 == strcmp( "ping", arg[0] ) )
+    if ( MATCH_CMD( "ping" ) )
     {   /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
                 ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random(), 1 );
         if ( 2 < a )
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[2] ) + 1, arg[2] );
     }
-    else if ( 0 == strcmp( "peerlist", arg[0] ) )
+    else if ( MATCH_CMD( "peerlist" ) )
     {
         mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random(), 1 );
     }
-    else if ( 0 == strcmp( "connect", arg[0] ) )
+    else if ( MATCH_CMD( "connect" ) )
     {   /* connect [host [port]] */
         if ( 3 > a )
             arg[2] = DEF_PORT;
@@ -352,19 +356,19 @@ static int process_stdin( int *srvfd )
         printcon( "Connected.\n" );
         cfg.st = CLT_PRE_LOGIN;
     }
-    else if ( 0 == strcmp( "disconnect", arg[0] ) )
+    else if ( MATCH_CMD( "disconnect" ) )
     {
         if ( 0 <= *srvfd )
         {
             DLOG( "Closing connection.\n" );
             disconnect_srv( srvfd );
-            printcon( "Closed.\n" );
+            printcon( "Disconnected by request.\n" );
         }
         else
             printcon( "Not connected.\n" );
         cfg.st = CLT_INVALID;
     }
-    else if ( 0 == strcmp( "register", arg[0] ) )
+    else if ( MATCH_CMD( "register" ) )
     {   /* register [user [pubkey]] */
         DLOG( "Registering.\n" );
         if ( 3 > a )
@@ -375,7 +379,7 @@ static int process_stdin( int *srvfd )
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[2] ) + 1, arg[2] );
     }
-    else if ( 0 == strcmp( "login", arg[0] ) )
+    else if ( MATCH_CMD( "login" ) )
     {   /* login [user] */
         DLOG( "Logging in.\n" );
         if ( 2 > a )
@@ -383,12 +387,12 @@ static int process_stdin( int *srvfd )
         mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random(), 1 );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
     }
-    else if ( 0 == strcmp( "logout", arg[0] ) )
+    else if ( MATCH_CMD( "logout" ) )
     {
         DLOG( "Logging out.\n" );
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random(), 1 );
     }
-    else if ( 0 == strcmp( "exit", arg[0] ) )
+    else if ( MATCH_CMD( "exit" ) )
     {
         disconnect_srv( srvfd );
         cfg.st = CLT_INVALID;
@@ -401,6 +405,8 @@ static int process_stdin( int *srvfd )
         for ( int i = 0; i < a; ++i )
             DLOG( "> %s\n", arg[i] );
     }
+#undef MATCH_CMD    
+
     if ( NULL != mp )
     {
         if ( 0 > *srvfd )
@@ -423,22 +429,27 @@ static int process_srvmsg( mbuf_t **pp )
     void *av;
     int res = 0;
 
+    DLOG( "Received %s_%s from 0x%016"PRIx64".\n",
+            mtype2str( mtype ), mclass2str( mtype ), srcid );
     mbuf_resetgetattrib( *pp );
     switch ( mtype )
     {
-    /* Requests */
+    /* Indications and Requests */
     case MSG_TYPE_PING_REQ:
+    case MSG_TYPE_PING_IND:
         if ( CLT_AUTH_OK == cfg.st )
         {
             char *s = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 s = (char *)av;
-            DLOG( "Received PING request from %016"PRIx64"%s%s.\n", srcid, s?": ":"", s?s:"");
-            if ( NULL != s )
-                printcon( "Ping from %016"PRIx64": %s\n", srcid, s );
-            mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, ++exid );
-            mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
-            enqueue_msg( mp );
+            printcon( "Ping from 0x%016"PRIx64"%s%s%s\n",
+                        srcid, s?": '":"", s?s:"", s?"'":"" );
+            if ( MCLASS_IS_REQ( mtype ) )
+            {
+                mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, ++exid );
+                mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
+                enqueue_msg( mp );
+            }
         }
         break;
     /* Responses */
@@ -447,7 +458,7 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            DLOG( "Received PING response from %016"PRIx64".\n", srcid );
+            DLOG( "TODO: Handle Ping response (calculate round trip time).\n" );
         }
         break;
     case MSG_TYPE_PEERLIST_RES:
@@ -456,7 +467,6 @@ static int process_srvmsg( mbuf_t **pp )
             enum MSG_ATTRIB at2;
             size_t al2;
             void *av2;
-            DLOG( "Process PEERLIST response.\n" );
             printcon( "Peerlist start\n" );
             while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
                 && MSG_ATTR_PEERID == at
@@ -465,7 +475,7 @@ static int process_srvmsg( mbuf_t **pp )
             {
                 printcon( "%016"PRIx64" %s\n", NTOH64( *(uint64_t *)av ), (char *)av2 );
             }
-            printcon( "Peerlist end.\n" );
+            printcon( "Peerlist end\n" );
         }
         break;
     case MSG_TYPE_REGISTER_RES:
@@ -474,13 +484,12 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            DLOG( "Process REGISTER response.\n" );
             printcon( "Registered" );
             cfg.st = CLT_AUTH_OK;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 printcon( ": '%s'\n", (char *)av );
             else
-                printcon( ".\n" );
+                printcon( "\n" );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -489,11 +498,10 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_CHALLENGE == at )
         {
-            DLOG( "Process LOGIN response.\n" );
-            printcon( "Login OK, authenticating.\n" );
+            printcon( "Login Ok\nAuthenticating\n" );
             cfg.st = CLT_LOGIN_OK;
             mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
-            // TODO: hashing, crypt, whatever
+            DLOG( "TODO: hashing, crypt, whatever, ...\n" );
             mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
             enqueue_msg( mp );
         }
@@ -504,12 +512,11 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            DLOG( "Process AUTH response.\n" );
             printcon( "Authenticated" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 printcon( ": '%s'\n", (char *)av );
             else
-                printcon( ".\n" );
+                printcon( "\n" );
             cfg.st = CLT_AUTH_OK;
         }
         break;
@@ -519,17 +526,16 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            DLOG( "Process LOGOUT response.\n" );
             printcon( "Logged out" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 printcon( ": '%s'\n", (char *)av );
             else
-                printcon( ".\n" );
+                printcon( "\n" );
             cfg.st = CLT_PRE_LOGIN;
         }
         break;
     default:
-        if ( HDR_TYPE_IS_ERR( *pp )
+        if ( MCLASS_IS_ERR( mtype )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_ERROR == at )
         {
@@ -537,13 +543,15 @@ static int process_srvmsg( mbuf_t **pp )
             char *es = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 es = (char *)av;
-            DLOG( "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
-                mtype, ec, es?" ":"", es?es:"" );
-            printcon( "Error %"PRIu64"%s%s.\n", ec, es?" ":"", es?es:"" );
+            XLOG( LOG_INFO, "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
+                    mtype, ec, es?" ":"", es?es:"" );
+            printcon( "%s Error %"PRIu64"%s%s.\n",
+                        mtype2str( mtype ), ec, es?" ":"", es?es:"" );
         }
         else
         {
-            printcon( "Unhandled message 0x%04"PRIx16"!\n" );
+            printcon( "Unhandled message 0x%04"PRIx16" (%s_%s)!\n",
+                        mtype, mtype2str( mtype ), mclass2str( mtype ) );
             XLOG( LOG_WARNING, "Unhandled message 0x%04"PRIx16"!\n" );
             mbuf_dump( *pp );
         }
@@ -573,18 +581,14 @@ static int handle_srvio( int nset, int *srvfd, fd_set *rfds, fd_set *wfds )
                 if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
                 {
                     XLOG( LOG_ERR, "read() failed: %m.\n" );
-                    disconnect_srv( srvfd );
-                    cfg.st = CLT_INVALID;
-                    goto DONE;
+                    goto DISC;
                 }
                 goto SKIP_TO_WRITE;
             }
             if ( 0 == r )
             {
                 DLOG( "Remote host closed connection.\n" );
-                disconnect_srv( srvfd );
-                cfg.st = CLT_INVALID;
-                goto DONE;
+                goto DISC;
             }
             //DLOG( "%d bytes received.\n", r );
             rbuf->boff += r;
@@ -622,17 +626,14 @@ SKIP_TO_WRITE:
                 if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
                 {
                     XLOG( LOG_ERR, "write() failed: %m.\n" );
-                    disconnect_srv( srvfd );
-                    cfg.st = CLT_INVALID;
+                    goto DISC;
                 }
                 goto DONE;
             }
             if ( 0 == w )
             {
                 DLOG( "WTF, write() returned 0: %m.\n" );
-                disconnect_srv( srvfd );
-                cfg.st = CLT_INVALID;
-                goto DONE;
+                goto DISC;
             }
             //DLOG( "%d bytes sent to server.\n", w );
             qhead->boff += w;
@@ -643,6 +644,12 @@ SKIP_TO_WRITE:
         }
     }
 DONE:
+    return nset;
+    
+DISC:
+    disconnect_srv( srvfd );
+    cfg.st = CLT_INVALID;
+    printcon( "Disconnected, connection to remote host failed.\n" );
     return nset;
 }
 
@@ -689,14 +696,15 @@ int main( int argc, char *argv[] )
                 if ( 0 == process_stdin( &srvfd ) )
                     break;  /* EOF on stdin terminates client. */
             }
-            die_if( 0 < nset, "%d file descriptors still set!\n", nset );
+            if ( 0 < nset ) /* Can happen on read errors. */
+                XLOG( LOG_INFO, "%d file descriptors still set!\n", nset );
         }
         else if ( 0 == nset )
         {   /* Select timed out */
             if ( CLT_AUTH_OK == cfg.st )
             {   /* Send ping to server. */
                 mbuf_t *mb = NULL;
-                mbuf_compose( &mb, MSG_TYPE_PING_REQ, 0ULL, 0ULL, random(), 1 );
+                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random(), 1 );
                 enqueue_msg( mb );
             }
         }
@@ -705,8 +713,8 @@ int main( int argc, char *argv[] )
             DLOG( "select() was interrupted: %m.\n" );
         }
         else
-        {   /* FATAL ERRORS
-               Unable to allocate memory for internal tables. */
+        {   /* FATAL ERRORS: */
+            /* Unable to allocate memory for internal tables. */
             die_if( ENOMEM == errno, "select failed: %m.\n" );
             /* An invalid file descriptor was given in one of the sets.
                (Perhaps a file descriptor that was already closed,
