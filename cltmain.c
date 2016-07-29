@@ -43,6 +43,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -251,6 +252,22 @@ static int dequeue_msg( void )
  * I/O HANDLING AND MAIN()
  *
  */
+ 
+/*
+ * Just to have a single point where we can control console output. 
+ */
+static int printcon( const char *fmt, ... )
+{
+    int r;
+    va_list arglist;
+    FILE *ofp = stdout;
+    
+    va_start( arglist, fmt );
+    r = vfprintf( ofp, fmt, arglist );
+    va_end( arglist );
+    fflush( ofp );
+    return r;
+}
 
 static int process_stdin( int *srvfd )
 {
@@ -306,10 +323,10 @@ static int process_stdin( int *srvfd )
 #undef MAX_CMDLINE
 
     /* Ye shoddy command pars0r. */
-    if ( 1 > a )
+    if ( '\0' == arg[0][0] )
         return -1;
     if ( 0 == strcmp( "ping", arg[0] ) )
-    {
+    {   /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
                 ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random(), 1 );
         if ( 2 < a )
@@ -320,7 +337,7 @@ static int process_stdin( int *srvfd )
         mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random(), 1 );
     }
     else if ( 0 == strcmp( "connect", arg[0] ) )
-    {
+    {   /* connect [host [port]] */
         if ( 3 > a )
             arg[2] = DEF_PORT;
         if ( 2 > a )
@@ -328,19 +345,27 @@ static int process_stdin( int *srvfd )
         connect_srv( srvfd, arg[1], arg[2] );
         if ( 0 > *srvfd )
         {
+            printcon( "Connect attempt failed.\n" );
             cfg.st = CLT_INVALID;
             return -1;
         }
+        printcon( "Connected.\n" );
         cfg.st = CLT_PRE_LOGIN;
     }
     else if ( 0 == strcmp( "disconnect", arg[0] ) )
     {
-        DLOG( "Closing connection.\n" );
-        disconnect_srv( srvfd );
+        if ( 0 <= *srvfd )
+        {
+            DLOG( "Closing connection.\n" );
+            disconnect_srv( srvfd );
+            printcon( "Closed.\n" );
+        }
+        else
+            printcon( "Not connected.\n" );
         cfg.st = CLT_INVALID;
     }
     else if ( 0 == strcmp( "register", arg[0] ) )
-    {
+    {   /* register [user [pubkey]] */
         DLOG( "Registering.\n" );
         if ( 3 > a )
             arg[2] = cfg.username;
@@ -351,7 +376,7 @@ static int process_stdin( int *srvfd )
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[2] ) + 1, arg[2] );
     }
     else if ( 0 == strcmp( "login", arg[0] ) )
-    {
+    {   /* login [user] */
         DLOG( "Logging in.\n" );
         if ( 2 > a )
             arg[1] = cfg.username;
@@ -371,13 +396,18 @@ static int process_stdin( int *srvfd )
     }
     else
     {
-        XLOG( LOG_WARNING, "unknown command sequence: \n" );
+        printcon( "Invalid command.\n" );
+        DLOG( "unknown command sequence: \n" );
         for ( int i = 0; i < a; ++i )
-            XLOG( LOG_WARNING, "%s \n", arg[i] );
-        puts( "" );
+            DLOG( "> %s\n", arg[i] );
     }
     if ( NULL != mp )
-        enqueue_msg( mp );
+    {
+        if ( 0 > *srvfd )
+            printcon( "Not connected.\n" );
+        else
+            enqueue_msg( mp );
+    }
     return r;
 }
 
@@ -403,8 +433,9 @@ static int process_srvmsg( mbuf_t **pp )
             char *s = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 s = (char *)av;
-            DLOG( "Received PING request from %016"PRIx64"%s%s.\n", srcid,
-                s?": ":"", s?s:"");
+            DLOG( "Received PING request from %016"PRIx64"%s%s.\n", srcid, s?": ":"", s?s:"");
+            if ( NULL != s )
+                printcon( "Ping from %016"PRIx64": %s\n", srcid, s );
             mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, ++exid );
             mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
             enqueue_msg( mp );
@@ -426,14 +457,15 @@ static int process_srvmsg( mbuf_t **pp )
             size_t al2;
             void *av2;
             DLOG( "Process PEERLIST response.\n" );
+            printcon( "Peerlist start\n" );
             while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
                 && MSG_ATTR_PEERID == at
                 && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
                 && MSG_ATTR_PEERNAME == at2 )
             {
-                printf( "PEER %016"PRIx64" %s\n", NTOH64( *(uint64_t *)av ), (char *)av2 );
+                printcon( "%016"PRIx64" %s\n", NTOH64( *(uint64_t *)av ), (char *)av2 );
             }
-            DLOG( "PEERLIST done.\n" );
+            printcon( "Peerlist end.\n" );
         }
         break;
     case MSG_TYPE_REGISTER_RES:
@@ -443,9 +475,12 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             DLOG( "Process REGISTER response.\n" );
+            printcon( "Registered" );
             cfg.st = CLT_AUTH_OK;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
+                printcon( ": '%s'\n", (char *)av );
+            else
+                printcon( ".\n" );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -455,6 +490,7 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_CHALLENGE == at )
         {
             DLOG( "Process LOGIN response.\n" );
+            printcon( "Login OK, authenticating.\n" );
             cfg.st = CLT_LOGIN_OK;
             mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
             // TODO: hashing, crypt, whatever
@@ -469,9 +505,12 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             DLOG( "Process AUTH response.\n" );
-            cfg.st = CLT_AUTH_OK;
+            printcon( "Authenticated" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
+                printcon( ": '%s'\n", (char *)av );
+            else
+                printcon( ".\n" );
+            cfg.st = CLT_AUTH_OK;
         }
         break;
     case MSG_TYPE_LOGOUT_RES:
@@ -481,36 +520,32 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             DLOG( "Process LOGOUT response.\n" );
-            cfg.st = CLT_PRE_LOGIN;
+            printcon( "Logged out" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                DLOG( "\n--- Server Says ---\n%s\n-------------------\n", (char *)av );
+                printcon( ": '%s'\n", (char *)av );
+            else
+                printcon( ".\n" );
+            cfg.st = CLT_PRE_LOGIN;
         }
         break;
     default:
-        if ( CLT_AUTH_OK == cfg.st )
+        if ( HDR_TYPE_IS_ERR( *pp )
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_ERROR == at )
         {
-            if ( HDR_TYPE_IS_ERR( *pp )
-                && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
-                && MSG_ATTR_ERROR == at )
-            {
-                uint64_t ec = NTOH64( *(uint64_t *)av );
-                char *es = NULL;
-                if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                    es = (char *)av;
-                DLOG( "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
-                    mtype, ec, es?" ":"", es?es:"" );
-            }
-            else
-            {
-                DLOG( "TODO: process message:\n" );
-                mbuf_dump( *pp );
-            }
+            uint64_t ec = NTOH64( *(uint64_t *)av );
+            char *es = NULL;
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                es = (char *)av;
+            DLOG( "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
+                mtype, ec, es?" ":"", es?es:"" );
+            printcon( "Error %"PRIu64"%s%s.\n", ec, es?" ":"", es?es:"" );
         }
         else
         {
-            XLOG( LOG_WARNING, "Message not handled, not logged in!\n" );
+            printcon( "Unhandled message 0x%04"PRIx16"!\n" );
+            XLOG( LOG_WARNING, "Unhandled message 0x%04"PRIx16"!\n" );
             mbuf_dump( *pp );
-            res = -1;
         }
         break;
     }
@@ -638,9 +673,7 @@ int main( int argc, char *argv[] )
         {
             FD_SET( srvfd, &rfds );
             if ( NULL != qhead )
-            {
                 FD_SET( srvfd, &wfds );
-            }
             maxfd = srvfd;
         }
         else
@@ -653,13 +686,10 @@ int main( int argc, char *argv[] )
             if ( 0 < nset && FD_ISSET( STDIN_FILENO, &rfds ) )
             {
                 --nset;
-                if ( 0 ==  process_stdin( &srvfd ) )
-                    break;  /* EOF on stdin terminates server. */
+                if ( 0 == process_stdin( &srvfd ) )
+                    break;  /* EOF on stdin terminates client. */
             }
-            if ( 0 < nset )
-            {
-                XLOG( LOG_ERR, "%d file descriptors still set!\n", nset );
-            }
+            die_if( 0 < nset, "%d file descriptors still set!\n", nset );
         }
         else if ( 0 == nset )
         {   /* Select timed out */
@@ -691,6 +721,7 @@ int main( int argc, char *argv[] )
         }
     }
     XLOG( LOG_INFO, "Terminating.\n" );
+    disconnect_srv( &srvfd );
     exit( EXIT_SUCCESS );
 }
 

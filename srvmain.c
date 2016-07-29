@@ -39,7 +39,6 @@
 /*
  * TODO:
  * - implement nonce generation, encryption, decryption auth logic
- * - implement REGISTER request
  * - motd command output capture :-)
  * - broadcast messages
  * - ...
@@ -767,7 +766,9 @@ int main( int argc, char *argv[] )
     listenfd = init_server( &clients );
     FD_ZERO( &m_rfds );
     FD_ZERO( &m_wfds );
+#ifdef DEBUG
     FD_SET( STDIN_FILENO, &m_rfds );
+#endif
     FD_SET( listenfd, &m_rfds );
     DLOG( "Entering main loop.\n" );
     while ( 1 )
@@ -791,29 +792,21 @@ int main( int argc, char *argv[] )
         if ( 0 < nset )
         {
             /* DLOG( "%d fds ready.\n", nset ); */
-            if ( FD_ISSET( listenfd, &rfds ) )
+            nset = handle_io( clients, nset, &rfds, &wfds, &m_rfds, &m_wfds );
+            if ( 0 < nset && FD_ISSET( listenfd, &rfds ) )
             {
                 --nset;
                 accept_client( clients, listenfd, &maxfd, &m_rfds );
             }
+#ifdef DEBUG
             if ( 0 < nset && FD_ISSET( STDIN_FILENO, &rfds ) )
             {
                 --nset;
-#ifdef DEBUG
-                /* EOF on stdin terminates server. */
                 if ( 0 == drain_fd( STDIN_FILENO ) )
-                    break;
+                    break;  /* EOF on stdin terminates server. */
+            }
 #endif
-            }
-            if ( 0 < nset )
-            {
-                nset = handle_io( clients, nset,
-                                    &rfds, &wfds, &m_rfds, &m_wfds );
-            }
-            if ( 0 < nset )
-            {
-                XLOG( LOG_ERR, "%d file descriptors still set!\n", nset );
-            }
+            die_if ( 0 < nset, "%d file descriptors still set!\n", nset );
         }
         else if ( 0 == nset )
         {
@@ -824,8 +817,8 @@ int main( int argc, char *argv[] )
             DLOG( "select() was interrupted: %m.\n" );
         }
         else
-        {   /* FATAL ERRORS
-               Unable to allocate memory for internal tables. */
+        {   /* FATAL ERRORS: */
+            /* Unable to allocate memory for internal tables. */
             die_if( ENOMEM == errno, "select failed: %m.\n" );
             /* An invalid file descriptor was given in one of the sets.
                (Perhaps a file descriptor that was already closed,
