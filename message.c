@@ -38,7 +38,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "ntime.h"
+#include <ntime.h>
 
 #include "util.h"
 

@@ -1,12 +1,12 @@
 /*
  * statcodes.c
- * 
+ *
  * Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 
+ *
  * * Redistributions of source code must retain the above copyright
  *   notice, this list of conditions and the following disclaimer.
  * * Redistributions in binary form must reproduce the above copyright
@@ -16,7 +16,7 @@
  * * Neither the name of the copyright holder nor the names of its
  *   contributors may be used to endorse or promote products derived
  *   from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -28,8 +28,8 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
- * 
+ *
+ *
  */
 
 
@@ -43,7 +43,7 @@ const char *sc_msgstr( enum SC_ENUM sc )
     /*100*/case SC_CONTINUE:                        return "Continue"; break;
     /*101*/case SC_SWITCHING_PROTOCOLS:             return "Switching Protocols"; break;
     /*102*/case SC_PROCESSING:                      return "Processing"; break;
-                                                 
+
     /*200*/case SC_OK:                              return "OK"; break;
     /*201*/case SC_CREATED:                         return "Created"; break;
     /*202*/case SC_ACCEPTED:                        return "Accepted"; break;
@@ -54,7 +54,7 @@ const char *sc_msgstr( enum SC_ENUM sc )
     /*207*/case SC_MULTI_STATUS:                    return "Multi-Status"; break;
     /*208*/case SC_ALREADY_REPORTED:                return "Already Reported"; break;
     /*226*/case SC_IM_USED:                         return "IM Used"; break;
-                                                 
+
     /*300*/case SC_MULTIPLE_CHOICES:                return "Multiple Choices"; break;
     /*301*/case SC_MOVED_PERMANENTLY:               return "Moved Permanently"; break;
     /*302*/case SC_FOUND:                           return "Found"; break;
@@ -63,7 +63,7 @@ const char *sc_msgstr( enum SC_ENUM sc )
     /*305*/case SC_USE_PROXY:                       return "Use Proxy"; break;
     /*307*/case SC_TEMPORARY_REDIRECT:              return "Temporary Redirect"; break;
     /*308*/case SC_PERMANENT_REDIRECT:              return "Permanent Redirect"; break;
-                                                 
+
     /*400*/case SC_BAD_REQUEST:                     return "Bad Request"; break;
     /*401*/case SC_UNAUTHORIZED:                    return "Unauthorized"; break;
     /*402*/case SC_PAYMENT_REQUIRED:                return "Payment Required"; break;
@@ -92,7 +92,7 @@ const char *sc_msgstr( enum SC_ENUM sc )
     /*429*/case SC_TOO_MANY_REQUESTS:               return "Too Many Requests"; break;
     /*431*/case SC_REQUEST_HEADER_FIELDS_TOO_LARGE: return "Request Header Fields Too Large"; break;
     /*451*/case SC_UNAVAILABLE_FOR_LEGAL_REASONS:   return "Unavailable For Legal Reasons"; break;
-                                                 
+
     /*500*/case SC_INTERNAL_SERVER_ERROR:           return "Internal Server Error"; break;
     /*501*/case SC_NOT_IMPLEMENTED:                 return "Not Implemented"; break;
     /*502*/case SC_BAD_GATEWAY:                     return "Bad Gateway"; break;
@@ -104,7 +104,7 @@ const char *sc_msgstr( enum SC_ENUM sc )
     /*508*/case SC_LOOP_DETECTED:                   return "Loop Detected"; break;
     /*510*/case SC_NOT_EXTENDED:                    return "Not Extended"; break;
     /*511*/case SC_NETWORK_AUTHENTICATION_REQUIRED: return "Network Authentication Required"; break;
-    
+
     /*---*/default: break;
     }
     return "Unknown Error";

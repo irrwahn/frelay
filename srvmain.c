@@ -38,7 +38,7 @@
 
 /*
  * TODO:
- * - login with unregistered nick without authentication 
+ * - login with unregistered nick without authentication
  * - plaintext authentication
  * - implement nonce generation, encryption, decryption auth logic
  * - motd command output capture :-)

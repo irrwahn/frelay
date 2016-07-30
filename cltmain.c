@@ -38,7 +38,7 @@
 
 /*
  * TODO:
- * - login with unregistered nick without authentication 
+ * - login with unregistered nick without authentication
  * - plaintext authentication
  */
 
@@ -272,7 +272,7 @@ static int dequeue_msg( void )
 static mbuf_t *pending_match_req( const mbuf_t *response )
 {
     // TODO: implement
-    
+
     return (void)response, NULL;
 }
 

@@ -69,7 +69,7 @@
 #else
 
     /* This version does not require __DEFAULT_SOURCE defined. */
-    
+
     /* Prelude: "One Header To Find Them" */
     #if defined(__linux__)
         #include <endian.h>
@@ -113,7 +113,7 @@
             #error "Your endian is too small, minstrel!"
         #endif
     #endif
-    
+
     /* Fugue: "Buckle Your Bytes, Dorothy, 'Cause Endiana Is Going Bye-Bye" */
     #if __BYTE_ORDER == __BIG_ENDIAN
         #define NTOH16(V)   (V)
