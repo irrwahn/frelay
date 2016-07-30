@@ -71,7 +71,9 @@
     /* This version does not require __DEFAULT_SOURCE defined. */
     #if defined(__linux__)
         #include <endian.h>
-    #elif defined(__FreeBSD__) || defined(__NetBSD__)
+    #elif defined(__FreeBSD__)
+        #include <sys/endian.h>
+    #elif defined(__NetBSD__)
         #include <sys/endian.h>
     #elif defined(__OpenBSD__)
         #include <sys/types.h>

@@ -41,6 +41,7 @@ ifeq    ($(DEBUG),1)
 	CFLAGS  += -g3 -pg -DDEBUG
 else
 	CFLAGS  += -s
+## TODO: replace -s compiler option with explicitly calling strip
 endif
 
 LD      := $(CC)

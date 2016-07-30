@@ -38,6 +38,8 @@
 
 /*
  * TODO:
+ * - login with unregistered nick without authentication 
+ * - plaintext authentication
  * - implement nonce generation, encryption, decryption auth logic
  * - motd command output capture :-)
  * - broadcast messages
@@ -58,6 +60,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -144,7 +147,7 @@ static int init_server( client_t **clients )
     struct addrinfo hints, *info, *ai;
 
     /* Initialize clients array. */
-    if( FD_SETSIZE < cfg.max_clients )
+    if( (int)FD_SETSIZE < cfg.max_clients )
     {
         XLOG( LOG_WARNING,
             "Maximum number of clients trimmed down to FD_SETZIZE (%d).\n",
@@ -239,7 +242,7 @@ static int accept_client( client_t *clients, int lfd, int *pmaxfd, fd_set *m_rfd
     return_if( -1 == fd, -1, "accept() failed: %m.\n" );
     DLOG( "Accepted connection %d from [%s:%hu].\n",
             fd, inet_ntoa( addr.sin_addr ), addr.sin_port );
-    if ( FD_SETSIZE <= fd )
+    if ( (int)FD_SETSIZE <= fd )
     {
         XLOG( LOG_ERR, "FD_SETSIZE exceeded, dropping connection %d.\n", fd );
         close( fd );
@@ -793,7 +796,7 @@ int main( int argc, char *argv[] )
         {
             /* DLOG( "%d fds ready.\n", nset ); */
             nset = handle_io( clients, nset, &rfds, &wfds, &m_rfds, &m_wfds );
-            if ( 0 < nset && FD_ISSET( listenfd, &rfds ) )
+            if ( 0 < nset && 0 <= listenfd && FD_ISSET( listenfd, &rfds ) )
             {
                 --nset;
                 accept_client( clients, listenfd, &maxfd, &m_rfds );

@@ -36,6 +36,11 @@
  *
  */
 
+/*
+ * TODO:
+ * - login with unregistered nick without authentication 
+ * - plaintext authentication
+ */
 
 #define _POSIX_C_SOURCE 201112L
 
@@ -53,6 +58,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -217,13 +223,18 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     return 0;
 }
 
+
 /**********************************************
  * MESSAGE PROCESSING
  *
  */
 
+/* Receive buffer. */
 static mbuf_t *rbuf = NULL;
-static mbuf_t *qhead = NULL, *qtail = NULL; /* send queue pointers */
+/* Send queue. */
+static mbuf_t *qhead = NULL, *qtail = NULL;
+/* List of requests pending a response. */
+static mbuf_t *pending = NULL;
 
 static int enqueue_msg( mbuf_t *m )
 {
@@ -246,9 +257,23 @@ static int dequeue_msg( void )
     next = qhead->next;
     if ( qtail == qhead )
         qtail = NULL;
-    mbuf_free( &qhead ); // TODO: hook in pending transactions list instead
+    if ( HDR_CLASS_IS_REQ( qhead ) )
+    {   /* Move request to pending list. */
+        qhead->next = pending;
+        pending = qhead;
+    }
+    else
+        mbuf_free( &qhead );
     qhead = next;
     return 0;
+}
+
+/* Find, un-list and return a pending request matching the supplied response. */
+static mbuf_t *pending_match_req( const mbuf_t *response )
+{
+    // TODO: implement
+    
+    return (void)response, NULL;
 }
 
 /**********************************************
@@ -392,7 +417,7 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging out.\n" );
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random(), 1 );
     }
-    else if ( MATCH_CMD( "exit" ) )
+    else if ( MATCH_CMD( "exit" ) || MATCH_CMD( "quit" ) )
     {
         disconnect_srv( srvfd );
         cfg.st = CLT_INVALID;
@@ -405,7 +430,7 @@ static int process_stdin( int *srvfd )
         for ( int i = 0; i < a; ++i )
             DLOG( "> %s\n", arg[i] );
     }
-#undef MATCH_CMD    
+#undef MATCH_CMD
 
     if ( NULL != mp )
     {
@@ -563,6 +588,8 @@ static int process_srvmsg( mbuf_t **pp )
 
 static int handle_srvio( int nset, int *srvfd, fd_set *rfds, fd_set *wfds )
 {
+    if ( 0 > *srvfd )
+        goto DONE;
     /* Read from server. */
     if ( FD_ISSET( *srvfd, rfds ) )
     {
@@ -645,7 +672,7 @@ SKIP_TO_WRITE:
     }
 DONE:
     return nset;
-    
+
 DISC:
     disconnect_srv( srvfd );
     cfg.st = CLT_INVALID;
