@@ -64,13 +64,12 @@
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/socket.h>
-
-
 #ifndef FD_COPY
     /* According to POSIX fd_set is a structure type! */
     #define FD_COPY(dst,src) (*(dst)=*(src))
 #endif
 
+#include <stricmp.h>
 
 #include "message.h"
 #include "srvcfg.h"
@@ -95,8 +94,8 @@ struct CLIENT_T_STRUCT {
     socklen_t addrlen;          /* client remote address length */
     struct sockaddr_in addr;    /* client remote address */
     uint64_t id;                /* client id */
-    char *name;
-    char *key;
+    char *name;                 /* associated user name */
+    char *key;                  /* user key (registered users only) */
     enum CLT_STATE st;          /* client state */
     time_t act;                 /* time of last activity (s since epoch) */
     mbuf_t *rbuf;               /* receive buffer pointer */
@@ -215,19 +214,16 @@ static int close_client( client_t *cp, fd_set *m_rfds, fd_set *m_wfds )
     FD_CLR( cp->fd, m_rfds );
     FD_CLR( cp->fd, m_wfds );
     close( cp->fd );
-    cp->fd = -1;
-    cp->id = 0ULL;
-    free( cp->name ); cp->name = NULL;
-    free( cp->key ); cp->key = NULL;
-    cp->st = CLT_INVALID;
+    free( cp->name );
+    free( cp->key );
     mbuf_free( &cp->rbuf );
     for ( mbuf_t *qp = cp->qhead, *next; NULL != qp; qp = next )
     {
         next = qp->next;
         mbuf_free( &qp );
     }
-    cp->qhead = NULL;
-    cp->qtail = NULL;
+    memset( cp, 0, sizeof *cp );
+    cp->fd = -1;
     return 0;
 }
 
@@ -444,13 +440,24 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         }
         else if ( NULL == ( pu = udb_lookupname( (char *)av ) ) )
         {   /* Login as unregistered user. */
-            c[i_src].st = CLT_AUTH_OK;
-            c[i_src].id = udb_gettempid();
-            c[i_src].name = strdup( (char *)av );
-            c[i_src].key = NULL;
-            mbuf_to_response( &c[i_src].rbuf );
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-            break;
+            int i = cfg.max_clients;
+            for ( i = 0; i < cfg.max_clients; ++i )
+                if ( 0 <= c[i].fd && NULL != c[i].name 
+                    && 0 == stricmp( c[i].name, (char *)av ) )
+                    break;
+            if ( i != cfg.max_clients )
+            {   /* Name already in use. */
+                mbuf_to_error_response( &c[i_src].rbuf, SC_CONFLICT );
+            }
+            else
+            {   
+                c[i_src].st = CLT_AUTH_OK;
+                c[i_src].id = udb_gettempid();
+                c[i_src].name = strdup( (char *)av );
+                c[i_src].key = NULL;
+                mbuf_to_response( &c[i_src].rbuf );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+            }
         }
         else
         {   /* Registered user: send challenge. */
