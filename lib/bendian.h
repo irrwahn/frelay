@@ -69,6 +69,8 @@
 #else
 
     /* This version does not require __DEFAULT_SOURCE defined. */
+    
+    /* Prelude: "One Header To Find Them" */
     #if defined(__linux__)
         #include <endian.h>
     #elif defined(__FreeBSD__)
@@ -79,10 +81,40 @@
         #include <sys/types.h>
     #elif defined(__APPLE__)
         #include <libkern/OSByteOrder.h>
-        #define __BYTE_ORDER BYTE_ORDER
-        #define __BIG_ENDIAN BIG_ENDIAN
-        #define __LITTLE_ENDIAN LITTLE_ENDIAN
+    #else
+        #error "Get a real OS, peasant!"
     #endif
+
+    /* Intermezzo: "The Underscore Sarabande" */
+    #if !defined(__BYTE_ORDER)
+        #if defined(_BYTE_ORDER)
+            #define __BYTE_ORDER    _BYTE_ORDER
+        #elif defined (BYTE_ORDER)
+            #define __BYTE_ORDER    BYTE_ORDER
+        #else
+            #error "Go order your bytes, minstrel!"
+        #endif
+    #endif
+    #if !defined(__BIG_ENDIAN)
+        #if defined(_BIG_ENDIAN)
+            #define __BIG_ENDIAN    _BIG_ENDIAN
+        #elif defined (BIG_ENDIAN)
+            #define __BIG_ENDIAN    BIG_ENDIAN
+        #else
+            #error "Your endian is too big, minstrel!"
+        #endif
+    #endif
+    #if !defined(__LITTLE_ENDIAN)
+        #if defined(_LITTLE_ENDIAN)
+            #define __LITTLE_ENDIAN    _LITTLE_ENDIAN
+        #elif defined (LITTLE_ENDIAN)
+            #define __LITTLE_ENDIAN    LITTLE_ENDIAN
+        #else
+            #error "Your endian is too small, minstrel!"
+        #endif
+    #endif
+    
+    /* Fugue: "Buckle Your Bytes, Dorothy, 'Cause Endiana Is Going Bye-Bye" */
     #if __BYTE_ORDER == __BIG_ENDIAN
         #define NTOH16(V)   (V)
         #define NTOH32(V)   (V)
