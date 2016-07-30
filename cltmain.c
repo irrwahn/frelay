@@ -520,15 +520,22 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_LOGIN_RES:
         if ( CLT_PRE_LOGIN == cfg.st
             && 0ULL == srcid
-            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
-            && MSG_ATTR_CHALLENGE == at )
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) )
         {
-            printcon( "Login Ok\nAuthenticating\n" );
-            cfg.st = CLT_LOGIN_OK;
-            mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
-            DLOG( "TODO: hashing, crypt, whatever, ...\n" );
-            mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
-            enqueue_msg( mp );
+            printcon( "Login Ok\n" );
+            if ( MSG_ATTR_OK == at )
+            {   /* Unregistered user. */
+                cfg.st = CLT_AUTH_OK;
+            }
+            else if ( MSG_ATTR_CHALLENGE == at )
+            {   /* Registered user: authenticate. */
+                cfg.st = CLT_LOGIN_OK;
+                printcon( "Authenticating\n" );
+                mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
+                DLOG( "TODO: hashing, crypt, whatever, ...\n" );
+                mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
+                enqueue_msg( mp );
+            }
         }
         break;
     case MSG_TYPE_AUTH_RES:

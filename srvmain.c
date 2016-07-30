@@ -441,20 +441,27 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
             || at != MSG_ATTR_USERNAME )
         {
             mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
-            break;
         }
         else if ( NULL == ( pu = udb_lookupname( (char *)av ) ) )
-        {
-            mbuf_to_error_response( &c[i_src].rbuf, SC_FORBIDDEN );
+        {   /* Login as unregistered user. */
+            c[i_src].st = CLT_AUTH_OK;
+            c[i_src].id = udb_gettempid();
+            c[i_src].name = strdup( (char *)av );
+            c[i_src].key = NULL;
+            mbuf_to_response( &c[i_src].rbuf );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
             break;
         }
-        c[i_src].st = CLT_LOGIN_OK;
-        c[i_src].id = pu->id;
-        c[i_src].name = strdup( pu->name );
-        c[i_src].key = strdup( pu->key );
-        mbuf_to_response( &c[i_src].rbuf );
-        /* DEBUG ONLY (road works ahead): */
-        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( c[i_src].key ) + 1, c[i_src].key );
+        else
+        {   /* Registered user: send challenge. */
+            c[i_src].st = CLT_LOGIN_OK;
+            c[i_src].id = pu->id;
+            c[i_src].name = strdup( pu->name );
+            c[i_src].key = strdup( pu->key );
+            mbuf_to_response( &c[i_src].rbuf );
+            /* DEBUG ONLY (road works ahead): */
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( c[i_src].key ) + 1, c[i_src].key );
+        }
         break;
     case MSG_TYPE_AUTH_REQ:
         DLOG( "WIP: Process AUTH request.\n" );

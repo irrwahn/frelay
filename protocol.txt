@@ -205,7 +205,7 @@ LOGIN
 --------------------------------------------------------------------------
 Message type    0x0021              0x0022              0x002a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   USERNAME            CHALLENGE           ERROR
+Mand. Attrib.   USERNAME            OK | CHALLENGE      ERROR
 Opt. Attrib.    -                   -                   NOTICE
 
 

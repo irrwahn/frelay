@@ -168,5 +168,11 @@ const udb_t *udb_addentry( uint64_t id, const char *name, const char *key )
     return u;
 }
 
+uint64_t udb_gettempid( void )
+{
+    udb_load( userdb_path );
+    return next_id++;
+}
+
 
 /* EOF */
