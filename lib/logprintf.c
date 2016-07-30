@@ -67,7 +67,7 @@
     #define UNLOCK_LOG()
 #endif /* WITH_PTHREAD */
 
-#include "logprintf.h"
+#include <logprintf.h>
 
 
 #define NULLSTR "(null)"

@@ -43,6 +43,7 @@
    somewhat portable.
 */
 #if 0
+
     /* Use non-standard C library extensions.
        Reportedly breaks on Android, which defines __linux__
        but provides the OpenBSD API. Go figure.
@@ -66,6 +67,7 @@
     #define HTON64(V)       htobe64((uint64_t)(V))
 
 #else
+
     /* This version does not require __DEFAULT_SOURCE defined. */
     #if defined(__linux__)
         #include <endian.h>
@@ -74,10 +76,10 @@
     #elif defined(__OpenBSD__)
         #include <sys/types.h>
     #elif defined(__APPLE__)
-        # include <libkern/OSByteOrder.h>
-        # define __BYTE_ORDER BYTE_ORDER
-        # define __BIG_ENDIAN BIG_ENDIAN
-        # define __LITTLE_ENDIAN LITTLE_ENDIAN
+        #include <libkern/OSByteOrder.h>
+        #define __BYTE_ORDER BYTE_ORDER
+        #define __BIG_ENDIAN BIG_ENDIAN
+        #define __LITTLE_ENDIAN LITTLE_ENDIAN
     #endif
     #if __BYTE_ORDER == __BIG_ENDIAN
         #define NTOH16(V)   (V)

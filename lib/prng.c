@@ -35,7 +35,7 @@
  */
 
 
-#include "prng.h"
+#include <prng.h>
 
 /*
  * PRNG implementation
