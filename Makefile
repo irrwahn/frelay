@@ -38,10 +38,10 @@ PROJECT := frelay
 export CC      := gcc
 export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -O2 -I./lib -MMD -MP
 ifeq    ($(DEBUG),1)
-	CFLAGS  += -g3 -pg -DDEBUG
+	export CFLAGS  += -g3 -pg -DDEBUG
+	export STRIP   := @:
 else
-	CFLAGS  += -s
-## TODO: replace -s compiler option with explicitly calling strip
+	export STRIP   := strip
 endif
 
 LD      := $(CC)
@@ -72,9 +72,11 @@ all: $(SRVBIN) $(CLTBIN)
 
 $(SRVBIN): $(SRVOBJ) $(SELF) lib
 	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
+	$(STRIP) $(SRVBIN)
 
 $(CLTBIN): $(CLTOBJ) $(SELF) lib
 	$(LD) $(LDFLAGS) $(CLTOBJ) $(LIBS) -o $(CLTBIN)
+	$(STRIP) $(CLTBIN)
 
 $(SRVOBJ): srvcfg.h
 
