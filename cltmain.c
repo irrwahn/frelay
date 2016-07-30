@@ -67,6 +67,7 @@
 #include "cltcfg.h"
 #include "util.h"
 
+#include <ntime.h>
 #include <prng.h>
 #include <stricmp.h>
 
@@ -83,6 +84,7 @@ static struct {
     struct timeval select_timeout;
     int msg_timeout;
     int conn_timeout;
+    int res_timeout;
     const char *username;
     const char *pubkey;
     const char *privkey;
@@ -94,6 +96,8 @@ static struct {
     MSG_TIMEOUT_S,
     /* .conn_timeout = */
     CONN_TIMEOUT_S,
+    /* .res_timeout = */
+    RES_TIMEOUT_S,
     /* .username = */
     "user",
     /* .pubkey = */
@@ -259,6 +263,7 @@ static int dequeue_msg( void )
         qtail = NULL;
     if ( HDR_CLASS_IS_REQ( qhead ) )
     {   /* Move request to pending list. */
+        //DLOG( "Move to pending:\n" ); mbuf_dump( qhead );
         qhead->next = pending;
         pending = qhead;
     }
@@ -269,11 +274,52 @@ static int dequeue_msg( void )
 }
 
 /* Find, un-list and return a pending request matching the supplied response. */
-static mbuf_t *pending_match_req( const mbuf_t *response )
+static mbuf_t *match_pending_req( const mbuf_t *m )
 {
-    // TODO: implement
+    mbuf_t *q;
+    mbuf_t *prev = NULL;
 
-    return (void)response, NULL;
+    for ( q = pending; NULL != q; q = q->next )
+    {
+        if (   HDR_GET_DSTID(q) == HDR_GET_SRCID(m)
+            && HDR_GET_TRID(q) == HDR_GET_TRID(m)
+            && HDR_GET_EXID(q) == HDR_GET_EXID(m)
+            && MCLASS_TO_RES( HDR_GET_TYPE(q) ) == HDR_GET_TYPE(m) )
+        {
+            if ( prev )
+                prev->next = q->next;
+            else
+                pending = q->next;
+            q->next = NULL;
+            break;
+        }
+        prev = q;
+    }
+    return q;
+}
+
+static void upkeep_pending( void )
+{
+    mbuf_t *q;
+    mbuf_t *next, *prev = NULL;
+    time_t now = time( NULL );
+
+    for ( q = pending; NULL != q; q = next )
+    {
+        next = q->next;
+        if ( (time_t)ntime_to_s( HDR_GET_TS(q) ) + cfg.res_timeout < now )
+        {   /* Request passed best before date, trash it. */
+            DLOG( "Request timed out:\n" ); mbuf_dump( q );
+            if ( prev )
+                prev->next = next;
+            else
+                pending = next;
+            mbuf_free( &q );
+        }
+        else
+            prev = q;
+    }
+    return;
 }
 
 /**********************************************
@@ -449,6 +495,7 @@ static int process_srvmsg( mbuf_t **pp )
     uint64_t trid = HDR_GET_TRID( *pp );
     uint64_t exid = HDR_GET_EXID( *pp );
     mbuf_t *mp = NULL;
+    mbuf_t *qmatch = NULL;
     enum MSG_ATTRIB at;
     size_t al;
     void *av;
@@ -456,6 +503,12 @@ static int process_srvmsg( mbuf_t **pp )
 
     DLOG( "Received %s_%s from 0x%016"PRIx64".\n",
             mtype2str( mtype ), mclass2str( mtype ), srcid );
+    if ( MCLASS_IS_RES( mtype ) && NULL == ( qmatch = match_pending_req( *pp ) ) )
+    {
+        DLOG( "Dropping unsolicited response:\n" );
+        mbuf_dump( *pp );
+        goto DONE;
+    }
     mbuf_resetgetattrib( *pp );
     switch ( mtype )
     {
@@ -471,7 +524,7 @@ static int process_srvmsg( mbuf_t **pp )
                         srcid, s?": '":"", s?s:"", s?"'":"" );
             if ( MCLASS_IS_REQ( mtype ) )
             {
-                mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, ++exid );
+                mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, exid );
                 mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
                 enqueue_msg( mp );
             }
@@ -483,7 +536,8 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            DLOG( "TODO: Handle Ping response (calculate round trip time).\n" );
+            ntime_t rtt = ntime_to_us( HDR_GET_TS(*pp) - HDR_GET_TS(qmatch) );
+            printcon( "Ping RTT=%"PRI_ntime".%"PRI_ntime"ms.\n", rtt/1000, rtt%1000  );
         }
         break;
     case MSG_TYPE_PEERLIST_RES:
@@ -589,6 +643,8 @@ static int process_srvmsg( mbuf_t **pp )
         }
         break;
     }
+DONE:
+    mbuf_free( &qmatch );
     mbuf_free( pp );
     return res;
 }
@@ -741,6 +797,7 @@ int main( int argc, char *argv[] )
                 mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random(), 1 );
                 enqueue_msg( mb );
             }
+            upkeep_pending();
         }
         else if ( EINTR == errno )
         {

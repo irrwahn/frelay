@@ -43,6 +43,8 @@
 
 #define MSG_TIMEOUT_S   5           /* maximum intra-message receive gap */
 
+#define RES_TIMEOUT_S   30          /* timespan during which a response is accepted */
+
 #ifdef DEBUG
 #define CONN_TIMEOUT_S  60
 #else
