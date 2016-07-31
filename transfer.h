@@ -1,5 +1,5 @@
 /*
- * cltcfg.h
+ * transfer.h
  *
  * Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
  *
@@ -33,27 +33,33 @@
  */
 
 
-#ifndef CONFIG_H_INCLUDED
-#define CONFIG_H_INCLUDED
+#ifndef OFFER_H_INCLUDED
+#define OFFER_H_INCLUDED
 
 
-/* Default frelay server address. */
-#define DEFAULT_HOST        "localhost"
+#include <stdio.h>
+#include <time.h>
 
-/* Default frelay service port. (Neighbor of the mumbler ^.^) */
-#define DEFAULT_PORT        "64740"
 
-/* Idle timeout for select(), i.e. maximum interval between upkeeps. */
-#define SELECT_TIMEOUT_MS   10000
+/* Offer structure type to keep information aboput offers and downloads. */
+typedef
+    struct TRANSFER_T_STRUCT
+    transfer_t;
 
-/* Maximum intra-message receive gap. */
-#define MESSAGE_TIMEOUT_S   5
+struct TRANSFER_T_STRUCT {
+    uint64_t rid;           /* remote client id */
+    uint64_t oid;           /* offer id */
+    const char *name;       /* file name */
+    uint64_t size;          /* file size */
+    uint64_t offset;        /* file offset */
+    FILE *fp;               /* file pointer to offered file */
+    time_t act;             /* time of last activity (s since epoch) */
+    transfer_t *next;
+};
 
-/* Timespan during which a response to a request is considered valid. */
-#define RESPONSE_TIMEOUT_S  30
 
-/* Inactivity timeout for an open offer. */
-#define OFFER_TIMEOUT_S     30
+extern transfer_t *offer_new( uint64_t dest, const char *filename );
+extern void offer_upkeep( time_t timeout );
 
 
 #endif /* ndef _H_INCLUDED */

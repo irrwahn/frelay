@@ -55,6 +55,7 @@
 #include <string.h>
 #include <time.h>
 
+#include <libgen.h>     /* basename */
 #include <fcntl.h>
 #include <unistd.h>
 #include <netdb.h>
@@ -65,6 +66,7 @@
 
 #include "message.h"
 #include "cltcfg.h"
+#include "transfer.h"
 #include "util.h"
 
 #include <ntime.h>
@@ -79,47 +81,41 @@ enum CLT_STATE {
     CLT_AUTH_OK
 };
 
-/* Configuration singleton */
+/* Configuration singleton. */
 static struct {
+    const char *host;
+    const char *port;
     struct timeval select_timeout;
     int msg_timeout;
-    int conn_timeout;
     int res_timeout;
+    int offer_timeout;
     const char *username;
     const char *pubkey;
     const char *privkey;
     enum CLT_STATE st;
 } cfg = {
+    /* .host */
+    DEFAULT_HOST,
+    /* .port */
+    DEFAULT_PORT,
     /* .select_timeout = */
-    { .tv_sec=SEL_TIMEOUT_MS/1000, .tv_usec=SEL_TIMEOUT_MS%1000*1000 },
+    { .tv_sec=SELECT_TIMEOUT_MS/1000, .tv_usec=SELECT_TIMEOUT_MS%1000*1000 },
     /* .msg_timeout = */
-    MSG_TIMEOUT_S,
-    /* .conn_timeout = */
-    CONN_TIMEOUT_S,
+    MESSAGE_TIMEOUT_S,
     /* .res_timeout = */
-    RES_TIMEOUT_S,
+    RESPONSE_TIMEOUT_S,
+    /* .offer_timeout = */
+    OFFER_TIMEOUT_S,
     /* .username = */
     "user",
     /* .pubkey = */
     "userpubkey",
     /* .privkey = */
     "userprivkey",
-    /* .st = */
+        /* .st = */
     CLT_INVALID,
 };
 
-#if 0
-/* Transaction structure type */
-typedef
-    struct TRACT_T_STRUCT
-    tract_t;
-
-struct TRACT_T_STRUCT {
-    uint64_t id;                /* remote client id */
-    time_t act;                 /* time of last activity (s since epoch) */
-    mbuf_t *pending;            /* list of pending exchanges */
-};
-#endif
 
 /**********************************************
  * INITIALIZATION
@@ -229,7 +225,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
 
 
 /**********************************************
- * MESSAGE PROCESSING
+ * MESSAGE AND PENDING REQUESTS PROCESSING
  *
  */
 
@@ -238,8 +234,9 @@ static mbuf_t *rbuf = NULL;
 /* Send queue. */
 static mbuf_t *qhead = NULL, *qtail = NULL;
 /* List of requests pending a response. */
-static mbuf_t *pending = NULL;
+static mbuf_t *requests = NULL;
 
+/* Add message to send queue. */
 static int enqueue_msg( mbuf_t *m )
 {
     //DLOG( "\n" ); mbuf_dump( m );
@@ -253,6 +250,7 @@ static int enqueue_msg( mbuf_t *m )
     return 0;
 }
 
+/* Remove message from send queue. */
 static int dequeue_msg( void )
 {
     mbuf_t *next;
@@ -264,8 +262,8 @@ static int dequeue_msg( void )
     if ( HDR_CLASS_IS_REQ( qhead ) )
     {   /* Move request to pending list. */
         //DLOG( "Move to pending:\n" ); mbuf_dump( qhead );
-        qhead->next = pending;
-        pending = qhead;
+        qhead->next = requests;
+        requests = qhead;
     }
     else
         mbuf_free( &qhead );
@@ -279,7 +277,7 @@ static mbuf_t *match_pending_req( const mbuf_t *m )
     mbuf_t *q;
     mbuf_t *prev = NULL;
 
-    for ( q = pending; NULL != q; q = q->next )
+    for ( q = requests; NULL != q; q = q->next )
     {
         if (   HDR_GET_DSTID(q) == HDR_GET_SRCID(m)
             && HDR_GET_TRID(q) == HDR_GET_TRID(m)
@@ -289,7 +287,7 @@ static mbuf_t *match_pending_req( const mbuf_t *m )
             if ( prev )
                 prev->next = q->next;
             else
-                pending = q->next;
+                requests = q->next;
             q->next = NULL;
             break;
         }
@@ -298,13 +296,14 @@ static mbuf_t *match_pending_req( const mbuf_t *m )
     return q;
 }
 
+/* clear out the pending request and offer lists. */
 static void upkeep_pending( void )
 {
-    mbuf_t *q;
-    mbuf_t *next, *prev = NULL;
+    mbuf_t *q, *next, *prev;
     time_t now = time( NULL );
 
-    for ( q = pending; NULL != q; q = next )
+    next = prev = NULL;
+    for ( q = requests; NULL != q; q = next )
     {
         next = q->next;
         if ( (time_t)ntime_to_s( HDR_GET_TS(q) ) + cfg.res_timeout < now )
@@ -313,7 +312,7 @@ static void upkeep_pending( void )
             if ( prev )
                 prev->next = next;
             else
-                pending = next;
+                requests = next;
             mbuf_free( &q );
         }
         else
@@ -321,6 +320,7 @@ static void upkeep_pending( void )
     }
     return;
 }
+
 
 /**********************************************
  * I/O HANDLING AND MAIN()
@@ -408,15 +408,59 @@ static int process_stdin( int *srvfd )
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[2] ) + 1, arg[2] );
     }
     else if ( MATCH_CMD( "peerlist" ) )
-    {
+    {   /* peerlist */
         mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random(), 1 );
     }
+    else if ( MATCH_CMD( "offer" ) )
+    {   /* offer destination file [notice] */
+        const transfer_t *o;
+        char *bname, *fname;
+
+        if ( 3 > a )
+        {
+            printcon( "Usage: offer destination file [notice]\n" );
+            return -1;
+        }
+        if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
+        {
+            printcon( "No such file: '%s'\n", arg[2] );
+            return -1;
+        }
+        mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, random(), 1 );
+        mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
+        fname = strdup( arg[2] );
+        bname = basename( fname );
+        mbuf_addattrib( &mp, MSG_ATTR_FILENAME, strlen( bname ) + 1, bname );
+        free( fname );
+        mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, o->size );
+        //TODO mbuf_addattrib( &mp, MSG_ATTR_MD5, ??, ?? );
+        //TODO mbuf_addattrib( &mp, MSG_ATTR_TTL ??, ?? );
+        if ( 3 < a )
+            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[3] ) + 1, arg[3] );
+    }
+
+    else if ( MATCH_CMD( "accept" ) )
+    {   /* connect offer_id */
+        if ( 2 > a )
+        {
+            printcon( "Usage: accept offer_id\n" );
+            return -1;
+        }
+        printcon( "TODO: Match offer ID against downloads list, compose OK response\n" );
+    #if 0
+        // this belongs in "accept" command
+        mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trid, exid );
+        mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
+        enqueue_msg( mp );
+    #endif
+    }
+
     else if ( MATCH_CMD( "connect" ) )
     {   /* connect [host [port]] */
         if ( 3 > a )
-            arg[2] = DEF_PORT;
+            arg[2] = cfg.port;
         if ( 2 > a )
-            arg[1] = "localhost";
+            arg[1] = cfg.host;
         connect_srv( srvfd, arg[1], arg[2] );
         if ( 0 > *srvfd )
         {
@@ -501,8 +545,7 @@ static int process_srvmsg( mbuf_t **pp )
     void *av;
     int res = 0;
 
-    DLOG( "Received %s_%s from 0x%016"PRIx64".\n",
-            mtype2str( mtype ), mclass2str( mtype ), srcid );
+    DLOG( "Received %s_%s from 0x%016"PRIx64".\n", mtype2str( mtype ), mclass2str( mtype ), srcid );
     if ( MCLASS_IS_RES( mtype ) && NULL == ( qmatch = match_pending_req( *pp ) ) )
     {
         DLOG( "Dropping unsolicited response:\n" );
@@ -530,6 +573,27 @@ static int process_srvmsg( mbuf_t **pp )
             }
         }
         break;
+    case MSG_TYPE_OFFER_REQ:
+        if ( CLT_AUTH_OK == cfg.st )
+        {
+            printcon( "TODO: Add offer to downloads and let it wait for 'accept' command!.\n" );
+            uint64_t oid;
+            uint64_t ofsize = 0;
+            const char *ofname = NULL;
+
+            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av ) || MSG_ATTR_OFFERID != at )
+                goto BAD_REQUEST;
+            oid = NTOH64( *(uint64_t *)av );
+            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av ) || MSG_ATTR_FILENAME != at )
+                goto BAD_REQUEST;
+            ofname = av;
+            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av ) || MSG_ATTR_SIZE != at )
+                goto BAD_REQUEST;
+            ofsize = NTOH64( *(uint64_t *)av );
+            printcon( "Offer from 0x%016"PRIx64": 0x%016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
+                        srcid, oid, ofname, ofsize );
+        }
+        break;
     /* Responses */
     case MSG_TYPE_PING_RES:
         if ( CLT_AUTH_OK == cfg.st
@@ -537,7 +601,15 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             ntime_t rtt = ntime_to_us( HDR_GET_TS(*pp) - HDR_GET_TS(qmatch) );
-            printcon( "Ping RTT=%"PRI_ntime".%"PRI_ntime"ms.\n", rtt/1000, rtt%1000  );
+            printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms.\n", srcid, rtt/1000, rtt%1000 );
+        }
+        break;
+    case MSG_TYPE_OFFER_RES:
+        if ( CLT_AUTH_OK == cfg.st
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OK == at )
+        {
+            printcon( "Peer %016"PRIx64" received offer.\n", srcid );
         }
         break;
     case MSG_TYPE_PEERLIST_RES:
@@ -641,6 +713,11 @@ static int process_srvmsg( mbuf_t **pp )
             XLOG( LOG_WARNING, "Unhandled message 0x%04"PRIx16"!\n" );
             mbuf_dump( *pp );
         }
+        break;
+    BAD_REQUEST:    /* Beware: This is not a case label! */
+        mbuf_to_error_response( pp, SC_BAD_REQUEST );
+        enqueue_msg( *pp );
+        *pp = NULL;
         break;
     }
 DONE:
@@ -798,6 +875,7 @@ int main( int argc, char *argv[] )
                 enqueue_msg( mb );
             }
             upkeep_pending();
+            offer_upkeep( cfg.offer_timeout );
         }
         else if ( EINTR == errno )
         {

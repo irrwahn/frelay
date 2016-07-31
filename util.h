@@ -36,6 +36,7 @@
 #ifndef UTIL_H_INCLUDED
 #define UTIL_H_INCLUDED
 
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -87,6 +88,7 @@ extern int set_nonblocking( int fd );
 
 extern void *memdup( void *s, size_t len );
 
+extern int64_t fsize( const char *filename );
 
 #ifdef DEBUG
     extern int drain_fd( int fd );

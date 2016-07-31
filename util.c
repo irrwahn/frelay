@@ -33,6 +33,8 @@
  */
 
 
+#include "util.h"
+
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,7 +42,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "util.h"
+#include <sys/types.h>
+#include <sys/stat.h>
 
 
 int set_nonblocking( int fd )
@@ -58,6 +61,12 @@ void *memdup( void *s, size_t len )
     void *d = malloc( len );
     die_if( NULL == d, "malloc() failed: %m.\n" );
     return memcpy( d, s, len );
+}
+
+int64_t fsize( const char *filename )
+{
+    struct stat st;
+    return 0 == stat( filename, &st ) ? st.st_size : -1;
 }
 
 

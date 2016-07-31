@@ -59,7 +59,7 @@ SRVOBJ  := $(SRVSRC:%.c=%.o)
 SRVDEP  := $(SRVOBJ:%.o=%.d)
 
 CLTBIN  := $(PROJECT)clt
-CLTSRC  := $(COMSRC) cltmain.c
+CLTSRC  := $(COMSRC) cltmain.c transfer.c
 CLTOBJ  := $(CLTSRC:%.c=%.o)
 CLTDEP  := $(CLTOBJ:%.o=%.d)
 

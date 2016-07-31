@@ -256,18 +256,20 @@ OFFER
 
 More than one offer may be included in a single request.
 
-                Request             Response            Error Response
+                Indication|Request  Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0111              0x0112              0x011a
 Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
-Mand. Attrib.   OFFERID, SIZE       OK                  ERROR
-Opt. Attrib.    FILENAME, MD5,      -                   NOTICE
-                NOTICE, TTL
+Mand. Attrib.   OFFERID, FILENAME,  OK                  ERROR
+                SIZE
+Opt. Attrib.    MD5, TTL, NOTICE    -                   NOTICE
 
 
 GETFILE
 -------
 #TODO: description
+
+If both OFFSET and SIZE are set to zero, or omitted, the
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
@@ -371,7 +373,8 @@ Type    Name        Lengths     Description
                                 that is offered or requested.
 --------------------------------------------------------------------------
 0x0023  SIZE        8           64 bit size in octets of the file offered,
-                                or length of a range requested.
+                                or length of a range requested. Defaults
+                                to 0, if attribute is omitted.
 --------------------------------------------------------------------------
 0x0024  MD5         16          MD5 checksum of a file. This is not a
                                 security measure, but solely intended to
@@ -379,8 +382,8 @@ Type    Name        Lengths     Description
                                 file corruption!
 --------------------------------------------------------------------------
 0x0025  OFFSET      8           64 bit start offset of requested range,
-                                in octets. The value defaults to 0, if
-                                this attribute is omitted.
+                                in octets. Defaults to 0, if attribute is
+                                omitted.
 --------------------------------------------------------------------------
 0x0026  DATA        1..DATA_MAX Actual file data sent in response to a
                                 previous GETFILE request, as identified
