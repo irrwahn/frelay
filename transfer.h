@@ -49,9 +49,11 @@ typedef
 struct TRANSFER_T_STRUCT {
     uint64_t rid;           /* remote client id */
     uint64_t oid;           /* offer id */
-    const char *name;       /* file name */
+    char *name;             /* file name */
     uint64_t size;          /* file size */
-    uint64_t offset;        /* file offset */
+    // TODO hash ?
+    // TODO ttl ?
+    uint64_t offset;        /* file offset for downloads only */
     FILE *fp;               /* file pointer to offered file */
     time_t act;             /* time of last activity (s since epoch) */
     transfer_t *next;
@@ -59,7 +61,14 @@ struct TRANSFER_T_STRUCT {
 
 
 extern transfer_t *offer_new( uint64_t dest, const char *filename );
-extern void offer_upkeep( time_t timeout );
+extern transfer_t *offer_match( uint64_t oid, uint64_t rid );
+extern void *offer_read( transfer_t *o, uint64_t off, size_t sz );
+
+extern transfer_t *download_new( void );
+extern transfer_t *download_match( uint64_t oid );
+extern int download_write( transfer_t *d, void *data, size_t sz );
+
+extern void transfer_upkeep( time_t timeout );
 
 
 #endif /* ndef _H_INCLUDED */

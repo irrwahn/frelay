@@ -262,8 +262,8 @@ Message type    0x0111              0x0112              0x011a
 Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
 Mand. Attrib.   OFFERID, FILENAME,  OK                  ERROR
                 SIZE
-Opt. Attrib.    MD5, TTL, NOTICE    -                   NOTICE
-
+Opt. Attrib.    FILEHASH, TTL,      -                   NOTICE
+                NOTICE
 
 GETFILE
 -------
@@ -275,7 +275,7 @@ If both OFFSET and SIZE are set to zero, or omitted, the
 --------------------------------------------------------------------------
 Message type    0x0121              0x0122              0x012a
 Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
-Mand. Attrib.   OFFERID             DATA                ERROR
+Mand. Attrib.   OFFERID             OFFERID, DATA       ERROR
 Opt. Attrib.    OFFSET, SIZE                            NOTICE
 
 
@@ -376,10 +376,9 @@ Type    Name        Lengths     Description
                                 or length of a range requested. Defaults
                                 to 0, if attribute is omitted.
 --------------------------------------------------------------------------
-0x0024  MD5         16          MD5 checksum of a file. This is not a
-                                security measure, but solely intended to
-                                provide a way to easily detect accidental
-                                file corruption!
+0x0024  FILEHASH    1..KEY_MAX  Hash providing a way to detect accidental
+                                file corruption. 
+                                #TODO: algorithm?
 --------------------------------------------------------------------------
 0x0025  OFFSET      8           64 bit start offset of requested range,
                                 in octets. Defaults to 0, if attribute is
@@ -418,10 +417,10 @@ PATH_MAX := 4096
     Maximum length in octets of a file name, including the terminating
     null character.
 
-DATA_MAX := 65396
-    Maximum length in octets of a DATA attribute value. 65396 is the
-    theoretical limit (maximum payload length minus 4). However, the
-    actual limit MAY be lower, if the message contains additional
+DATA_MAX := 65392
+    Maximum length in octets of a DATA attribute value. 65392 is the
+    theoretical limit (maximum payload length minus 8). However, the
+    actual limit may be lower, if the message contains additional
     attributes.
 
 TEXT_MAX := 1024

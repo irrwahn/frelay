@@ -34,6 +34,7 @@
 
 #define _POSIX_C_SOURCE 200809L     /* strdup */
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -48,12 +49,10 @@
 
 /* List of valid active offers. */
 static transfer_t *offers = NULL;
-
+static transfer_t *downloads = NULL;
 
 // TODO:
-//static transfer_t downloads = NULL;
 //transfer_t *download_new( ... )
-//download_upkeep()
 
 
 /* Add an offer to the pending list. */
@@ -70,9 +69,9 @@ transfer_t *offer_new( uint64_t dest, const char *filename )
     o->oid = random();
     o->name = strdup( filename );
     o->size = fsz;
-    o->offset = 0;
-    // TODO md5 ?
+    // TODO hash ?
     // TODO ttl ?
+    o->offset = 0;
     o->fp = NULL;
     o->act = time( NULL );
     o->next = offers;
@@ -81,29 +80,128 @@ transfer_t *offer_new( uint64_t dest, const char *filename )
     return o;
 }
 
-/* clear out the pending request and offer lists. */
-void offer_upkeep( time_t timeout )
+transfer_t *offer_match( uint64_t oid, uint64_t rid )
 {
-    transfer_t *o, *next, *prev;
+    for ( transfer_t *o = offers; NULL != o; o = o->next )
+        if ( oid == o->oid && rid == o->rid )
+            return o;
+    return NULL;
+}
+
+void *offer_read( transfer_t *o, uint64_t off, size_t sz )
+{
+    size_t n;
+    void *p;
+
+    errno = 0;
+    if ( NULL == o->fp )
+        o->fp = fopen( o->name, "rb" );
+    if ( NULL == o->fp )
+    {
+        DLOG( "fopen(%s,rb) failed: %m.\n", o->name );
+        return NULL;
+    }
+    if ( 0 != fseeko( o->fp, off, SEEK_SET ) )
+    {
+        DLOG( "fseeko() failed: %m.\n" );
+        return NULL;
+    }
+    p = malloc( sz );
+    die_if( NULL == p, "malloc(%zu) failed: %m.\n", sz );
+    n = fread( p, sz, 1, o->fp );
+    if ( n != 1 )
+    {
+        DLOG( "fread(%zu) fell short.\n", sz );
+        if ( ferror( o->fp ) )
+            DLOG( "fread(%zu) failed: %m.\n", sz );
+        fclose( o->fp );
+        o->fp = NULL;
+        free( p );
+        p = NULL;
+    }
+    return p;
+}
+
+
+/* Add a download to the pending list. */
+transfer_t *download_new( void )
+{
+    transfer_t *d;
+
+    d = malloc( sizeof *d );
+    die_if( NULL == d, "malloc() failed: %m.\n" );
+    memset( d, 0, sizeof *d );
+    /* Other fields are be filled in by caller */
+    d->offset = 0;
+    d->fp = NULL;
+    d->act = time( NULL );
+    d->next = downloads;
+    downloads = d;
+    return d;
+}
+
+transfer_t *download_match( uint64_t oid )
+{
+    for ( transfer_t *d = downloads; NULL != d; d = d->next )
+        if ( oid == d->oid )
+            return d;
+    return NULL;
+}
+
+int download_write( transfer_t *d, void *data, size_t sz )
+{
+    size_t n;
+
+    errno = 0;
+    if ( NULL == d->fp )
+        d->fp = fopen( d->name, "wb" );
+    if ( NULL == d->fp )
+    {
+        DLOG( "fopen(%s,wb) failed: %m.\n", d->name );
+        return -1;
+    }
+    n = fwrite( data, sz, 1, d->fp );
+    if ( n != 1 )
+    {
+        DLOG( "fwrite(%zu) fell short.\n", sz );
+        if ( ferror( d->fp ) )
+            DLOG( "fwrite(%zu) failed: %m.\n", sz );
+        fclose( d->fp );
+        d->fp = NULL;
+        return -1;
+    }
+    return 0;
+}
+
+
+/* Clear out the pending offer and download lists. */
+void transfer_upkeep( time_t timeout )
+{
+    transfer_t *lists[] = { offers, downloads, NULL };
+    transfer_t *p, *next, *prev;
     time_t now = time( NULL );
 
-    next = prev = NULL;
-    for ( o = offers; NULL != o; o = next )
+    for ( int i = 0; lists[i]; ++i )
     {
-        next = o->next;
-        if ( o->act + timeout < now )
-        {   /* Offer passed best before date, ditch it. */
-            DLOG( "Offer timed out: %016"PRIx64"\n", o->oid );
-            if ( prev )
-                prev->next = next;
+        next = prev = NULL;
+        for ( p = lists[i]; NULL != p; p = next )
+        {
+            next = p->next;
+            if ( p->act + timeout < now )
+            {   /* Entry past best before date, ditch it. */
+                DLOG( "Offer timed out: %016"PRIx64"\n", p->oid );
+                if ( prev )
+                    prev->next = next;
+                else
+                    offers = next;
+                free( p->name );
+                if ( NULL != p->fp )
+                    fclose( p->fp );
+                free( p );
+            }
             else
-                offers = next;
-            if ( NULL != o->fp )
-                fclose( o->fp );
-            free( o );
+                prev = p;
         }
-        else
-            prev = o;
     }
     return;
 }

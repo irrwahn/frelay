@@ -171,7 +171,7 @@ enum MSG_ATTRIB {
     MSG_ATTR_OFFERID    = 0x0021,
     MSG_ATTR_FILENAME   = 0x0022,
     MSG_ATTR_SIZE       = 0x0023,
-    MSG_ATTR_MD5        = 0x0024,
+    MSG_ATTR_FILEHASH   = 0x0024,
     MSG_ATTR_OFFSET     = 0x0025,
     MSG_ATTR_DATA       = 0x0026,
     MSG_ATTR_OK         = 0x0041,

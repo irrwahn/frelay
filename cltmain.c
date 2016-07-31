@@ -38,8 +38,8 @@
 
 /*
  * TODO:
- * - login with unregistered nick without authentication
  * - plaintext authentication
+ * - resume interrupted file transfers
  */
 
 #define _POSIX_C_SOURCE 201112L
@@ -73,6 +73,8 @@
 #include <prng.h>
 #include <stricmp.h>
 
+
+#define MAX_DATA_SIZE   (MSG_MAX_PAY_SIZE-24)
 
 enum CLT_STATE {
     CLT_INVALID = 0,
@@ -370,7 +372,10 @@ static int process_stdin( int *srvfd )
     line[r] = '\0';
 
     /* Ye lousy tokeniz0r. */
-    for ( a = 0, cp = line; *cp && a < MAX_ARG; ++a )
+    cp = line;
+    while ( *cp && isspace( (unsigned char)*cp ) )
+        ++cp;
+    for ( a = 0; *cp && a < MAX_ARG; ++a )
     {
         if ( '"' == *cp )
         {
@@ -433,28 +438,34 @@ static int process_stdin( int *srvfd )
         mbuf_addattrib( &mp, MSG_ATTR_FILENAME, strlen( bname ) + 1, bname );
         free( fname );
         mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, o->size );
-        //TODO mbuf_addattrib( &mp, MSG_ATTR_MD5, ??, ?? );
-        //TODO mbuf_addattrib( &mp, MSG_ATTR_TTL ??, ?? );
+        //TODO MSG_ATTR_FILEHASH ?
+        //TODO MSG_ATTR_TTL ?
         if ( 3 < a )
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[3] ) + 1, arg[3] );
     }
-
     else if ( MATCH_CMD( "accept" ) )
     {   /* connect offer_id */
+        uint64_t oid = strtoull( arg[1], NULL, 16 );
+        transfer_t *d;
+
         if ( 2 > a )
         {
             printcon( "Usage: accept offer_id\n" );
             return -1;
         }
-        printcon( "TODO: Match offer ID against downloads list, compose OK response\n" );
-    #if 0
-        // this belongs in "accept" command
-        mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trid, exid );
-        mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
-        enqueue_msg( mp );
-    #endif
+        if ( NULL == ( d = download_match( oid ) ) )
+        {
+            printcon( "Invalid offer ID.\n" );
+            return -1;
+        }
+        d->act = time( NULL );
+        printcon( "Download started.\n" );
+        mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random(), 1 );
+        mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
+        mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
+        mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8,
+                        d->size < MAX_DATA_SIZE ? d->size : MAX_DATA_SIZE );
     }
-
     else if ( MATCH_CMD( "connect" ) )
     {   /* connect [host [port]] */
         if ( 3 > a )
@@ -522,13 +533,13 @@ static int process_stdin( int *srvfd )
     }
 #undef MATCH_CMD
 
-    if ( NULL != mp )
+    if ( 0 > *srvfd )
     {
-        if ( 0 > *srvfd )
-            printcon( "Not connected.\n" );
-        else
-            enqueue_msg( mp );
+        printcon( "Not connected.\n" );
+        mbuf_free( &mp );
     }
+    else if ( NULL != mp )
+        enqueue_msg( mp );
     return r;
 }
 
@@ -544,6 +555,7 @@ static int process_srvmsg( mbuf_t **pp )
     size_t al;
     void *av;
     int res = 0;
+    enum SC_ENUM status = SC_OK;
 
     DLOG( "Received %s_%s from 0x%016"PRIx64".\n", mtype2str( mtype ), mclass2str( mtype ), srcid );
     if ( MCLASS_IS_RES( mtype ) && NULL == ( qmatch = match_pending_req( *pp ) ) )
@@ -562,38 +574,95 @@ static int process_srvmsg( mbuf_t **pp )
         {
             char *s = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                s = (char *)av;
+                s = av;
             printcon( "Ping from 0x%016"PRIx64"%s%s%s\n",
                         srcid, s?": '":"", s?s:"", s?"'":"" );
             if ( MCLASS_IS_REQ( mtype ) )
             {
                 mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, exid );
                 mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
-                enqueue_msg( mp );
             }
         }
         break;
     case MSG_TYPE_OFFER_REQ:
         if ( CLT_AUTH_OK == cfg.st )
         {
-            printcon( "TODO: Add offer to downloads and let it wait for 'accept' command!.\n" );
-            uint64_t oid;
-            uint64_t ofsize = 0;
-            const char *ofname = NULL;
-
-            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av ) || MSG_ATTR_OFFERID != at )
-                goto BAD_REQUEST;
-            oid = NTOH64( *(uint64_t *)av );
-            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av ) || MSG_ATTR_FILENAME != at )
-                goto BAD_REQUEST;
-            ofname = av;
-            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av ) || MSG_ATTR_SIZE != at )
-                goto BAD_REQUEST;
-            ofsize = NTOH64( *(uint64_t *)av );
+            transfer_t *d = download_new();
+            d->rid = srcid;
+            while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) )
+            {
+                switch ( at )
+                {
+                case MSG_ATTR_OFFERID:
+                    d->oid = NTOH64( *(uint64_t *)av );
+                    break;
+                case MSG_ATTR_FILENAME:
+                    d->name = strdup( av );
+                    break;
+                case MSG_ATTR_SIZE:
+                    d->size = NTOH64( *(uint64_t *)av );
+                    break;
+                // TODO: FILEHASH, TTL, NOTICE
+                default:
+                    break;
+                }
+            }
+            if ( NULL == d->name || 0 == d->size )
+            {
+                d->oid = 0;
+                d->act = 0;
+                status = SC_BAD_REQUEST;
+                break;
+            }
             printcon( "Offer from 0x%016"PRIx64": 0x%016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
-                        srcid, oid, ofname, ofsize );
+                        d->rid, d->oid, d->name, d->size );
+            mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trid, exid );
+            mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
+            DLOG( "Download added: %016"PRIx64"\n", d->oid );
         }
         break;
+    case MSG_TYPE_GETFILE_REQ:
+        if ( CLT_AUTH_OK == cfg.st
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OFFERID == at )
+        {
+            uint64_t oid = NTOH64( *(uint64_t *)av );
+            uint64_t offset = 0;
+            uint64_t size = 0;
+            transfer_t *o;
+            void *data = NULL;
+
+            if ( NULL == ( o = offer_match( oid, srcid ) ) )
+            {
+                status = SC_NOT_FOUND;
+                break;
+            }
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_OFFSET == at )
+                offset = NTOH64( *(uint64_t *)av );
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_SIZE == at )
+                size = NTOH64( *(uint64_t *)av );
+            if ( 0 == size )
+            {   /* Remote side signaled 'download finished'. */
+                o->rid = 0;
+                o->oid = 0;
+                o->act = 0;
+                fclose( o->fp );
+                o->fp = NULL;
+                printcon( "Upload complete: %0x016"PRIx64"\n" );
+            }
+            else if ( NULL == ( data = offer_read( o, offset, size ) ) )
+            {
+                status = SC_RANGE_NOT_SATISFIABLE;
+                break;
+            }
+            mbuf_compose( &mp, MSG_TYPE_GETFILE_RES, 0, srcid, trid, exid );
+            mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
+            mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
+            free( data );
+            DLOG( "Sending %zu bytes of data: %016"PRIx64"\n", size, o->oid );
+        }
+        break;
+
     /* Responses */
     case MSG_TYPE_PING_RES:
         if ( CLT_AUTH_OK == cfg.st
@@ -610,6 +679,40 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             printcon( "Peer %016"PRIx64" received offer.\n", srcid );
+        }
+        break;
+    case MSG_TYPE_GETFILE_RES:
+        if ( CLT_AUTH_OK == cfg.st
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OFFERID == at )
+        {
+            uint64_t oid = NTOH64( *(uint64_t *)av );
+            transfer_t *d = download_match( oid );
+            if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av )
+                || MSG_ATTR_DATA != at
+                || NULL == d )
+                break;
+            printcon( "Peer %016"PRIx64" sent %"PRIu64" bytes of data.\n", srcid, al );
+            if ( 0 == al && d->offset == d->size )
+            {
+                printcon( "Download finished.\n" );
+                if ( NULL != d->fp )
+                {
+                    fclose( d-> fp );
+                    d->fp = NULL;
+                }
+            }
+            else
+            {
+                if ( 0 != download_write( d, av, al ) )
+                    break;
+                d->offset += al;
+                al = d->size - d->offset;
+                mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random(), 1 );
+                mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
+                mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
+                mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, al < MAX_DATA_SIZE ? al : MAX_DATA_SIZE );
+            }
         }
         break;
     case MSG_TYPE_PEERLIST_RES:
@@ -660,7 +763,6 @@ static int process_srvmsg( mbuf_t **pp )
                 mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
                 DLOG( "TODO: hashing, crypt, whatever, ...\n" );
                 mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
-                enqueue_msg( mp );
             }
         }
         break;
@@ -700,7 +802,7 @@ static int process_srvmsg( mbuf_t **pp )
             uint64_t ec = NTOH64( *(uint64_t *)av );
             char *es = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                es = (char *)av;
+                es = av;
             XLOG( LOG_INFO, "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
                     mtype, ec, es?" ":"", es?es:"" );
             printcon( "%s Error %"PRIu64"%s%s.\n",
@@ -714,15 +816,22 @@ static int process_srvmsg( mbuf_t **pp )
             mbuf_dump( *pp );
         }
         break;
-    BAD_REQUEST:    /* Beware: This is not a case label! */
-        mbuf_to_error_response( pp, SC_BAD_REQUEST );
-        enqueue_msg( *pp );
-        *pp = NULL;
-        break;
     }
 DONE:
     mbuf_free( &qmatch );
-    mbuf_free( pp );
+    if ( SC_OK != status )
+    {
+        mbuf_to_error_response( pp, status );
+        enqueue_msg( *pp );
+        *pp = NULL;
+        mbuf_free( &mp );
+    }
+    else
+    {
+        if ( NULL != mp )
+            enqueue_msg( mp );
+        mbuf_free( pp );
+    }
     return res;
 }
 
@@ -875,7 +984,7 @@ int main( int argc, char *argv[] )
                 enqueue_msg( mb );
             }
             upkeep_pending();
-            offer_upkeep( cfg.offer_timeout );
+            transfer_upkeep( cfg.offer_timeout );
         }
         else if ( EINTR == errno )
         {

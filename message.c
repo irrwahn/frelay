@@ -169,7 +169,7 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attype, size_t length, ... )
     case MSG_ATTR_OFFERID:      avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_FILENAME:     avtype = AVTYPE_STR;  break;
     case MSG_ATTR_SIZE:         avtype = AVTYPE_UI64; length = 8; break;
-    case MSG_ATTR_MD5:          avtype = AVTYPE_BLOB; break;
+    case MSG_ATTR_FILEHASH:     avtype = AVTYPE_BLOB; break;
     case MSG_ATTR_OFFSET:       avtype = AVTYPE_UI64; length = 8; break;
     case MSG_ATTR_DATA:         avtype = AVTYPE_BLOB; break;
     case MSG_ATTR_OK:           avtype = AVTYPE_NONE; length = 0; break;
@@ -205,7 +205,8 @@ int mbuf_addattrib( mbuf_t **pp, enum MSG_ATTRIB attype, size_t length, ... )
     case AVTYPE_BLOB:
         {
             uint8_t *v = va_arg( arglist, uint8_t * );
-            memcpy( ap + 8, v, length );
+            if ( 0 < length )
+                memcpy( ap + 8, v, length );
         }
         break;
     case AVTYPE_NONE:

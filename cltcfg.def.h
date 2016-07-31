@@ -53,7 +53,7 @@
 #define RESPONSE_TIMEOUT_S  30
 
 /* Inactivity timeout for an open offer. */
-#define OFFER_TIMEOUT_S     30
+#define OFFER_TIMEOUT_S     300
 
 
 #endif /* ndef _H_INCLUDED */
