@@ -282,8 +282,7 @@ static mbuf_t *match_pending_req( const mbuf_t *m )
     for ( q = requests; NULL != q; q = q->next )
     {
         if (   HDR_GET_DSTID(q) == HDR_GET_SRCID(m)
-            && HDR_GET_TRID(q) == HDR_GET_TRID(m)
-            && HDR_GET_EXID(q) == HDR_GET_EXID(m)
+            && HDR_GET_TRFID(q) == HDR_GET_TRFID(m)
             && MCLASS_TO_RES( HDR_GET_TYPE(q) ) == HDR_GET_TYPE(m) )
         {
             if ( prev )
@@ -408,13 +407,13 @@ static int process_stdin( int *srvfd )
     if ( MATCH_CMD( "ping" ) )
     {   /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
-                ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random(), 1 );
+                ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random() );
         if ( 2 < a )
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[2] ) + 1, arg[2] );
     }
     else if ( MATCH_CMD( "peerlist" ) )
     {   /* peerlist */
-        mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random(), 1 );
+        mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random() );
     }
     else if ( MATCH_CMD( "offer" ) )
     {   /* offer destination file [notice] */
@@ -431,7 +430,7 @@ static int process_stdin( int *srvfd )
             printcon( "No such file: '%s'\n", arg[2] );
             return -1;
         }
-        mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, random(), 1 );
+        mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, random() );
         mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
         fname = strdup( arg[2] );
         bname = basename( fname );
@@ -460,7 +459,7 @@ static int process_stdin( int *srvfd )
         }
         d->act = time( NULL );
         printcon( "Download started.\n" );
-        mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random(), 1 );
+        mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
         mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
         mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
         mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8,
@@ -501,7 +500,7 @@ static int process_stdin( int *srvfd )
             arg[2] = cfg.username;
         if ( 2 > a )
             arg[1] = cfg.pubkey;
-        mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random(), 1 );
+        mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[2] ) + 1, arg[2] );
     }
@@ -510,13 +509,13 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging in.\n" );
         if ( 2 > a )
             arg[1] = cfg.username;
-        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random(), 1 );
+        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
     }
     else if ( MATCH_CMD( "logout" ) )
     {
         DLOG( "Logging out.\n" );
-        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random(), 1 );
+        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random() );
     }
     else if ( MATCH_CMD( "exit" ) || MATCH_CMD( "quit" ) )
     {
@@ -547,8 +546,7 @@ static int process_srvmsg( mbuf_t **pp )
 {
     uint16_t mtype = HDR_GET_TYPE( *pp );
     uint64_t srcid = HDR_GET_SRCID( *pp );
-    uint64_t trid = HDR_GET_TRID( *pp );
-    uint64_t exid = HDR_GET_EXID( *pp );
+    uint64_t trfid = HDR_GET_TRFID( *pp );
     mbuf_t *mp = NULL;
     mbuf_t *qmatch = NULL;
     enum MSG_ATTRIB at;
@@ -579,7 +577,7 @@ static int process_srvmsg( mbuf_t **pp )
                         srcid, s?": '":"", s?s:"", s?"'":"" );
             if ( MCLASS_IS_REQ( mtype ) )
             {
-                mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trid, exid );
+                mbuf_compose( &mp, MSG_TYPE_PING_RES, 0, srcid, trfid );
                 mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
             }
         }
@@ -616,7 +614,7 @@ static int process_srvmsg( mbuf_t **pp )
             }
             printcon( "Offer from 0x%016"PRIx64": 0x%016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
                         d->rid, d->oid, d->name, d->size );
-            mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trid, exid );
+            mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
             DLOG( "Download added: %016"PRIx64"\n", d->oid );
         }
@@ -655,7 +653,7 @@ static int process_srvmsg( mbuf_t **pp )
                 status = SC_RANGE_NOT_SATISFIABLE;
                 break;
             }
-            mbuf_compose( &mp, MSG_TYPE_GETFILE_RES, 0, srcid, trid, exid );
+            mbuf_compose( &mp, MSG_TYPE_GETFILE_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
             mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
             free( data );
@@ -708,7 +706,7 @@ static int process_srvmsg( mbuf_t **pp )
                     break;
                 d->offset += al;
                 al = d->size - d->offset;
-                mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random(), 1 );
+                mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
                 mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, al < MAX_DATA_SIZE ? al : MAX_DATA_SIZE );
@@ -760,7 +758,7 @@ static int process_srvmsg( mbuf_t **pp )
             {   /* Registered user: authenticate. */
                 cfg.st = CLT_LOGIN_OK;
                 printcon( "Authenticating\n" );
-                mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trid, ++exid );
+                mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trfid );
                 DLOG( "TODO: hashing, crypt, whatever, ...\n" );
                 mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
             }
@@ -980,7 +978,7 @@ int main( int argc, char *argv[] )
             if ( CLT_AUTH_OK == cfg.st )
             {   /* Send ping to server. */
                 mbuf_t *mb = NULL;
-                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random(), 1 );
+                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random() );
                 enqueue_msg( mb );
             }
             upkeep_pending();

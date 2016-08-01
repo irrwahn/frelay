@@ -93,8 +93,7 @@ mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount )
 }
 
 mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
-                    uint64_t srcid, uint64_t dstid,
-                    uint64_t trid, uint64_t exid )
+                    uint64_t srcid, uint64_t dstid, uint64_t trfid )
 {
     if ( NULL == *pp )
         mbuf_new( pp );
@@ -108,8 +107,7 @@ mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
     HDR_SET_TS( p, ntime_get() );
     HDR_SET_SRCID( p, srcid );
     HDR_SET_DSTID( p, dstid );
-    HDR_SET_TRID( p, trid );
-    HDR_SET_EXID( p, exid );
+    HDR_SET_TRFID( p, trfid );
     return p;
 }
 
@@ -290,8 +288,7 @@ extern void mbuf_dump( mbuf_t *m )
     DLOG( "Ts    : 0x%016"PRIX64"\n", HDR_GET_TS( m ) );
     DLOG( "SrcID : 0x%016"PRIX64"\n", HDR_GET_SRCID( m ) );
     DLOG( "DstID : 0x%016"PRIX64"\n", HDR_GET_DSTID( m ) );
-    DLOG( "TrID  : 0x%016"PRIX64"\n", HDR_GET_TRID( m ) );
-    DLOG( "ExID  : 0x%016"PRIX64"\n", HDR_GET_EXID( m ) );
+    DLOG( "TrfID : 0x%016"PRIX64"\n", HDR_GET_TRFID( m ) );
     if ( 0 != paylen )
     {
         DLOG( "Payload:\n" );

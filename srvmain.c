@@ -442,7 +442,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         {   /* Login as unregistered user. */
             int i = cfg.max_clients;
             for ( i = 0; i < cfg.max_clients; ++i )
-                if ( 0 <= c[i].fd && NULL != c[i].name 
+                if ( 0 <= c[i].fd && NULL != c[i].name
                     && 0 == stricmp( c[i].name, (char *)av ) )
                     break;
             if ( i != cfg.max_clients )
@@ -450,7 +450,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
                 mbuf_to_error_response( &c[i_src].rbuf, SC_CONFLICT );
             }
             else
-            {   
+            {
                 c[i_src].st = CLT_AUTH_OK;
                 c[i_src].id = udb_gettempid();
                 c[i_src].name = strdup( (char *)av );

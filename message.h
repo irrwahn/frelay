@@ -49,7 +49,7 @@
 #define ROUNDUP8(N)     (((N)+7)/8*8)
 
 /* Size constants. */
-#define MSG_HDR_SIZE        48
+#define MSG_HDR_SIZE        40
 #define MSG_MAX_PAY_SIZE    65400
 #define MSG_MAX_SIZE        (MSG_HDR_SIZE + MSG_MAX_PAY_SIZE)
 
@@ -60,8 +60,7 @@
 #define HDR_OFF_TS          8
 #define HDR_OFF_SRCID       16
 #define HDR_OFF_DSTID       24
-#define HDR_OFF_TRID        32
-#define HDR_OFF_EXID        40
+#define HDR_OFF_TRFID       32
 
 #define ADDOFF(P,B)         (((uint8_t *)((P)->b))+(B))
 
@@ -72,8 +71,7 @@
 #define HDR_GET_TS(P)       NTOH64(*(uint64_t *)ADDOFF(P,HDR_OFF_TS))
 #define HDR_GET_SRCID(P)    NTOH64(*(uint64_t *)ADDOFF(P,HDR_OFF_SRCID))
 #define HDR_GET_DSTID(P)    NTOH64(*(uint64_t *)ADDOFF(P,HDR_OFF_DSTID))
-#define HDR_GET_TRID(P)     NTOH64(*(uint64_t *)ADDOFF(P,HDR_OFF_TRID))
-#define HDR_GET_EXID(P)     NTOH64(*(uint64_t *)ADDOFF(P,HDR_OFF_EXID))
+#define HDR_GET_TRFID(P)    NTOH64(*(uint64_t *)ADDOFF(P,HDR_OFF_TRFID))
 
 /* Macros to set individual header fields in a raw message. */
 #define HDR_SET_TYPE(P,V)   (*(uint16_t *)ADDOFF(P,HDR_OFF_TYPE)  = HTON16(V))
@@ -82,8 +80,7 @@
 #define HDR_SET_TS(P,V)     (*(uint64_t *)ADDOFF(P,HDR_OFF_TS)    = HTON64(V))
 #define HDR_SET_SRCID(P,V)  (*(uint64_t *)ADDOFF(P,HDR_OFF_SRCID) = HTON64(V))
 #define HDR_SET_DSTID(P,V)  (*(uint64_t *)ADDOFF(P,HDR_OFF_DSTID) = HTON64(V))
-#define HDR_SET_TRID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_TRID)  = HTON64(V))
-#define HDR_SET_EXID(P,V)   (*(uint64_t *)ADDOFF(P,HDR_OFF_EXID)  = HTON64(V))
+#define HDR_SET_TRFID(P,V)  (*(uint64_t *)ADDOFF(P,HDR_OFF_TRFID) = HTON64(V))
 
 /* Macros to construct or inspect message types. */
 #define MCLASS_IND       0x0000
@@ -197,8 +194,7 @@ extern void mbuf_free( mbuf_t **p );
 extern mbuf_t *mbuf_resize( mbuf_t **pp, size_t size );
 extern mbuf_t *mbuf_grow( mbuf_t **pp, size_t amount );
 extern mbuf_t *mbuf_compose( mbuf_t **pp, enum MSG_TYPE type,
-                    uint64_t srcid, uint64_t dstid,
-                    uint64_t trid, uint64_t exid );
+                    uint64_t srcid, uint64_t dstid, uint64_t trfid );
 extern mbuf_t *mbuf_to_response( mbuf_t **pp );
 extern mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec );
 
