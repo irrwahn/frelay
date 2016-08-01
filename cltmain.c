@@ -615,6 +615,7 @@ static int process_srvmsg( mbuf_t **pp )
             printcon( "Offer from 0x%016"PRIx64": 0x%016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
                         d->rid, d->oid, d->name, d->size );
             mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
+            mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, d->oid );
             mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
             DLOG( "Download added: %016"PRIx64"\n", d->oid );
         }
@@ -646,18 +647,20 @@ static int process_srvmsg( mbuf_t **pp )
                 o->act = 0;
                 fclose( o->fp );
                 o->fp = NULL;
-                printcon( "Upload complete: %0x016"PRIx64"\n" );
+                printcon( "Finished uploading %0x016"PRIx64".\n", oid );
             }
             else if ( NULL == ( data = offer_read( o, offset, size ) ) )
             {
                 status = SC_RANGE_NOT_SATISFIABLE;
                 break;
             }
+            o->offset = offset;
             mbuf_compose( &mp, MSG_TYPE_GETFILE_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
             mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
             free( data );
-            DLOG( "Sending %zu bytes of data: %016"PRIx64"\n", size, o->oid );
+            printcon( "Sending %"PRIu64" bytes of %016"PRIx64" ('%s' %"PRIu64"%% %"PRIu64"/%"PRIu64")\n",
+                        size, o->oid, o->name, (o->offset+size)*100/o->size, o->offset + size, o->size );
         }
         break;
 
@@ -668,15 +671,24 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             ntime_t rtt = ntime_to_us( HDR_GET_TS(*pp) - HDR_GET_TS(qmatch) );
-            printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms.\n", srcid, rtt/1000, rtt%1000 );
+            printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms.\n",
+                        srcid, rtt/1000, rtt%1000 );
         }
         break;
     case MSG_TYPE_OFFER_RES:
         if ( CLT_AUTH_OK == cfg.st
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
-            && MSG_ATTR_OK == at )
+            && MSG_ATTR_OFFERID == at )
         {
-            printcon( "Peer %016"PRIx64" received offer.\n", srcid );
+            uint64_t oid = NTOH64( *(uint64_t *)av );
+            transfer_t *o;
+            if ( NULL == ( o = offer_match( oid, srcid ) ) )
+            {
+                printcon( "Peer %016"PRIx64" referenced invalid offer %016"PRIx64".\n", 
+                        srcid, oid );
+                break;
+            }
+            printcon( "Peer %016"PRIx64" received offer %016"PRIx64".\n", srcid, oid );
         }
         break;
     case MSG_TYPE_GETFILE_RES:
@@ -690,10 +702,9 @@ static int process_srvmsg( mbuf_t **pp )
                 || MSG_ATTR_DATA != at
                 || NULL == d )
                 break;
-            printcon( "Peer %016"PRIx64" sent %"PRIu64" bytes of data.\n", srcid, al );
             if ( 0 == al && d->offset == d->size )
             {
-                printcon( "Download finished.\n" );
+                printcon( "Finished downloading %016"PRIx64".\n", oid );
                 if ( NULL != d->fp )
                 {
                     fclose( d-> fp );
@@ -705,11 +716,13 @@ static int process_srvmsg( mbuf_t **pp )
                 if ( 0 != download_write( d, av, al ) )
                     break;
                 d->offset += al;
-                al = d->size - d->offset;
+                uint64_t sz = d->size - d->offset;
                 mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
-                mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, al < MAX_DATA_SIZE ? al : MAX_DATA_SIZE );
+                mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
+                printcon( "Received %"PRIu64" bytes of %016"PRIx64" ('%s' %"PRIu64"%% %"PRIu64"/%"PRIu64")\n",
+                            al, d->oid, d->name, d->offset*100/d->size, d->offset, d->size );
             }
         }
         break;
@@ -1004,8 +1017,9 @@ int main( int argc, char *argv[] )
             die_if( 1, "unhandled error in select(): %m (%d).\n", errno );
         }
     }
-    XLOG( LOG_INFO, "Terminating.\n" );
+    printcon( "Terminating.\n" );
     disconnect_srv( &srvfd );
+    DLOG( "Normal termination.\n" );
     exit( EXIT_SUCCESS );
 }
 

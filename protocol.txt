@@ -235,9 +235,9 @@ More than one peer may be included in a single response.
 --------------------------------------------------------------------------
 Message type    0x0051              0x0052              0x005a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   -                   PEERID, PEERNAME    ERROR
-Opt. Attrib.    -                   -                   NOTICE
-
+Mand. Attrib.   -                                       ERROR
+Opt. Attrib.    -                   PEERID, PEERNAME,   NOTICE
+                                    ...
 
 OFFER
 -----
@@ -249,7 +249,7 @@ More than one offer may be included in a single request.
 --------------------------------------------------------------------------
 Message type    0x0111              0x0112              0x011a
 Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
-Mand. Attrib.   OFFERID, FILENAME,  OK                  ERROR
+Mand. Attrib.   OFFERID, FILENAME,  OFFERID             ERROR
                 SIZE
 Opt. Attrib.    FILEHASH, TTL,      -                   NOTICE
                 NOTICE

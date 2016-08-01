@@ -84,7 +84,10 @@ transfer_t *offer_match( uint64_t oid, uint64_t rid )
 {
     for ( transfer_t *o = offers; NULL != o; o = o->next )
         if ( oid == o->oid && rid == o->rid )
+        {
+            o->act = time( NULL );
             return o;
+        }
     return NULL;
 }
 
@@ -144,7 +147,10 @@ transfer_t *download_match( uint64_t oid )
 {
     for ( transfer_t *d = downloads; NULL != d; d = d->next )
         if ( oid == d->oid )
+        {
+            d->act = time( NULL );
             return d;
+        }
     return NULL;
 }
 
