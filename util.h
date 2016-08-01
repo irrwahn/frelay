@@ -85,6 +85,7 @@
 
 
 extern int set_nonblocking( int fd );
+extern int set_cloexec( int fd );
 
 extern int64_t fsize( const char *filename );
 

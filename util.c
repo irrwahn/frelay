@@ -32,6 +32,7 @@
  *
  */
 
+#define _POSIX_C_SOURCE  200809L
 
 #include "util.h"
 
@@ -53,7 +54,17 @@ int set_nonblocking( int fd )
     if ( 0 > ( flags = fcntl( fd, F_GETFL ) ) )
         return -1;
     flags = (unsigned)flags | O_NONBLOCK;
-    return -1 == fcntl( fd, F_SETFL, flags ) ? -1 : 0;
+    return fcntl( fd, F_SETFL, flags );
+}
+
+int set_cloexec( int fd )
+{
+    int flags;
+
+    if ( 0 > ( flags = fcntl( fd, F_GETFL ) ) )
+        return -1;
+    flags = (unsigned)flags | O_CLOEXEC;
+    return fcntl( fd, F_SETFL, flags );
 }
 
 int64_t fsize( const char *filename )

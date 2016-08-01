@@ -37,6 +37,9 @@
 #define CONFIG_H_INCLUDED
 
 
+/* Command used to start a subshell */
+#define DEFAULT_SHELL       "/bin/sh"
+
 /* Default frelay server address. */
 #define DEFAULT_HOST        "localhost"
 

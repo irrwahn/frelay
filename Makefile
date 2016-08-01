@@ -96,11 +96,11 @@ cltcfg.h: cltcfg.def.h
 
 clean:
 	$(MAKE) -C $(LIBDIR) $@
-	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) $(DEP)
+	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) *.d
 
 distclean: clean
 	$(MAKE) -C $(LIBDIR) $@
-	$(RM) srvcfg.h cltcfg.h *.d
+	$(RM) srvcfg.h cltcfg.h
 
 -include $(DEP)
 

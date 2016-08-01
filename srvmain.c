@@ -366,6 +366,7 @@ static int dequeue_msg( client_t *cp, fd_set *m_wfds )
 
 #define TXT_REGISTERED  "Registered, now log in."
 #define TXT_WELCOME     "Welcome!"
+#define TXT_WELCOME2    "Welcome back!"
 #define TXT_BYE         "Bye."
 
 static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m_wfds )
@@ -456,6 +457,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
                 c[i_src].key = NULL;
                 mbuf_to_response( &c[i_src].rbuf );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME, TXT_WELCOME );
             }
         }
         else
@@ -490,7 +492,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         c[i_src].st = CLT_AUTH_OK;
         mbuf_to_response( &c[i_src].rbuf );
         mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME, TXT_WELCOME );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME2, TXT_WELCOME2 );
         break;
     case MSG_TYPE_LOGOUT_REQ:
         DLOG( "Process LOGOUT request.\n" );

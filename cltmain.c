@@ -58,6 +58,7 @@
 #include <libgen.h>     /* basename */
 #include <fcntl.h>
 #include <unistd.h>
+#include <wait.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -86,6 +87,7 @@ enum CLT_STATE {
 
 /* Configuration singleton. */
 static struct {
+    const char *sh;
     const char *host;
     const char *port;
     struct timeval select_timeout;
@@ -97,9 +99,11 @@ static struct {
     const char *privkey;
     enum CLT_STATE st;
 } cfg = {
-    /* .host */
+    /* .sh = */
+    DEFAULT_SHELL,
+    /* .host = */
     DEFAULT_HOST,
-    /* .port */
+    /* .port = */
     DEFAULT_PORT,
     /* .select_timeout = */
     { .tv_sec=SELECT_TIMEOUT_MS/1000, .tv_usec=SELECT_TIMEOUT_MS%1000*1000 },
@@ -221,7 +225,11 @@ static int connect_srv( int *pfd, const char *host, const char *service )
         XLOG( LOG_ERR, "Unable to connect.\n" );
         return -1;
     }
-    XLOG( LOG_INFO, "Connected to [%s:%s].\n", host, service );
+    DLOG( "Connected to [%s:%s].\n", host, service );
+    if ( 0 != set_nonblocking( fd ) )
+        XLOG( LOG_WARNING, "set_nonblocking() failed: %m.\n" );
+    if ( 0 != set_cloexec( fd ) )
+        XLOG( LOG_WARNING, "set_cloexec() failed: %m.\n" );
     *pfd = fd;
     return 0;
 }
@@ -329,6 +337,12 @@ static void upkeep_pending( void )
  *
  */
 
+static void prompt( int on )
+{
+    // TODO:  if ( !cfg.isinteractive ) return;
+    fprintf( stderr, on ? "\rfrelay> " :"\r       \r" );
+}
+
 /*
  * Just to have a central function to control console output.
  */
@@ -338,6 +352,7 @@ static int printcon( const char *fmt, ... )
     va_list arglist;
     FILE *ofp = stdout;
 
+    prompt( 0 );
     va_start( arglist, fmt );
     r = vfprintf( ofp, fmt, arglist );
     va_end( arglist );
@@ -346,7 +361,8 @@ static int printcon( const char *fmt, ... )
     va_start( arglist, fmt );
     vlogprintf( LOG_DEBUG, fmt, arglist );
     va_end( arglist );
-#endif    
+#endif
+    prompt( 1 );
     return r;
 }
 
@@ -359,7 +375,7 @@ static int process_stdin( int *srvfd )
     int a;
     char *cp;
     const char *arg[MAX_ARG] = { NULL };
-    static char line[MAX_CMDLINE];
+    static char line[PATH_MAX];
 
     r = read( STDIN_FILENO, line, sizeof line - 1 );
     if ( 0 > r )
@@ -417,7 +433,7 @@ static int process_stdin( int *srvfd )
         if ( 2 < a )
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[2] ) + 1, arg[2] );
     }
-    else if ( MATCH_CMD( "peerlist" ) )
+    else if ( MATCH_CMD( "peerlist" ) || MATCH_CMD( "who" ) )
     {   /* peerlist */
         mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random() );
     }
@@ -449,7 +465,7 @@ static int process_stdin( int *srvfd )
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[3] ) + 1, arg[3] );
     }
     else if ( MATCH_CMD( "accept" ) )
-    {   /* connect offer_id */
+    {   /* accept offer_id */
         uint64_t oid = strtoull( arg[1], NULL, 16 );
         transfer_t *d;
 
@@ -479,7 +495,7 @@ static int process_stdin( int *srvfd )
         mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8,
                         d->size < MAX_DATA_SIZE ? d->size : MAX_DATA_SIZE );
     }
-    else if ( MATCH_CMD( "connect" ) )
+    else if ( MATCH_CMD( "connect" ) || MATCH_CMD( "open" ) )
     {   /* connect [host [port]] */
         if ( 3 > a )
             arg[2] = cfg.port;
@@ -495,7 +511,7 @@ static int process_stdin( int *srvfd )
         printcon( "Connected.\n" );
         cfg.st = CLT_PRE_LOGIN;
     }
-    else if ( MATCH_CMD( "disconnect" ) )
+    else if ( MATCH_CMD( "disconnect" ) || MATCH_CMD( "close" ) )
     {
         if ( 0 <= *srvfd )
         {
@@ -532,15 +548,64 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging out.\n" );
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random() );
     }
-    else if ( MATCH_CMD( "exit" ) || MATCH_CMD( "quit" ) )
+    else if ( MATCH_CMD( "exit" ) || MATCH_CMD( "quit" ) || MATCH_CMD( "bye" ) )
     {
         disconnect_srv( srvfd );
         cfg.st = CLT_INVALID;
         return 0;
     }
+    else if ( MATCH_CMD( "cd" ) || MATCH_CMD( "lcd" ) )
+    {   /* cd [path] */
+        if ( 1 < a )
+        {
+            errno = 0;
+            if ( 0 != chdir( arg[1] ) )
+                printcon( "cd: %s: %s\n", arg[1], strerror( errno ) );
+        }
+        printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
+        return 1;
+    }
+    else if ( MATCH_CMD( "shell" ) || MATCH_CMD( "!" ) )
+    {
+        pid_t pid = fork();
+        if ( 0 == pid )
+        {
+            execl( cfg.sh, "-", NULL );
+            XLOG( LOG_WARNING, "exec(%s) failed: %m\n", cfg.sh );
+            exit( EXIT_FAILURE );
+        }
+        else if ( 0 < pid )
+            waitpid( pid, NULL, 0 );
+        else
+        {
+            XLOG( LOG_WARNING, "fork() failed: %m\n" );
+            return -1;
+        }
+        return 1;
+    }
+    else if ( MATCH_CMD( "help" ) || MATCH_CMD( "?" ) )
+    {
+        printcon( "Commands may be abbreviated.  Commands are:\n\n"
+            "  ?|help\n"
+            "  !|sh\n"
+            "  accept offer_id\n"
+            "  cd|lcd\n"
+            "  connect|open [host [port]]\n"
+            "  disconnect|close\n"
+            "  exit|quit|bye\n"
+            "  login [user_name]\n"
+            "  logout\n"
+            "  offer peer_id filename [\"text message\"]\n"
+            "  peerlist|who\n"
+            "  ping [peer_id [\"text message\"]]\n"
+            "  pwd\n"
+            "  register [user_name [pubkey]]\n"
+            "\n" );
+        return 1;
+    }
     else
     {
-        printcon( "Invalid command.\n" );
+        printcon( "Invalid command. Enter 'help' to get a list of valid commands.\n" );
         DLOG( "unknown command sequence: \n" );
         for ( int i = 0; i < a; ++i )
             DLOG( "> %s\n", arg[i] );
@@ -564,9 +629,9 @@ static int process_srvmsg( mbuf_t **pp )
     uint64_t trfid = HDR_GET_TRFID( *pp );
     mbuf_t *mp = NULL;
     mbuf_t *qmatch = NULL;
-    enum MSG_ATTRIB at;
-    size_t al;
-    void *av;
+    enum MSG_ATTRIB at, at2;
+    size_t al, al2;
+    void *av, *av2;
     int res = 0;
     enum SC_ENUM status = SC_OK;
 
@@ -662,7 +727,7 @@ static int process_srvmsg( mbuf_t **pp )
                 o->act = 0;
                 close( o->fd );
                 o->fd = -1;
-                printcon( "Finished uploading %0x016"PRIx64".\n", oid );
+                printcon( "Finished uploading %0x016"PRIx64" '%s'\n", o->oid, o->name );
             }
             else if ( NULL == ( data = offer_read( o, offset, &size ) ) )
             {
@@ -687,7 +752,7 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             ntime_t rtt = ntime_to_us( HDR_GET_TS(*pp) - HDR_GET_TS(qmatch) );
-            printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms.\n",
+            printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms\n",
                         srcid, rtt/1000, rtt%1000 );
         }
         break;
@@ -700,11 +765,10 @@ static int process_srvmsg( mbuf_t **pp )
             transfer_t *o;
             if ( NULL == ( o = offer_match( oid, srcid ) ) )
             {
-                printcon( "Peer %016"PRIx64" referenced invalid offer %016"PRIx64".\n", 
-                        srcid, oid );
+                printcon( "Peer %016"PRIx64" referenced invalid offer %016"PRIx64"\n", srcid, oid );
                 break;
             }
-            printcon( "Peer %016"PRIx64" received offer %016"PRIx64".\n", srcid, oid );
+            printcon( "Peer %016"PRIx64" received offer %016"PRIx64" '%s'\n", srcid, o->oid, o->name );
         }
         break;
     case MSG_TYPE_GETFILE_RES:
@@ -723,9 +787,9 @@ static int process_srvmsg( mbuf_t **pp )
             else if ( 0 == al )
             {
                 if ( d->offset == d->size )
-                    printcon( "Finished downloading %016"PRIx64".\n", oid );
+                    printcon( "Finished downloading %016"PRIx64" '%s'\n", d->oid, d->name );
                 else
-                    printcon( "Peer signaled premature EOF uploading %016"PRIx64".\n", oid );
+                    printcon( "Peer signaled premature EOF uploading %016"PRIx64" '%s'\n", d->oid, d->name );
                 if ( 0 <= d->fd )
                 {
                     close( d->fd );
@@ -733,13 +797,12 @@ static int process_srvmsg( mbuf_t **pp )
                 }
                 if ( 0 != rename( d->partname, d->name ) )
                 {
-                    printcon( "Moving '%s' to '%s' failed: %s!\n", 
-                                d->partname, d->name, strerror( errno ) );
+                    printcon( "Moving '%s' to '%s' failed: %s!\n", d->partname, d->name, strerror( errno ) );
                 }
             }
             else if ( 0 != download_write( d, av, al ) )
             {
-                printcon( "Writing to temporary file '%s' failed, aborted!\n", d->partname );
+                printcon( "Writing to temporary file '%s' failed, aborted\n", d->partname );
             }
             else
             {
@@ -757,9 +820,6 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_PEERLIST_RES:
         if ( CLT_AUTH_OK == cfg.st && 0ULL == srcid )
         {
-            enum MSG_ATTRIB at2;
-            size_t al2;
-            void *av2;
             printcon( "Peerlist start\n" );
             while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
                 && MSG_ATTR_PEERID == at
@@ -788,9 +848,12 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_LOGIN_RES:
         if ( CLT_PRE_LOGIN == cfg.st
             && 0ULL == srcid
-            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) )
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && ( MSG_ATTR_OK == at || MSG_ATTR_CHALLENGE == at ) )
         {
             printcon( "Login Ok\n" );
+            if ( 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 ) && MSG_ATTR_NOTICE == at2 )
+                printcon( "- '%s'\n", (char *)av2 );
             if ( MSG_ATTR_OK == at )
             {   /* Unregistered user. */
                 cfg.st = CLT_AUTH_OK;
@@ -811,11 +874,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Authenticated" );
+            printcon( "Authenticated\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( ": '%s'\n", (char *)av );
-            else
-                printcon( "\n" );
+                printcon( "- '%s'\n", (char *)av );
             cfg.st = CLT_AUTH_OK;
         }
         break;
@@ -914,7 +975,7 @@ static int handle_srvio( int nset, int *srvfd, fd_set *rfds, fd_set *wfds )
             {   /* Only received header yet. */
                 uint16_t paylen = HDR_GET_PAYLEN( rbuf );
                 if ( paylen > 0 )
-                {   /* Prepare for receiving payload next. */
+                {   /* Prepare to receive payload. */
                     //DLOG( "Grow message buffer by %lu.\n", paylen );
                     mbuf_resize( &rbuf, paylen );
                 }
@@ -981,6 +1042,7 @@ int main( int argc, char *argv[] )
     /* TODO: ignore or handle other signals? */
 
     DLOG( "Entering main loop.\n" );
+    printcon( "" );
     cfg.st = CLT_INVALID;
     while ( 1 )
     {

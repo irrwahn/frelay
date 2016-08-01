@@ -60,10 +60,9 @@ $(LIB): $(OBJ) $(SELF)
 	$(CC) -c $(CFLAGS) -o $*.o $*.c
 
 clean:
-	$(RM) $(LIB) $(OBJ) $(DEP)
+	$(RM) $(LIB) $(OBJ) *.d
 
 distclean: clean
-	$(RM) *.o *.d
 
 -include $(DEP)
 

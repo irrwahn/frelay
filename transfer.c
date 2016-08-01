@@ -102,7 +102,7 @@ void *offer_read( transfer_t *o, uint64_t off, size_t *psz )
 
     errno = 0;
     if ( 0 > o->fd )
-        o->fd = open( o->name, O_RDONLY );
+        o->fd = open( o->name, O_RDONLY | O_CLOEXEC );
     if ( 0 > o->fd )
     {
         DLOG( "open(%s,O_RDONLY) failed: %m.\n", o->name );
@@ -176,7 +176,7 @@ int download_write( transfer_t *d, void *data, size_t sz )
 
     errno = 0;
     if ( 0 > d->fd )
-        d->fd = open( d->partname, O_WRONLY | O_CREAT | O_EXCL, 00600 );
+        d->fd = open( d->partname, O_WRONLY | O_CREAT | O_EXCL| O_CLOEXEC , 00600 );
     if ( 0 > d->fd )
     {
         DLOG( "open(%s,O_WRONLY|O_CREAT|O_EXCL) failed: %m.\n", d->partname );
@@ -199,11 +199,11 @@ int download_write( transfer_t *d, void *data, size_t sz )
 int download_resume( transfer_t *d )
 {
     off_t off;
-    
+
     errno = 0;
     if ( 0 <= d->fd )
         return -1;
-    d->fd = open( d->partname, O_WRONLY );
+    d->fd = open( d->partname, O_WRONLY | O_CLOEXEC );
     if ( 0 > d->fd )
     {
         DLOG( "open(%s,O_WRONLY) failed: %m.\n", d->partname );
@@ -262,7 +262,7 @@ void transfer_upkeep( time_t timeout )
                 DLOG( "%s timed out: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
                 if ( prev )
                     prev->next = next;
-                else 
+                else
                 {
                     if ( i )
                         downloads = next;
