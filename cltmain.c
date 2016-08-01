@@ -425,7 +425,10 @@ static int process_stdin( int *srvfd )
     /* Ye shoddy command pars0r. */
 #define MATCH_CMD(S)   ( 0 == strnicmp((S),arg[0],strlen(arg[0])) )
     if ( NULL == arg[0] || '\0' == arg[0][0] )
+    {
+        printcon( "" );
         return -1;
+    }
     if ( MATCH_CMD( "ping" ) )
     {   /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
@@ -581,6 +584,7 @@ static int process_stdin( int *srvfd )
             XLOG( LOG_WARNING, "fork() failed: %m\n" );
             return -1;
         }
+        printcon( "" );
         return 1;
     }
     else if ( MATCH_CMD( "help" ) || MATCH_CMD( "?" ) )
@@ -837,12 +841,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Registered" );
-            cfg.st = CLT_AUTH_OK;
+            printcon( "Registered\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( ": '%s'\n", (char *)av );
-            else
-                printcon( "\n" );
+                printcon( "- '%s'\n", (char *)av );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -886,11 +887,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Logged out" );
+            printcon( "Logged out\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( ": '%s'\n", (char *)av );
-            else
-                printcon( "\n" );
+                printcon( "- '%s'\n", (char *)av );
             cfg.st = CLT_PRE_LOGIN;
         }
         break;
@@ -903,7 +902,7 @@ static int process_srvmsg( mbuf_t **pp )
             char *es = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 es = av;
-            XLOG( LOG_INFO, "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
+            DLOG( "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
                     mtype, ec, es?" ":"", es?es:"" );
             printcon( "%s Error %"PRIu64"%s%s.\n",
                         mtype2str( mtype ), ec, es?" ":"", es?es:"" );
@@ -1109,6 +1108,7 @@ int main( int argc, char *argv[] )
         }
     }
     printcon( "Terminating.\n" );
+    prompt( 0 );
     transfer_closeall();
     disconnect_srv( &srvfd );
     exit( EXIT_SUCCESS );
