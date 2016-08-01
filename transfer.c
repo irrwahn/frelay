@@ -196,15 +196,62 @@ int download_write( transfer_t *d, void *data, size_t sz )
     return 0;
 }
 
+int download_resume( transfer_t *d )
+{
+    off_t off;
+    
+    errno = 0;
+    if ( 0 <= d->fd )
+        return -1;
+    d->fd = open( d->partname, O_WRONLY );
+    if ( 0 > d->fd )
+    {
+        DLOG( "open(%s,O_WRONLY) failed: %m.\n", d->partname );
+        return -1;
+    }
+    off = lseek( d->fd, 0, SEEK_END );
+    if ( (off_t)-1 == off )
+    {
+        DLOG( "lseek() failed: %m.\n" );
+        close( d->fd );
+        d->fd = -1;
+        return -1;
+    }
+    d->offset = off;
+    return 0;
+}
+
+
+/* Close all open file descriptors in offer and download lists. */
+void transfer_closeall( void )
+{
+    transfer_t *lists[] = { offers, downloads };
+    transfer_t *p;
+    time_t now = time( NULL );
+
+    for ( int i = 0; i < 2; ++i )
+    {
+        for ( p = lists[i]; NULL != p; p = p->next )
+        {
+            if ( 0 <= p->fd )
+            {
+                close( p->fd );
+                p->fd = -1;
+                p->act = now;
+            }
+        }
+    }
+    return;
+}
 
 /* Clear out the pending offer and download lists. */
 void transfer_upkeep( time_t timeout )
 {
-    transfer_t *lists[] = { offers, downloads, NULL };
+    transfer_t *lists[] = { offers, downloads };
     transfer_t *p, *next, *prev;
     time_t now = time( NULL );
 
-    for ( int i = 0; lists[i]; ++i )
+    for ( int i = 0; i < 2; ++i )
     {
         next = prev = NULL;
         for ( p = lists[i]; NULL != p; p = next )
@@ -212,13 +259,20 @@ void transfer_upkeep( time_t timeout )
             next = p->next;
             if ( p->act + timeout < now )
             {   /* Entry past best before date, ditch it. */
-                DLOG( "Offer timed out: %016"PRIx64"\n", p->oid );
+                DLOG( "%s timed out: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
                 if ( prev )
                     prev->next = next;
-                else
-                    offers = next;
+                else 
+                {
+                    if ( i )
+                        downloads = next;
+                    else
+                        offers = next;
+                }
                 free( p->name );
+                p->name = NULL;
                 free( p->partname );
+                p->partname = NULL;
                 if ( 0 <= p->fd )
                     close( p->fd );
                 free( p );

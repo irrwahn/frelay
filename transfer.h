@@ -68,7 +68,9 @@ extern void *offer_read( transfer_t *o, uint64_t off, size_t *psz );
 extern transfer_t *download_new( void );
 extern transfer_t *download_match( uint64_t oid );
 extern int download_write( transfer_t *d, void *data, size_t sz );
+extern int download_resume( transfer_t *d );
 
+extern void transfer_closeall( void );
 extern void transfer_upkeep( time_t timeout );
 
 

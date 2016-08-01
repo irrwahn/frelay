@@ -39,7 +39,7 @@
 /*
  * TODO:
  * - plaintext authentication
- * - resume interrupted file transfers
+ * - guard against overwriting existing file?
  */
 
 #define _POSIX_C_SOURCE 201112L
@@ -342,6 +342,11 @@ static int printcon( const char *fmt, ... )
     r = vfprintf( ofp, fmt, arglist );
     va_end( arglist );
     fflush( ofp );
+#ifdef DEBUG
+    va_start( arglist, fmt );
+    vlogprintf( LOG_DEBUG, fmt, arglist );
+    va_end( arglist );
+#endif    
     return r;
 }
 
@@ -353,7 +358,7 @@ static int process_stdin( int *srvfd )
     int r;
     int a;
     char *cp;
-    const char *arg[MAX_ARG];
+    const char *arg[MAX_ARG] = { NULL };
     static char line[MAX_CMDLINE];
 
     r = read( STDIN_FILENO, line, sizeof line - 1 );
@@ -403,7 +408,7 @@ static int process_stdin( int *srvfd )
 
     /* Ye shoddy command pars0r. */
 #define MATCH_CMD(S)   ( 0 == strnicmp((S),arg[0],strlen(arg[0])) )
-    if ( '\0' == arg[0][0] )
+    if ( NULL == arg[0] || '\0' == arg[0][0] )
         return -1;
     if ( MATCH_CMD( "ping" ) )
     {   /* ping [destination [notice]] */
@@ -459,7 +464,15 @@ static int process_stdin( int *srvfd )
             return -1;
         }
         d->act = time( NULL );
-        printcon( "Download started.\n" );
+        if ( 0 == download_resume( d ) )
+            printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
+        else if ( 0 == download_write( d, NULL, 0 ) )
+            printcon( "Download started.\n" );
+        else
+        {
+            printcon( "Download failed to start: %s.\n", strerror( errno ) );
+            return -1;
+        }
         mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
         mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
         mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
@@ -486,6 +499,7 @@ static int process_stdin( int *srvfd )
     {
         if ( 0 <= *srvfd )
         {
+            transfer_closeall();
             DLOG( "Closing connection.\n" );
             disconnect_srv( srvfd );
             printcon( "Disconnected by request.\n" );
@@ -619,7 +633,6 @@ static int process_srvmsg( mbuf_t **pp )
             mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, d->oid );
             mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
-            DLOG( "Download added: %016"PRIx64"\n", d->oid );
         }
         break;
     case MSG_TYPE_GETFILE_REQ:
@@ -661,7 +674,8 @@ static int process_srvmsg( mbuf_t **pp )
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
             mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
             free( data );
-            printcon( "Sending %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
+            if ( 0 < size )
+                printcon( "Sending %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
                         size, o->oid, o->name, (o->offset+size)*100/o->size, o->offset + size, o->size );
         }
         break;
@@ -717,7 +731,11 @@ static int process_srvmsg( mbuf_t **pp )
                     close( d->fd );
                     d->fd = -1;
                 }
-                rename( d->partname, d->name );
+                if ( 0 != rename( d->partname, d->name ) )
+                {
+                    printcon( "Moving '%s' to '%s' failed: %s!\n", 
+                                d->partname, d->name, strerror( errno ) );
+                }
             }
             else if ( 0 != download_write( d, av, al ) )
             {
@@ -944,6 +962,7 @@ DONE:
     return nset;
 
 DISC:
+    transfer_closeall();
     disconnect_srv( srvfd );
     cfg.st = CLT_INVALID;
     printcon( "Disconnected, connection to remote host failed.\n" );
@@ -1028,8 +1047,8 @@ int main( int argc, char *argv[] )
         }
     }
     printcon( "Terminating.\n" );
+    transfer_closeall();
     disconnect_srv( &srvfd );
-    DLOG( "Normal termination.\n" );
     exit( EXIT_SUCCESS );
 }
 
