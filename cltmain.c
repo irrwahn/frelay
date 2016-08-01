@@ -76,6 +76,7 @@
 
 #define MAX_DATA_SIZE   (MSG_MAX_PAY_SIZE-24)
 
+
 enum CLT_STATE {
     CLT_INVALID = 0,
     CLT_PRE_LOGIN,
@@ -596,6 +597,7 @@ static int process_srvmsg( mbuf_t **pp )
                     break;
                 case MSG_ATTR_FILENAME:
                     d->name = strdup( av );
+                    d->partname = strdupcat( av, ".part" );
                     break;
                 case MSG_ATTR_SIZE:
                     d->size = NTOH64( *(uint64_t *)av );
@@ -612,7 +614,7 @@ static int process_srvmsg( mbuf_t **pp )
                 status = SC_BAD_REQUEST;
                 break;
             }
-            printcon( "Offer from 0x%016"PRIx64": 0x%016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
+            printcon( "Offer from 0x%016"PRIx64": %016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
                         d->rid, d->oid, d->name, d->size );
             mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, d->oid );
@@ -627,7 +629,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             uint64_t oid = NTOH64( *(uint64_t *)av );
             uint64_t offset = 0;
-            uint64_t size = 0;
+            size_t size = 0;
             transfer_t *o;
             void *data = NULL;
 
@@ -645,11 +647,11 @@ static int process_srvmsg( mbuf_t **pp )
                 o->rid = 0;
                 o->oid = 0;
                 o->act = 0;
-                fclose( o->fp );
-                o->fp = NULL;
+                close( o->fd );
+                o->fd = -1;
                 printcon( "Finished uploading %0x016"PRIx64".\n", oid );
             }
-            else if ( NULL == ( data = offer_read( o, offset, size ) ) )
+            else if ( NULL == ( data = offer_read( o, offset, &size ) ) )
             {
                 status = SC_RANGE_NOT_SATISFIABLE;
                 break;
@@ -659,7 +661,7 @@ static int process_srvmsg( mbuf_t **pp )
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
             mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
             free( data );
-            printcon( "Sending %"PRIu64" bytes of %016"PRIx64" ('%s' %"PRIu64"%% %"PRIu64"/%"PRIu64")\n",
+            printcon( "Sending %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
                         size, o->oid, o->name, (o->offset+size)*100/o->size, o->offset + size, o->size );
         }
         break;
@@ -701,27 +703,35 @@ static int process_srvmsg( mbuf_t **pp )
             if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av )
                 || MSG_ATTR_DATA != at
                 || NULL == d )
-                break;
-            if ( 0 == al && d->offset == d->size )
             {
-                printcon( "Finished downloading %016"PRIx64".\n", oid );
-                if ( NULL != d->fp )
+                DLOG( "Broken GETFILE response!\n" );
+            }
+            else if ( 0 == al )
+            {
+                if ( d->offset == d->size )
+                    printcon( "Finished downloading %016"PRIx64".\n", oid );
+                else
+                    printcon( "Peer signaled premature EOF uploading %016"PRIx64".\n", oid );
+                if ( 0 <= d->fd )
                 {
-                    fclose( d-> fp );
-                    d->fp = NULL;
+                    close( d->fd );
+                    d->fd = -1;
                 }
+                rename( d->partname, d->name );
+            }
+            else if ( 0 != download_write( d, av, al ) )
+            {
+                printcon( "Writing to temporary file '%s' failed, aborted!\n", d->partname );
             }
             else
             {
-                if ( 0 != download_write( d, av, al ) )
-                    break;
                 d->offset += al;
                 uint64_t sz = d->size - d->offset;
                 mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
                 mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
-                printcon( "Received %"PRIu64" bytes of %016"PRIx64" ('%s' %"PRIu64"%% %"PRIu64"/%"PRIu64")\n",
+                printcon( "Received %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
                             al, d->oid, d->name, d->offset*100/d->size, d->offset, d->size );
             }
         }

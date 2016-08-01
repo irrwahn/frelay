@@ -50,11 +50,12 @@ struct TRANSFER_T_STRUCT {
     uint64_t rid;           /* remote client id */
     uint64_t oid;           /* offer id */
     char *name;             /* file name */
+    char *partname;         /* partfile name */
     uint64_t size;          /* file size */
     // TODO hash ?
     // TODO ttl ?
     uint64_t offset;        /* file offset for downloads only */
-    FILE *fp;               /* file pointer to offered file */
+    int fd;                 /* file descriptor to offer/download file */
     time_t act;             /* time of last activity (s since epoch) */
     transfer_t *next;
 };
@@ -62,7 +63,7 @@ struct TRANSFER_T_STRUCT {
 
 extern transfer_t *offer_new( uint64_t dest, const char *filename );
 extern transfer_t *offer_match( uint64_t oid, uint64_t rid );
-extern void *offer_read( transfer_t *o, uint64_t off, size_t sz );
+extern void *offer_read( transfer_t *o, uint64_t off, size_t *psz );
 
 extern transfer_t *download_new( void );
 extern transfer_t *download_match( uint64_t oid );

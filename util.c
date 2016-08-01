@@ -56,17 +56,29 @@ int set_nonblocking( int fd )
     return -1 == fcntl( fd, F_SETFL, flags ) ? -1 : 0;
 }
 
-void *memdup( void *s, size_t len )
-{
-    void *d = malloc( len );
-    die_if( NULL == d, "malloc() failed: %m.\n" );
-    return memcpy( d, s, len );
-}
-
 int64_t fsize( const char *filename )
 {
     struct stat st;
     return 0 == stat( filename, &st ) ? st.st_size : -1;
+}
+
+void *memdup( void *s, size_t len )
+{
+    void *d = malloc( len );
+
+    die_if( NULL == d, "malloc() failed: %m.\n" );
+    return memcpy( d, s, len );
+}
+
+char *strdupcat( const char *s1, const char *s2 )
+{
+    size_t l1 = strlen( s1 );
+    char *d = malloc( l1 + strlen( s2 ) + 1 );
+
+    die_if( NULL == d, "malloc() failed: %m.\n" );
+    strcpy( d, s1 );
+    strcpy( d + l1, s2 );
+    return d;
 }
 
 

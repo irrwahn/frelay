@@ -41,6 +41,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <prng.h>
 
 #include "transfer.h"
@@ -68,11 +71,12 @@ transfer_t *offer_new( uint64_t dest, const char *filename )
     o->rid = dest;
     o->oid = random();
     o->name = strdup( filename );
+    o->partname = NULL;
     o->size = fsz;
     // TODO hash ?
     // TODO ttl ?
     o->offset = 0;
-    o->fp = NULL;
+    o->fd = -1;
     o->act = time( NULL );
     o->next = offers;
     offers = o;
@@ -91,36 +95,48 @@ transfer_t *offer_match( uint64_t oid, uint64_t rid )
     return NULL;
 }
 
-void *offer_read( transfer_t *o, uint64_t off, size_t sz )
+void *offer_read( transfer_t *o, uint64_t off, size_t *psz )
 {
-    size_t n;
+    ssize_t n;
     void *p;
 
     errno = 0;
-    if ( NULL == o->fp )
-        o->fp = fopen( o->name, "rb" );
-    if ( NULL == o->fp )
+    if ( 0 > o->fd )
+        o->fd = open( o->name, O_RDONLY );
+    if ( 0 > o->fd )
     {
-        DLOG( "fopen(%s,rb) failed: %m.\n", o->name );
+        DLOG( "open(%s,O_RDONLY) failed: %m.\n", o->name );
         return NULL;
     }
-    if ( 0 != fseeko( o->fp, off, SEEK_SET ) )
+    if ( (off_t)-1 == lseek( o->fd, off, SEEK_SET ) )
     {
-        DLOG( "fseeko() failed: %m.\n" );
+        DLOG( "lseek() failed: %m.\n" );
         return NULL;
     }
-    p = malloc( sz );
-    die_if( NULL == p, "malloc(%zu) failed: %m.\n", sz );
-    n = fread( p, sz, 1, o->fp );
-    if ( n != 1 )
+    p = malloc( *psz );
+    die_if( NULL == p, "malloc(%zu) failed: %m.\n", *psz );
+    n = read( o->fd, p, *psz );
+    if ( 0 > n )
     {
-        DLOG( "fread(%zu) fell short.\n", sz );
-        if ( ferror( o->fp ) )
-            DLOG( "fread(%zu) failed: %m.\n", sz );
-        fclose( o->fp );
-        o->fp = NULL;
+        DLOG( "read(%zu) failed: %m.\n", *psz );
+        close( o->fd );
+        o->fd = -1;
         free( p );
         p = NULL;
+    }
+    else if ( 0 == n )
+    {
+        DLOG( "read(%zu) hit EOF.\n", *psz );
+        close( o->fd );
+        o->fd = -1;
+        free( p );
+        p = NULL;
+        *psz = 0;
+    }
+    else if ( (ssize_t)*psz > n )
+    {
+        DLOG( "read(%zu) fell short, gave %zd.\n", *psz, n );
+        *psz = n;
     }
     return p;
 }
@@ -134,9 +150,9 @@ transfer_t *download_new( void )
     d = malloc( sizeof *d );
     die_if( NULL == d, "malloc() failed: %m.\n" );
     memset( d, 0, sizeof *d );
-    /* Other fields are be filled in by caller */
+    /* Other fields are filled in by caller. */
     d->offset = 0;
-    d->fp = NULL;
+    d->fd = -1;
     d->act = time( NULL );
     d->next = downloads;
     downloads = d;
@@ -156,24 +172,25 @@ transfer_t *download_match( uint64_t oid )
 
 int download_write( transfer_t *d, void *data, size_t sz )
 {
-    size_t n;
+    ssize_t n;
 
     errno = 0;
-    if ( NULL == d->fp )
-        d->fp = fopen( d->name, "wb" );
-    if ( NULL == d->fp )
+    if ( 0 > d->fd )
+        d->fd = open( d->partname, O_WRONLY | O_CREAT | O_EXCL, 00600 );
+    if ( 0 > d->fd )
     {
-        DLOG( "fopen(%s,wb) failed: %m.\n", d->name );
+        DLOG( "open(%s,O_WRONLY|O_CREAT|O_EXCL) failed: %m.\n", d->partname );
         return -1;
     }
-    n = fwrite( data, sz, 1, d->fp );
-    if ( n != 1 )
+    n = write( d->fd, data, sz );
+    if ( (ssize_t)sz > n )
     {
-        DLOG( "fwrite(%zu) fell short.\n", sz );
-        if ( ferror( d->fp ) )
-            DLOG( "fwrite(%zu) failed: %m.\n", sz );
-        fclose( d->fp );
-        d->fp = NULL;
+        if ( 0 < n )
+            DLOG( "write(%zu) failed: %m.\n", sz );
+        else
+            DLOG( "write(%zu) fell short, put %zd.\n", sz, n );
+        close( d->fd );
+        d->fd = -1;
         return -1;
     }
     return 0;
@@ -201,8 +218,9 @@ void transfer_upkeep( time_t timeout )
                 else
                     offers = next;
                 free( p->name );
-                if ( NULL != p->fp )
-                    fclose( p->fp );
+                free( p->partname );
+                if ( 0 <= p->fd )
+                    close( p->fd );
                 free( p );
             }
             else

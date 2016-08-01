@@ -86,9 +86,10 @@
 
 extern int set_nonblocking( int fd );
 
-extern void *memdup( void *s, size_t len );
-
 extern int64_t fsize( const char *filename );
+
+extern void *memdup( void *s, size_t len );
+extern char *strdupcat( const char *s1, const char *s2 );
 
 #ifdef DEBUG
     extern int drain_fd( int fd );
