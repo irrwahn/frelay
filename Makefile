@@ -46,7 +46,7 @@ endif
 
 LD      := $(CC)
 LIBDIR  := ./lib
-LIBS    := -lfrutil
+LIBS    := -lfrutil -lrt
 LDFLAGS := -L$(LIBDIR)
 
 RM      := rm -f
