@@ -36,15 +36,6 @@
  *
  */
 
-/*
- * TODO:
- * - plaintext authentication
- * - implement nonce generation, encryption, decryption auth logic
- * - motd command output capture :-)
- * - broadcast messages
- * - ...
- */
-
 #define _POSIX_C_SOURCE 201112L
 
 #include <errno.h>

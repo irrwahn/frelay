@@ -36,11 +36,6 @@
  *
  */
 
-/*
- * TODO:
- * - plaintext authentication
- * - guard against overwriting existing file?
- */
 
 #define _POSIX_C_SOURCE 201112L
 
