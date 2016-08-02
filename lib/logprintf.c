@@ -67,6 +67,7 @@
     #define UNLOCK_LOG()
 #endif /* WITH_PTHREAD */
 
+#include <ntime.h>
 #include <logprintf.h>
 
 
@@ -144,7 +145,7 @@ void vlogprintf( int pri, const char *fmt, va_list arglist )
     int eno = errno;
     struct timeval tv;  /* used in file mode only */
 
-    gettimeofday( &tv, NULL );  /* get time as early as possible */
+    ntime_to_timeval( ntime_get(), &tv );
     LOCK_LOG();
     if ( !cfg.init )
         logprintf_init_( LOG_DEBUG, NULL, LOG_TO_FILE, stderr );
