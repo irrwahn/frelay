@@ -722,7 +722,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             uint64_t oid = NTOH64( *(uint64_t *)av );
             uint64_t offset = 0;
-            size_t size = 0;
+            uint64_t size = 0;
             transfer_t *o;
             void *data = NULL;
 
@@ -737,12 +737,12 @@ static int process_srvmsg( mbuf_t **pp )
                 size = NTOH64( *(uint64_t *)av );
             if ( 0 == size )
             {   /* Remote side signaled 'download finished'. */
+                printcon( "Finished uploading 0x%016"PRIx64" '%s'\n", o->oid, o->name );
                 o->rid = 0;
                 o->oid = 0;
                 o->act = 0;
                 close( o->fd );
                 o->fd = -1;
-                printcon( "Finished uploading %0x016"PRIx64" '%s'\n", o->oid, o->name );
             }
             else if ( NULL == ( data = offer_read( o, offset, &size ) ) )
             {
@@ -807,6 +807,9 @@ static int process_srvmsg( mbuf_t **pp )
                     printcon( "Peer signaled premature EOF uploading %016"PRIx64" '%s'\n", d->oid, d->name );
                 if ( 0 <= d->fd )
                 {
+                    d->rid = 0;
+                    d->oid = 0;
+                    d->act = 0;
                     close( d->fd );
                     d->fd = -1;
                 }
@@ -827,7 +830,7 @@ static int process_srvmsg( mbuf_t **pp )
                 mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
                 mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
-                printcon( "Received %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
+                printcon( "Received %zu bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
                             al, d->oid, d->name, d->offset*100/d->size, d->offset, d->size );
             }
         }

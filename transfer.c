@@ -54,9 +54,6 @@
 static transfer_t *offers = NULL;
 static transfer_t *downloads = NULL;
 
-// TODO:
-//transfer_t *download_new( ... )
-
 
 /* Add an offer to the pending list. */
 transfer_t *offer_new( uint64_t dest, const char *filename )
@@ -95,8 +92,9 @@ transfer_t *offer_match( uint64_t oid, uint64_t rid )
     return NULL;
 }
 
-void *offer_read( transfer_t *o, uint64_t off, size_t *psz )
+void *offer_read( transfer_t *o, uint64_t off, uint64_t *psz )
 {
+    size_t sz = *psz;
     ssize_t n;
     void *p;
 
@@ -113,12 +111,12 @@ void *offer_read( transfer_t *o, uint64_t off, size_t *psz )
         DLOG( "lseek() failed: %m.\n" );
         return NULL;
     }
-    p = malloc( *psz );
-    die_if( NULL == p, "malloc(%zu) failed: %m.\n", *psz );
-    n = read( o->fd, p, *psz );
+    p = malloc( sz );
+    die_if( NULL == p, "malloc(%zu) failed: %m.\n", sz );
+    n = read( o->fd, p, sz );
     if ( 0 > n )
     {
-        DLOG( "read(%zu) failed: %m.\n", *psz );
+        DLOG( "read(%zu) failed: %m.\n", sz );
         close( o->fd );
         o->fd = -1;
         free( p );
@@ -126,16 +124,16 @@ void *offer_read( transfer_t *o, uint64_t off, size_t *psz )
     }
     else if ( 0 == n )
     {
-        DLOG( "read(%zu) hit EOF.\n", *psz );
+        DLOG( "read(%zu) hit EOF.\n", sz );
         close( o->fd );
         o->fd = -1;
         free( p );
         p = NULL;
         *psz = 0;
     }
-    else if ( (ssize_t)*psz > n )
+    else if ( (ssize_t)sz > n )
     {
-        DLOG( "read(%zu) fell short, gave %zd.\n", *psz, n );
+        DLOG( "read(%zu) fell short, gave %zd.\n", sz, n );
         *psz = n;
     }
     return p;
@@ -259,7 +257,10 @@ void transfer_upkeep( time_t timeout )
             next = p->next;
             if ( p->act + timeout < now )
             {   /* Entry past best before date, ditch it. */
-                DLOG( "%s timed out: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
+                if ( p->oid != 0 )
+                    DLOG( "%s timed out: %016"PRIu64"\n", i ? "Download" : "Offer", p->oid );
+                else
+                    DLOG( "Clean out finished %s\n", i ? "Download" : "Offer" );
                 if ( prev )
                     prev->next = next;
                 else
