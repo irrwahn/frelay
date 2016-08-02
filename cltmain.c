@@ -58,12 +58,12 @@
 #include <libgen.h>     /* basename */
 #include <fcntl.h>
 #include <unistd.h>
-#include <wait.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 
 #include "message.h"
 #include "cltcfg.h"
