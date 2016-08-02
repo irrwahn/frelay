@@ -58,7 +58,7 @@
 
 static random_ctx_t ctx_unsafe = RANDOM_CTX_INITIALIZER;
 
-unsigned long random_r( random_ctx_t *ctx )
+uint64_t random_r( random_ctx_t *ctx )
 {
     uint64_t
          e = ctx->a - LEFTROT( ctx->b,  7 );
@@ -69,12 +69,12 @@ unsigned long random_r( random_ctx_t *ctx )
     return ctx->d & RANDOM_MAX;
 }
 
-unsigned long random()
+uint64_t random()
 {
     return random_r( &ctx_unsafe );
 }
 
-void srandom_r( random_ctx_t *ctx, unsigned long seed )
+void srandom_r( random_ctx_t *ctx, uint64_t seed )
 {
     ctx->a = RANDOM_FLEASEED;
     ctx->b = ctx->c = ctx->d = seed;
@@ -82,7 +82,7 @@ void srandom_r( random_ctx_t *ctx, unsigned long seed )
         random_r( ctx );
 }
 
-void srandom( unsigned long seed )
+void srandom( uint64_t seed )
 {
     srandom_r( &ctx_unsafe, seed );
 }
@@ -94,9 +94,9 @@ void srandom( unsigned long seed )
  * RNG implementation agnostic functions.
  */
 
-unsigned long random_uni_r( random_ctx_t *ctx, unsigned long upper )
+uint64_t random_uni_r( random_ctx_t *ctx, uint64_t upper )
 {
-    unsigned long r = 0;
+    uint64_t r = 0;
 
     if ( 1 < upper )
     {
@@ -112,7 +112,7 @@ unsigned long random_uni_r( random_ctx_t *ctx, unsigned long upper )
     return r;
 }
 
-unsigned long random_uni( unsigned long upper )
+uint64_t random_uni( uint64_t upper )
 {
     return random_uni_r( &ctx_unsafe, upper );
 }
