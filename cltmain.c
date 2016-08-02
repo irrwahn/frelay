@@ -549,7 +549,7 @@ static int process_stdin( int *srvfd )
     else if ( MATCH_CMD( "login" ) )
     {   /* login [user] */
         DLOG( "Logging in.\n" );
-        if ( 2 > a  && NULL == ( arg[1] = cfg.username ) ) 
+        if ( 2 > a  && NULL == ( arg[1] = cfg.username ) )
         {
             printcon( "Usage: login username\n" );
             return -1;
