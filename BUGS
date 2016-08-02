@@ -1,0 +1,3 @@
+GENERAL: Calculated RTT is sometimes wrong
+GENERAL: Bogus RTT values on 32-bit hosts (only sometimes?)
+CLIENT: Needs to be built with large file support on 32-bit hosts (_FILE_OFFSET_BITS=64?)
