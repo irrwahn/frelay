@@ -134,7 +134,7 @@ mbuf_t *mbuf_to_error_response( mbuf_t **pp, enum SC_ENUM ec )
     mbuf_to_response( pp );
     HDR_CLASS_TO_ERR( *pp );
     errmsg = sc_msgstr( ec );
-    mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, ec );
+    mbuf_addattrib( pp, MSG_ATTR_ERROR, 8, (uint64_t)ec );
     mbuf_addattrib( pp, MSG_ATTR_NOTICE, strlen( errmsg ) + 1, errmsg );
     return *pp;
 }
