@@ -262,6 +262,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
         return -1;
     }
     DLOG( "Connected to [%s:%s].\n", host, service );
+    printcon( "Connected to %s:%s\n", host, service );
     if ( 0 != set_nonblocking( fd ) )
         XLOG( LOG_WARNING, "set_nonblocking() failed: %m.\n" );
     if ( 0 != set_cloexec( fd ) )
@@ -520,7 +521,6 @@ static int process_stdin( int *srvfd )
             cfg.st = CLT_INVALID;
             return -1;
         }
-        printcon( "Connected to %s:%s\n", arg[1], arg[2] );
         cfg.st = CLT_PRE_LOGIN;
     }
     else if ( MATCH_CMD( "disconnect" ) || MATCH_CMD( "close" ) )
