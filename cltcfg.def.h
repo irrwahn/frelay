@@ -37,11 +37,8 @@
 #define CONFIG_H_INCLUDED
 
 
-/* Command used to start a subshell */
-#define DEFAULT_SHELL       "/bin/sh"
-
-/* Default frelay server address. */
-#define DEFAULT_HOST        "localhost"
+/* Argument vector used to start an interactive shell */
+#define DEFAULT_SHELL       (char *[]){ "/bin/sh", "-l", (char *)NULL }
 
 /* Default frelay service port. (Neighbor of the mumbler ^.^) */
 #define DEFAULT_PORT        "64740"

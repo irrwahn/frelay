@@ -47,8 +47,12 @@
     #define XLOG(PRI,...)   fprintf(stderr,__VA_ARGS__)
 #else
     #include <logprintf.h>
-    #define XLOG_INIT(S)    logprintf_init(LOG_DEBUG,(S),LOG_TO_FILE,stderr)
     #define XLOG(PRI,...)   xlogprintf((PRI),__VA_ARGS__)
+    #ifdef DEBUG
+        #define XLOG_INIT(S)    logprintf_init(LOG_DEBUG,(S),LOG_TO_FILE,stderr)
+    #else
+        #define XLOG_INIT(S)    logprintf_init(LOG_WARNING,(S),LOG_TO_SYSLOG,NULL)
+    #endif
 #endif
 
 #ifdef DEBUG

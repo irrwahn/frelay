@@ -87,7 +87,6 @@ enum CLT_STATE {
 
 /* Configuration singleton. */
 static struct {
-    const char *sh;
     const char *host;
     const char *port;
     struct timeval select_timeout;
@@ -99,10 +98,8 @@ static struct {
     const char *privkey;
     enum CLT_STATE st;
 } cfg = {
-    /* .sh = */
-    DEFAULT_SHELL,
     /* .host = */
-    DEFAULT_HOST,
+    NULL,
     /* .port = */
     DEFAULT_PORT,
     /* .select_timeout = */
@@ -114,12 +111,12 @@ static struct {
     /* .offer_timeout = */
     OFFER_TIMEOUT_S,
     /* .username = */
-    "user",
+    NULL,
     /* .pubkey = */
-    "userpubkey",
+    NULL,
     /* .privkey = */
-    "userprivkey",
-        /* .st = */
+    NULL,
+    /* .st = */
     CLT_INVALID,
 };
 
@@ -131,8 +128,46 @@ static struct {
 
 static int eval_cmdline( int argc, char *argv[] )
 {
+    if ( 1 < argc )
+        cfg.host = argv[1];
+    if ( 2 < argc )
+        cfg.port = argv[2];
     return 0;
-    (void)argc; (void)argv;
+}
+
+
+/**********************************************
+ * CONSOLE STUFF
+ *
+ */
+
+static void prompt( int on )
+{
+    if ( isatty( STDIN_FILENO ) )
+        fprintf( stderr, on ? "\rfrelay> " :"\r       \r" );
+}
+
+/*
+ * Just to have a central function to control console output.
+ */
+static int printcon( const char *fmt, ... )
+{
+    int r;
+    va_list arglist;
+    FILE *ofp = stdout;
+
+    prompt( 0 );
+    va_start( arglist, fmt );
+    r = vfprintf( ofp, fmt, arglist );
+    va_end( arglist );
+    fflush( ofp );
+#ifdef DEBUG
+    va_start( arglist, fmt );
+    vlogprintf( LOG_DEBUG, fmt, arglist );
+    va_end( arglist );
+#endif
+    prompt( 1 );
+    return r;
 }
 
 
@@ -164,8 +199,9 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     res = getaddrinfo( host, service, &hints, &info );
     if ( 0 != res )
     {
-        XLOG( LOG_WARNING, "getaddrinfo(%s,%s) failed: %s\n", host, service,
-                (EAI_SYSTEM!=res)?gai_strerror(res):strerror(errno) );
+        const char *emsg = EAI_SYSTEM != res ? gai_strerror( res ) : strerror( errno );
+        XLOG( LOG_WARNING, "getaddrinfo(%s,%s) failed: %s\n", host, service, emsg );
+        printcon( "%s:%s: %s\n", host, service, emsg );
         return -1;
     }
 
@@ -196,7 +232,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
             case EINPROGRESS:
             case EINTR:
             case ENETUNREACH:
-                XLOG( LOG_WARNING, "connect() failed: %m. Retry later.\n" );
+                XLOG( LOG_WARNING, "connect() failed: %m.\n" );
                 break;
             // (definitely) fatal errors
             case EACCES:
@@ -209,7 +245,6 @@ static int connect_srv( int *pfd, const char *host, const char *service )
             case EPROTOTYPE:
             default:
                 XLOG( LOG_ERR, "connect() failed miserably: %m. PEBKAC?\n" );
-                ai = ai->ai_next;
                 break;
             }
             close( fd );
@@ -223,6 +258,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     if ( NULL == ai )
     {
         XLOG( LOG_ERR, "Unable to connect.\n" );
+        printcon( "%s:%s: %s\n", host, service, strerror( errno ) );
         return -1;
     }
     DLOG( "Connected to [%s:%s].\n", host, service );
@@ -337,35 +373,6 @@ static void upkeep_pending( void )
  *
  */
 
-static void prompt( int on )
-{
-    // TODO:  if ( !cfg.isinteractive ) return;
-    fprintf( stderr, on ? "\rfrelay> " :"\r       \r" );
-}
-
-/*
- * Just to have a central function to control console output.
- */
-static int printcon( const char *fmt, ... )
-{
-    int r;
-    va_list arglist;
-    FILE *ofp = stdout;
-
-    prompt( 0 );
-    va_start( arglist, fmt );
-    r = vfprintf( ofp, fmt, arglist );
-    va_end( arglist );
-    fflush( ofp );
-#ifdef DEBUG
-    va_start( arglist, fmt );
-    vlogprintf( LOG_DEBUG, fmt, arglist );
-    va_end( arglist );
-#endif
-    prompt( 1 );
-    return r;
-}
-
 static int process_stdin( int *srvfd )
 {
 #define MAX_ARG     10
@@ -479,17 +486,17 @@ static int process_stdin( int *srvfd )
         }
         if ( NULL == ( d = download_match( oid ) ) )
         {
-            printcon( "Invalid offer ID.\n" );
+            printcon( "Invalid offer ID %"PRIx64"\n", oid );
             return -1;
         }
         d->act = time( NULL );
         if ( 0 == download_resume( d ) )
             printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
         else if ( 0 == download_write( d, NULL, 0 ) )
-            printcon( "Download started.\n" );
+            printcon( "Download started\n" );
         else
         {
-            printcon( "Download failed to start: %s.\n", strerror( errno ) );
+            printcon( "Download failed to start: %s\n", strerror( errno ) );
             return -1;
         }
         mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
@@ -502,16 +509,18 @@ static int process_stdin( int *srvfd )
     {   /* connect [host [port]] */
         if ( 3 > a )
             arg[2] = cfg.port;
-        if ( 2 > a )
-            arg[1] = cfg.host;
+        if ( 2 > a && NULL == ( arg[1] = cfg.host ) )
+        {
+            printcon( "Usage: connect host [port]\n" );
+            return -1;
+        }
         connect_srv( srvfd, arg[1], arg[2] );
         if ( 0 > *srvfd )
         {
-            printcon( "Connect attempt failed.\n" );
             cfg.st = CLT_INVALID;
             return -1;
         }
-        printcon( "Connected.\n" );
+        printcon( "Connected to %s:%s\n", arg[1], arg[2] );
         cfg.st = CLT_PRE_LOGIN;
     }
     else if ( MATCH_CMD( "disconnect" ) || MATCH_CMD( "close" ) )
@@ -521,19 +530,18 @@ static int process_stdin( int *srvfd )
             transfer_closeall();
             DLOG( "Closing connection.\n" );
             disconnect_srv( srvfd );
-            printcon( "Disconnected by request.\n" );
+            printcon( "Connection closed\n" );
         }
-        else
-            printcon( "Not connected.\n" );
         cfg.st = CLT_INVALID;
     }
     else if ( MATCH_CMD( "register" ) )
-    {   /* register [user [pubkey]] */
+    {   /* register user pubkey */
         DLOG( "Registering.\n" );
         if ( 3 > a )
-            arg[2] = cfg.username;
-        if ( 2 > a )
-            arg[1] = cfg.pubkey;
+        {
+            printcon( "Usage: register username pubkey\n" );
+            return -1;
+        }
         mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[2] ) + 1, arg[2] );
@@ -541,8 +549,11 @@ static int process_stdin( int *srvfd )
     else if ( MATCH_CMD( "login" ) )
     {   /* login [user] */
         DLOG( "Logging in.\n" );
-        if ( 2 > a )
-            arg[1] = cfg.username;
+        if ( 2 > a  && NULL == ( arg[1] = cfg.username ) ) 
+        {
+            printcon( "Usage: login username\n" );
+            return -1;
+        }
         mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
     }
@@ -563,7 +574,7 @@ static int process_stdin( int *srvfd )
         {
             errno = 0;
             if ( 0 != chdir( arg[1] ) )
-                printcon( "cd: %s: %s\n", arg[1], strerror( errno ) );
+                printcon( "%s\n", strerror( errno ) );
         }
         printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
         return 1;
@@ -573,8 +584,8 @@ static int process_stdin( int *srvfd )
         pid_t pid = fork();
         if ( 0 == pid )
         {
-            execl( cfg.sh, "-", NULL );
-            XLOG( LOG_WARNING, "exec(%s) failed: %m\n", cfg.sh );
+            execvp( DEFAULT_SHELL[0], DEFAULT_SHELL );
+            XLOG( LOG_WARNING, "execvp(%s) failed: %m\n", DEFAULT_SHELL[0] );
             exit( EXIT_FAILURE );
         }
         else if ( 0 < pid )
@@ -618,7 +629,7 @@ static int process_stdin( int *srvfd )
 
     if ( 0 > *srvfd )
     {
-        printcon( "Not connected.\n" );
+        printcon( "Not connected\n" );
         mbuf_free( &mp );
     }
     else if ( NULL != mp )
@@ -801,7 +812,7 @@ static int process_srvmsg( mbuf_t **pp )
                 }
                 if ( 0 != rename( d->partname, d->name ) )
                 {
-                    printcon( "Moving '%s' to '%s' failed: %s!\n", d->partname, d->name, strerror( errno ) );
+                    printcon( "Moving '%s' to '%s' failed: %s\n", d->partname, d->name, strerror( errno ) );
                 }
             }
             else if ( 0 != download_write( d, av, al ) )
@@ -1025,7 +1036,7 @@ DISC:
     transfer_closeall();
     disconnect_srv( srvfd );
     cfg.st = CLT_INVALID;
-    printcon( "Disconnected, connection to remote host failed.\n" );
+    printcon( "Connection to remote host failed\n" );
     return nset;
 }
 
@@ -1035,14 +1046,21 @@ int main( int argc, char *argv[] )
 
     /* Initialization. */
     XLOG_INIT( argv[0] );
+    signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
+    //signal( SIGINT, SIG_IGN );      /* Ctrl-C no more. */
+    /* TODO: ignore or handle other signals? */
     srandom( time( NULL ) ^ getpid() );
     eval_cmdline( argc, argv );
-    signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
-    /* TODO: ignore or handle other signals? */
-
+    cfg.username = getenv( "USER" );
+    cfg.st = CLT_INVALID;
+    if ( NULL != cfg.host )
+    {
+        connect_srv( &srvfd, cfg.host, cfg.port );
+        if ( 0 <= srvfd )
+            cfg.st = CLT_PRE_LOGIN;
+    }
     DLOG( "Entering main loop.\n" );
     printcon( "" );
-    cfg.st = CLT_INVALID;
     while ( 1 )
     {
         int nset;
@@ -1107,8 +1125,8 @@ int main( int argc, char *argv[] )
             die_if( 1, "unhandled error in select(): %m (%d).\n", errno );
         }
     }
-    printcon( "Terminating.\n" );
-    prompt( 0 );
+    DLOG( "Terminating\n" );
+    //prompt( 0 );
     transfer_closeall();
     disconnect_srv( &srvfd );
     exit( EXIT_SUCCESS );
