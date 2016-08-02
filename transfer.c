@@ -32,6 +32,8 @@
  *
  */
 
+#define _FILE_OFFSET_BITS 64    /* Tentative: Should work on most POSIX systems. */
+
 #define _POSIX_C_SOURCE 200809L     /* strdup */
 
 #include <errno.h>

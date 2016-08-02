@@ -1,3 +1,4 @@
 GENERAL: Calculated RTT is sometimes wrong
 GENERAL: Bogus RTT values on 32-bit hosts (only sometimes?)
 CLIENT: Needs to be built with large file support on 32-bit hosts (_FILE_OFFSET_BITS=64?)
+        Relevant: http://pubs.opengroup.org/onlinepubs/9699919799/utilities/c99.html#tag_20_11_13_03

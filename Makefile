@@ -35,7 +35,7 @@
 
 PROJECT := frelay
 
-export CC      := gcc
+export CC      ?= cc
 export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -O2 -I./lib -MMD -MP
 ifeq    ($(DEBUG),1)
 	export CFLAGS  += -g3 -pg -DDEBUG
