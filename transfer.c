@@ -259,8 +259,8 @@ void transfer_upkeep( time_t timeout )
             next = p->next;
             if ( p->act + timeout < now )
             {   /* Entry past best before date, ditch it. */
-                if ( p->oid != 0 )
-                    DLOG( "%s timed out: %016"PRIu64"\n", i ? "Download" : "Offer", p->oid );
+                if ( p->rid != 0 && p->oid != 0 )
+                    DLOG( "%s timed out: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
                 else
                     DLOG( "Clean out finished %s\n", i ? "Download" : "Offer" );
                 if ( prev )
@@ -285,6 +285,69 @@ void transfer_upkeep( time_t timeout )
         }
     }
     return;
+}
+
+int transfer_invalidate( transfer_t *p )
+{
+    p->rid = 0;
+    p->oid = 0;
+    p->act = 0;
+    close( p->fd );
+    p->fd = -1;
+    return 0;
+}
+
+int transfer_list( int (*cb)(const char *) )
+{
+    transfer_t *p, *lists[] = { offers, downloads };
+    static char s[200];
+    int n = 0;
+    time_t now = time( NULL );
+
+    for ( int i = 0; i < 2; ++i )
+    {
+        for ( p = lists[i]; NULL != p; p = p->next )
+        {
+            if ( 0 != p->rid && 0 != p->oid && 0 != p->act )
+            {
+                snprintf( s, sizeof s, "%c|%016"PRIx64"|%016"PRIx64" '%s' "
+                        "%"PRIu64"%% %"PRIi64"s",
+                        i ? 'D' : 'O', p->rid, p->oid, p->name,
+                        p->offset * 100 / p->size, (int64_t)(now - p->act) );
+                if ( 0 > cb( s ) )
+                    goto DONE;
+                ++n;
+            }
+        }
+    }
+DONE:
+    return n;
+}
+
+int transfer_remove( const char *s )
+{
+    transfer_t *p, *lists[] = { offers, downloads };
+    int i;
+    char t;
+    uint64_t rid, oid;
+    int n = 0;
+
+    if ( 3 != sscanf( s, " %c|%"SCNx64"|%"SCNx64" ", &t, &rid, &oid )
+        || ( 'D' != t && 'O' != t )
+        || ( 0 == rid && 0 == oid ) )
+        return -1;
+    i = ( 'D' == t );
+    for ( p = lists[i]; NULL != p; p = p->next )
+    {
+        if ( rid == p->rid && oid == p->oid )
+        {   /* We actually just invalidate the entry and leave the gory
+             * list mangling to transfer_upkeep(). */
+            DLOG( "%s invalidated: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
+            transfer_invalidate( p );
+            ++n;
+        }
+    }
+    return n;
 }
 
 

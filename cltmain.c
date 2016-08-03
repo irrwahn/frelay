@@ -158,11 +158,16 @@ static int printcon( const char *fmt, ... )
     fflush( ofp );
 #ifdef DEBUG
     va_start( arglist, fmt );
-    vlogprintf( LOG_DEBUG, fmt, arglist );
+    XLOGV( LOG_DEBUG, fmt, arglist );
     va_end( arglist );
 #endif
     prompt( 1 );
     return r;
+}
+
+static int putscon_cb( const char *s )
+{
+    return printcon( "%s\n", s );
 }
 
 
@@ -557,6 +562,26 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging out.\n" );
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random() );
     }
+    else if ( MATCH_CMD( "list" ) )
+    {
+        printcon( "Transfer list start\n" );
+        transfer_list( putscon_cb );
+        printcon( "Transfer list end\n" );
+    }
+    else if ( MATCH_CMD( "remove" ) || MATCH_CMD( "delete" ) )
+    {
+        int n = 0;
+        if ( 2 > a )
+        {
+            printcon( "Usage: remove type|remote_id|offer_id\n" );
+            return -1;
+        }
+        n = transfer_remove( arg[1] );
+        if ( 0 < n )
+            printcon( "Removed %d transfer%s\n", n, 1 < n ? "s" : "" );
+        else
+            printcon( "Removing %s failed\n", arg[1] );
+    }
     else if ( MATCH_CMD( "exit" ) || MATCH_CMD( "quit" ) || MATCH_CMD( "bye" ) )
     {
         disconnect_srv( srvfd );
@@ -603,6 +628,7 @@ static int process_stdin( int *srvfd )
             "  connect|open [host [port]]\n"
             "  disconnect|close\n"
             "  exit|quit|bye\n"
+            "  list\n"
             "  login [user_name]\n"
             "  logout\n"
             "  offer peer_id filename [\"text message\"]\n"
@@ -610,6 +636,7 @@ static int process_stdin( int *srvfd )
             "  ping [peer_id [\"text message\"]]\n"
             "  pwd\n"
             "  register [user_name [pubkey]]\n"
+            "  remove|delete type|remote_id|offer_id\n"
             "\n" );
         return 1;
     }
@@ -733,11 +760,7 @@ static int process_srvmsg( mbuf_t **pp )
             if ( 0 == size )
             {   /* Remote side signaled 'download finished'. */
                 printcon( "Finished uploading 0x%016"PRIx64" '%s'\n", o->oid, o->name );
-                o->rid = 0;
-                o->oid = 0;
-                o->act = 0;
-                close( o->fd );
-                o->fd = -1;
+                transfer_invalidate( o );
             }
             else if ( NULL == ( data = offer_read( o, offset, &size ) ) )
             {
@@ -801,17 +824,9 @@ static int process_srvmsg( mbuf_t **pp )
                 else
                     printcon( "Peer signaled premature EOF uploading %016"PRIx64" '%s'\n", d->oid, d->name );
                 if ( 0 <= d->fd )
-                {
-                    d->rid = 0;
-                    d->oid = 0;
-                    d->act = 0;
-                    close( d->fd );
-                    d->fd = -1;
-                }
+                    transfer_invalidate( d );
                 if ( 0 != rename( d->partname, d->name ) )
-                {
                     printcon( "Moving '%s' to '%s' failed: %s\n", d->partname, d->name, strerror( errno ) );
-                }
             }
             else if ( 0 != download_write( d, av, al ) )
             {
@@ -833,7 +848,7 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_PEERLIST_RES:
         if ( CLT_AUTH_OK == cfg.st && 0ULL == srcid )
         {
-            printcon( "Peerlist start\n" );
+            printcon( "Peer list start\n" );
             while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
                 && MSG_ATTR_PEERID == at
                 && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
@@ -841,7 +856,7 @@ static int process_srvmsg( mbuf_t **pp )
             {
                 printcon( "%016"PRIx64" %s\n", NTOH64( *(uint64_t *)av ), (char *)av2 );
             }
-            printcon( "Peerlist end\n" );
+            printcon( "Peer list end\n" );
         }
         break;
     case MSG_TYPE_REGISTER_RES:

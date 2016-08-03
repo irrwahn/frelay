@@ -12,6 +12,6 @@ CLIENT: Needs to be built with large file support on 32-bit hosts (_FILE_OFFSET_
 
 (Hopefully) fixed:
 ------------------
-2016-08-03  Urban Wallasch  <irrwahn35@freenet.de>
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r439
 GENERAL: Bogus RTT values on 32-bit hosts (only sometimes?)
 GENERAL: Calculated RTT is sometimes wrong

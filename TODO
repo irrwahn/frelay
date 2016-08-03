@@ -1,14 +1,13 @@
-TODOs In no particular order
+Outstanding TODOs In no particular order
+----------------------------------------
 
 GENERAL: Provide means to create a distribution tarball (WIP)
 
 GENERAL: Support plain-text password authentication
 
-GENERAL: Implement encrypted authentication incl. nonce generation, etc.
-
 GENERAL: Support for broadcast / multicast transfers
          (Requires server side chaching.)
-         
+
 GENERAL: Implement FILEHASH and TTL attributes
 
 GENERAL: Complete TheFineManual
@@ -17,10 +16,25 @@ SERVER: Command line options & config file support
 
 SERVER: Fancy MotD  :-)  [Capture output of external command?]
 
-CLIENT: Capability to cancel outstanding offers / transfer in progress
-        Bonus points for providing command(s) to list offers / tansfers.
-        Assign each transfer a short client side "slot" number to simplify 
-        command typing, i.e. "acc #1" instead of "acc b16b000b5babecafe"?
-
 CLIENT: Guard against overwriting existing target files during download
         (E.g., append parenthesized index to filename?)
+
+CLIENT: Add command to paste the output of an external program.
+
+
+On hold:
+--------
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de>
+Note: This requires some serious consideration and research.
+GENERAL: Implement encrypted authentication incl. nonce generation, etc.
+
+
+Implemented:
+------------
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r440
+CLIENT: Capability to cancel outstanding offers / transfer in progress
+        Bonus points for providing command(s) to list offers / tansfers.
+        Ignored (not as trivial as it seems):
+        Assign each transfer a short client side "slot" number to simplify
+        command typing, i.e. "acc #1" instead of "acc b16b000b5babecafe"?
+

@@ -45,9 +45,11 @@
 #ifdef DUMB_LOGGER
     #define XLOG_INIT(S)
     #define XLOG(PRI,...)   fprintf(stderr,__VA_ARGS__)
+    #define XLOGV(PRI,F,A)  vfprintf(stderr,(F),(A))
 #else
     #include <logprintf.h>
     #define XLOG(PRI,...)   xlogprintf((PRI),__VA_ARGS__)
+    #define XLOGV(PRI,F,A)  vlogprintf((PRI),(F),(A))
     #ifdef DEBUG
         #define XLOG_INIT(S)    logprintf_init(LOG_DEBUG,(S),LOG_TO_FILE,stderr)
     #else

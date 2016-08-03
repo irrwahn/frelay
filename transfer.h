@@ -72,7 +72,9 @@ extern int download_resume( transfer_t *d );
 
 extern void transfer_closeall( void );
 extern void transfer_upkeep( time_t timeout );
-
+extern int transfer_invalidate( transfer_t *p );
+extern int transfer_list( int (*cb)(const char *) );
+extern int transfer_remove( const char *s );
 
 #endif /* ndef _H_INCLUDED */
 
