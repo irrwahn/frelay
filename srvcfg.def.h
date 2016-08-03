@@ -37,19 +37,32 @@
 #define CONFIG_H_INCLUDED
 
 
-#define DEF_PORT        "64740"     /* neighbor of the mumbler ^.^ */
+/* Default frelay service port. (Neighbor of the mumbler ^.^) */
+#define DEF_PORT        "64740"
 
-#define MAX_CLIENTS     100         /* typically limited to 1024 on Linux */
+/* Maximum number of simultaneously connected clients,
+ * typically limited to 1024 on Linux. */
+#define MAX_CLIENTS     100
 
-#define SEL_TIMEOUT_MS  2000        /* server idle timeout in ms */
+/* Server idle timeout (upkeep interval) in milliseconds. */
+#define SEL_TIMEOUT_MS  10000
 
-#define MSG_TIMEOUT_S   5           /* maximum intra-message receive gap */
+/* Maximum allowed intra-message receive gap in seconds. */
+#define MSG_TIMEOUT_S   5
 
+/* Client TCP connection idle timeout in seconds. */
 #ifdef DEBUG
 #define CONN_TIMEOUT_S  60
 #else
-#define CONN_TIMEOUT_S  240         /* TCP connection idle timeout in s */
+#define CONN_TIMEOUT_S  240
 #endif
+
+/* External command to produce a welcome message. */
+#define MOTD_CMD        "echo '---'; date; motd; echo -n '---'"
+
+/* Registration and logoff text messages. */
+#define TXT_REGISTERED  "Registered, now log in."
+#define TXT_BYE         "Bye."
 
 
 #endif /* ndef _H_INCLUDED */

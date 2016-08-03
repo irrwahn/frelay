@@ -101,6 +101,7 @@ static struct {
     int msg_timeout;
     int conn_timeout;
     int max_clients;
+    const char *motd_cmd;
 } cfg = {
     /* .interface = */
     NULL,
@@ -114,6 +115,8 @@ static struct {
     CONN_TIMEOUT_S,
     /* .max_clients = */
     MAX_CLIENTS,
+    /* .motd_cmd = */
+    MOTD_CMD,
 };
 
 
@@ -189,6 +192,30 @@ static int init_server( client_t **clients )
     die_if( 0 != res, "listen() failed: %m.\n" );
     XLOG( LOG_INFO, "Server listening on port %s.\n", cfg.listenport );
     return fd;
+}
+
+
+/**********************************************
+ * MOTD STUFF
+ *
+ */
+
+static char motd[4000] = "Welcome!";
+static size_t motd_sz = 0;
+
+static int motd_cb( const char *s )
+{
+    if ( strlen( s ) < sizeof motd - motd_sz )
+        strcpy( motd + motd_sz, s );
+    motd_sz += strlen( s );
+    return 0;    
+}
+
+static const char *motd_get( void )
+{
+    motd_sz = 0;
+    pcmd( cfg.motd_cmd, motd_cb );
+    return motd;
 }
 
 
@@ -355,11 +382,6 @@ static int dequeue_msg( client_t *cp, fd_set *m_wfds )
     return 0;
 }
 
-#define TXT_REGISTERED  "Registered, now log in."
-#define TXT_WELCOME     "Welcome!"
-#define TXT_WELCOME2    "Welcome back!"
-#define TXT_BYE         "Bye."
-
 static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m_wfds )
 {
     uint16_t mtype = HDR_GET_TYPE( c[i_src].rbuf );
@@ -448,7 +470,8 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
                 c[i_src].key = NULL;
                 mbuf_to_response( &c[i_src].rbuf );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME, TXT_WELCOME );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, strlen( motd ) + 1, motd );
+                //mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME, TXT_WELCOME );
             }
         }
         else
@@ -483,7 +506,8 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         c[i_src].st = CLT_AUTH_OK;
         mbuf_to_response( &c[i_src].rbuf );
         mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME2, TXT_WELCOME2 );
+        mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, strlen( motd ) + 1, motd );
+        //mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME2, TXT_WELCOME2 );
         break;
     case MSG_TYPE_LOGOUT_REQ:
         DLOG( "Process LOGOUT request.\n" );
@@ -793,6 +817,7 @@ int main( int argc, char *argv[] )
             last_upkeep = now;
             maxfd = listenfd;
             upkeep( clients, &maxfd, &m_rfds, &m_wfds );
+            motd_get();
         }
         FD_COPY( &rfds, &m_rfds );
         FD_COPY( &wfds, &m_wfds );

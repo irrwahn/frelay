@@ -14,8 +14,6 @@ GENERAL: Complete TheFineManual
 
 SERVER: Command line options & config file support
 
-SERVER: Fancy MotD  :-)  [Capture output of external command?]
-
 CLIENT: Guard against overwriting existing target files during download
         (E.g., append parenthesized index to filename?)
 
@@ -29,6 +27,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r442
+SERVER: Fancy MotD  :-)  [Capture output of external command?]
+
 2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r441
 CLIENT: Add command to paste the output of an external program.
 

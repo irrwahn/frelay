@@ -886,7 +886,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( "Registered\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "- '%s'\n", (char *)av );
+                printcon( "%s\n", (char *)av );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -897,7 +897,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( "Login Ok\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 ) && MSG_ATTR_NOTICE == at2 )
-                printcon( "- '%s'\n", (char *)av2 );
+                printcon( "%s\n", (char *)av2 );
             if ( MSG_ATTR_OK == at )
             {   /* Unregistered user. */
                 cfg.st = CLT_AUTH_OK;
@@ -920,7 +920,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( "Authenticated\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "- '%s'\n", (char *)av );
+                printcon( "%s\n", (char *)av );
             cfg.st = CLT_AUTH_OK;
         }
         break;
@@ -932,7 +932,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( "Logged out\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "- '%s'\n", (char *)av );
+                printcon( "%s\n", (char *)av );
             cfg.st = CLT_PRE_LOGIN;
         }
         break;
