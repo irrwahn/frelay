@@ -43,9 +43,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-
 
 int set_nonblocking( int fd )
 {
@@ -65,12 +62,6 @@ int set_cloexec( int fd )
         return -1;
     flags = (unsigned)flags | O_CLOEXEC;
     return fcntl( fd, F_SETFL, flags );
-}
-
-int64_t fsize( const char *filename )
-{
-    struct stat st;
-    return 0 == stat( filename, &st ) ? st.st_size : -1;
 }
 
 int pcmd( const char *cmd, int (*cb)(const char *) )

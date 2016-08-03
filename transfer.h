@@ -61,6 +61,8 @@ struct TRANSFER_T_STRUCT {
 };
 
 
+extern int64_t fsize( const char *filename );
+
 extern transfer_t *offer_new( uint64_t dest, const char *filename );
 extern transfer_t *offer_match( uint64_t oid, uint64_t rid );
 extern void *offer_read( transfer_t *o, uint64_t off, uint64_t *psz );

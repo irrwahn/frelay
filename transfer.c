@@ -45,6 +45,8 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <prng.h>
 
@@ -56,6 +58,12 @@
 static transfer_t *offers = NULL;
 static transfer_t *downloads = NULL;
 
+
+int64_t fsize( const char *filename )
+{
+    struct stat st;
+    return 0 == stat( filename, &st ) ? st.st_size : -1;
+}
 
 /* Add an offer to the pending list. */
 transfer_t *offer_new( uint64_t dest, const char *filename )
