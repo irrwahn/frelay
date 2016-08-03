@@ -19,6 +19,10 @@ CLIENT: Guard against overwriting existing target files during download
 
 CLIENT: Minimal command line editing and history support?
 
+CLIENT: If run non-interactively, prefix every console output line with
+        some context specific, easy to parse tag to simplify frontend
+        programming.
+
 
 On hold:
 --------

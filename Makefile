@@ -37,19 +37,15 @@ PROJECT := frelay
 
 export CC      ?= cc
 export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -O2 -I./lib -MMD -MP
-ifeq    ($(DEBUG),1)
-	export CFLAGS  += -g3 -pg -DDEBUG
-	export STRIP   := @:
-else
-	export STRIP   := strip
-endif
 
 LD      := $(CC)
 LIBDIR  := ./lib
 LIBS    := -lfrutil -lrt
 LDFLAGS := -L$(LIBDIR)
 
+STRIP   := strip
 RM      := rm -f
+CP      := cp
 
 COMSRC  := message.c statcodes.c util.c
 
@@ -66,9 +62,14 @@ CLTDEP  := $(CLTOBJ:%.o=%.d)
 SELF    := $(lastword $(MAKEFILE_LIST))
 
 
-.PHONY: all lib clean distclean
+.PHONY: all debug lib clean distclean
 
 all: $(SRVBIN) $(CLTBIN)
+
+debug: CFLAGS  += -g3 -pg -DDEBUG
+debug: STRIP   := @:
+debug: all
+
 
 $(SRVBIN): $(SRVOBJ) $(SELF) lib
 	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
@@ -89,10 +90,10 @@ lib:
 	$(CC) -c $(CFLAGS) -o $*.o $*.c
 
 srvcfg.h: srvcfg.def.h
-	cp $< $@
+	$(CP) $< $@
 
 cltcfg.h: cltcfg.def.h
-	cp $< $@
+	$(CP) $< $@
 
 clean:
 	$(MAKE) -C $(LIBDIR) $@
@@ -102,6 +103,7 @@ distclean: clean
 	$(MAKE) -C $(LIBDIR) $@
 	$(RM) srvcfg.h cltcfg.h
 
--include $(DEP)
+-include $(SRVDEP)
+-include $(CLTDEP)
 
 ## EOF

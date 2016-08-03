@@ -35,7 +35,7 @@
 
 PROJECT := libfrutil.a
 
-CC      ?= gcc
+CC      ?= cc
 CFLAGS  += -I.
 
 AR      := ar -rs
