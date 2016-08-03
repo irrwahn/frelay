@@ -17,6 +17,8 @@ SERVER: Command line options & config file support
 CLIENT: Guard against overwriting existing target files during download
         (E.g., append parenthesized index to filename?)
 
+CLIENT: Minimal command line editing and history support?
+
 
 On hold:
 --------

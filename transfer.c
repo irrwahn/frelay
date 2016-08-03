@@ -308,7 +308,7 @@ int transfer_invalidate( transfer_t *p )
 int transfer_list( int (*cb)(const char *) )
 {
     transfer_t *p, *lists[] = { offers, downloads };
-    static char s[200];
+    static char s[PATH_MAX];
     int n = 0;
     time_t now = time( NULL );
 
@@ -319,10 +319,10 @@ int transfer_list( int (*cb)(const char *) )
             if ( 0 != p->rid && 0 != p->oid && 0 != p->act )
             {
                 snprintf( s, sizeof s, "%c,%016"PRIx64",%016"PRIx64" '%s' "
-                        "%"PRIu64"%% %"PRIi64"s",
+                        "%"PRIu64"%% %"PRIi64"s\n",
                         i ? 'D' : 'O', p->rid, p->oid, p->name,
                         p->offset * 100 / p->size, (int64_t)(now - p->act) );
-                if ( 0 > cb( s ) || 0 > cb( "\n" ) )
+                if ( 0 > cb( s ) )
                     goto DONE;
                 ++n;
             }

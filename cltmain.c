@@ -602,14 +602,15 @@ static int process_stdin( int *srvfd )
     {   /* cd [path] */
         if ( 1 < a )
         {
+            cp = aline + ( arg[1] - arg[0] );
             errno = 0;
-            if ( 0 != chdir( arg[1] ) )
+            if ( 0 != chdir( cp ) )
                 printcon( "%s\n", strerror( errno ) );
         }
         printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
         return 1;
     }
-    else if ( MATCH_CMD( "cmd" ) || MATCH_CMD( "!!" ) )
+    else if ( MATCH_CMD( "cmd" ) || MATCH_CMD( "^" ) )
     {
         if ( 2 > a )
         {
@@ -618,6 +619,7 @@ static int process_stdin( int *srvfd )
         }
         cp = aline + ( arg[1] - arg[0] );
         pcmd( cp, putscon_cb );
+        prompt( 1 );
     }
     else if ( MATCH_CMD( "shell" ) || MATCH_CMD( "!" ) )
     {
@@ -643,7 +645,7 @@ static int process_stdin( int *srvfd )
         printcon( "Commands may be abbreviated.  Commands are:\n\n"
             "  ?|help\n"
             "  !|sh\n"
-            "  !!|cmd ext_command [args]\n"
+            "  ^|cmd ext_command [args]\n"
             "  accept offer_id\n"
             "  cd|lcd\n"
             "  connect|open [host [port]]\n"
