@@ -761,7 +761,7 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            ntime_t rtt = ntime_to_us( HDR_GET_TS(*pp) - HDR_GET_TS(qmatch) );
+            ntime_t rtt = ntime_to_us( ntime_get() - HDR_GET_TS( qmatch ) );
             printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms\n",
                         srcid, rtt/1000, rtt%1000 );
         }

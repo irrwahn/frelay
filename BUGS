@@ -1,4 +1,17 @@
-GENERAL: Calculated RTT is sometimes wrong
-GENERAL: Bogus RTT values on 32-bit hosts (only sometimes?)
+Outstanding:
+------------
+
+
+On hold:
+--------
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de>
+Note: Stop-gap measure is to #define _FILE_OFFSET_BITS 64 in transfer.c for the time being.
 CLIENT: Needs to be built with large file support on 32-bit hosts (_FILE_OFFSET_BITS=64?)
         Relevant: http://pubs.opengroup.org/onlinepubs/9699919799/utilities/c99.html#tag_20_11_13_03
+
+
+(Hopefully) fixed:
+------------------
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de>
+GENERAL: Bogus RTT values on 32-bit hosts (only sometimes?)
+GENERAL: Calculated RTT is sometimes wrong
