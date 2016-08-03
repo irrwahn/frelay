@@ -873,7 +873,7 @@ static int process_srvmsg( mbuf_t **pp )
                 && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
                 && MSG_ATTR_PEERNAME == at2 )
             {
-                printcon( "%016"PRIx64" %s\n", NTOH64( *(uint64_t *)av ), (char *)av2 );
+                printcon( "%016"PRIx64"%s %s\n", NTOH64( *(uint64_t *)av ), (HDR_GET_DSTID(*pp)==NTOH64( *(uint64_t *)av ))?"*":"",  (char *)av2  );
             }
             printcon( "Peer list end\n" );
         }
