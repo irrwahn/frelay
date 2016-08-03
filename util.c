@@ -73,6 +73,18 @@ int64_t fsize( const char *filename )
     return 0 == stat( filename, &st ) ? st.st_size : -1;
 }
 
+int pcmd( const char *cmd, int (*cb)(const char *) )
+{
+    FILE *fp;
+    static char buf[1000];
+
+    if ( NULL == ( fp = popen( cmd, "r" /* "re" */ ) ) )
+        return -1;
+    while ( NULL != fgets( buf, sizeof buf, fp ) &&  0 <= cb( buf ) )
+        continue;
+    return pclose( fp );
+}
+
 void *memdup( void *s, size_t len )
 {
     void *d = malloc( len );

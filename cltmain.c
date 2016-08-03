@@ -167,7 +167,7 @@ static int printcon( const char *fmt, ... )
 
 static int putscon_cb( const char *s )
 {
-    return printcon( "%s\n", s );
+    return printcon( "%s", s );
 }
 
 
@@ -383,7 +383,8 @@ static int process_stdin( int *srvfd )
     int a;
     char *cp;
     const char *arg[MAX_ARG] = { NULL };
-    static char line[PATH_MAX];
+    static char line[MAX_CMDLINE];
+    static char aline[MAX_CMDLINE];
 
     r = read( STDIN_FILENO, line, sizeof line - 1 );
     if ( 0 > r )
@@ -399,6 +400,7 @@ static int process_stdin( int *srvfd )
         return 0;
     }
     line[r] = '\0';
+    strcpy( aline, line ); /* backup copy of command line */
 
     /* Ye lousy tokeniz0r. */
     cp = line;
@@ -437,12 +439,17 @@ static int process_stdin( int *srvfd )
         printcon( "" );
         return -1;
     }
+    aline[ arg[a-1] - arg[0] + strlen( arg[a-1] ) ] = '\0';
+
     if ( MATCH_CMD( "ping" ) )
     {   /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
                 ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random() );
         if ( 2 < a )
-            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[2] ) + 1, arg[2] );
+        {
+            cp = aline + ( arg[2] - arg[0] );
+            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( cp ) + 1, cp );
+        }
     }
     else if ( MATCH_CMD( "peerlist" ) || MATCH_CMD( "who" ) )
     {   /* peerlist */
@@ -473,7 +480,10 @@ static int process_stdin( int *srvfd )
         //TODO MSG_ATTR_FILEHASH ?
         //TODO MSG_ATTR_TTL ?
         if ( 3 < a )
-            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( arg[3] ) + 1, arg[3] );
+        {
+            cp = aline + ( arg[3] - arg[0] );
+            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( cp ) + 1, cp );
+        }
     }
     else if ( MATCH_CMD( "accept" ) )
     {   /* accept offer_id */
@@ -512,7 +522,7 @@ static int process_stdin( int *srvfd )
             arg[2] = cfg.port;
         if ( 2 > a && NULL == ( arg[1] = cfg.host ) )
         {
-            printcon( "Usage: connect host [port]\n" );
+            printcon( "Usage: connect [host [port]]\n" );
             return -1;
         }
         connect_srv( srvfd, arg[1], arg[2] );
@@ -599,6 +609,16 @@ static int process_stdin( int *srvfd )
         printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
         return 1;
     }
+    else if ( MATCH_CMD( "cmd" ) || MATCH_CMD( "!!" ) )
+    {
+        if ( 2 > a )
+        {
+            printcon( "Usage: cmd \"command\"\n" );
+            return -1;
+        }
+        cp = aline + ( arg[1] - arg[0] );
+        pcmd( cp, putscon_cb );
+    }
     else if ( MATCH_CMD( "shell" ) || MATCH_CMD( "!" ) )
     {
         pid_t pid = fork();
@@ -623,6 +643,7 @@ static int process_stdin( int *srvfd )
         printcon( "Commands may be abbreviated.  Commands are:\n\n"
             "  ?|help\n"
             "  !|sh\n"
+            "  !!|cmd ext_command [args]\n"
             "  accept offer_id\n"
             "  cd|lcd\n"
             "  connect|open [host [port]]\n"
@@ -636,16 +657,14 @@ static int process_stdin( int *srvfd )
             "  ping [peer_id [\"text message\"]]\n"
             "  pwd\n"
             "  register [user_name [pubkey]]\n"
-            "  remove|delete type|remote_id|offer_id\n"
+            "  remove|delete type,remote_id,offer_id\n"
             "\n" );
         return 1;
     }
     else
     {
         printcon( "Invalid command. Enter 'help' to get a list of valid commands.\n" );
-        DLOG( "unknown command sequence: \n" );
-        for ( int i = 0; i < a; ++i )
-            DLOG( "> %s\n", arg[i] );
+        DLOG( "unknown command sequence: \"%s\"\n", aline );
     }
 #undef MATCH_CMD
 
@@ -672,7 +691,7 @@ static int process_srvmsg( mbuf_t **pp )
     int res = 0;
     enum SC_ENUM status = SC_OK;
 
-    DLOG( "Received %s_%s from 0x%016"PRIx64".\n", mtype2str( mtype ), mclass2str( mtype ), srcid );
+    DLOG( "Received %s_%s from %016"PRIx64".\n", mtype2str( mtype ), mclass2str( mtype ), srcid );
     if ( MCLASS_IS_RES( mtype ) && NULL == ( qmatch = match_pending_req( *pp ) ) )
     {
         DLOG( "Dropping unsolicited response:\n" );
@@ -690,7 +709,7 @@ static int process_srvmsg( mbuf_t **pp )
             char *s = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 s = av;
-            printcon( "Ping from 0x%016"PRIx64"%s%s%s\n",
+            printcon( "Ping from %016"PRIx64"%s%s%s\n",
                         srcid, s?": '":"", s?s:"", s?"'":"" );
             if ( MCLASS_IS_REQ( mtype ) )
             {
@@ -730,7 +749,7 @@ static int process_srvmsg( mbuf_t **pp )
                 status = SC_BAD_REQUEST;
                 break;
             }
-            printcon( "Offer from 0x%016"PRIx64": %016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
+            printcon( "Offer from %016"PRIx64": %016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
                         d->rid, d->oid, d->name, d->size );
             mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, d->oid );
@@ -759,7 +778,7 @@ static int process_srvmsg( mbuf_t **pp )
                 size = NTOH64( *(uint64_t *)av );
             if ( 0 == size )
             {   /* Remote side signaled 'download finished'. */
-                printcon( "Finished uploading 0x%016"PRIx64" '%s'\n", o->oid, o->name );
+                printcon( "Finished uploading %016"PRIx64" '%s'\n", o->oid, o->name );
                 transfer_invalidate( o );
             }
             else if ( NULL == ( data = offer_read( o, offset, &size ) ) )

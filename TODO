@@ -19,8 +19,6 @@ SERVER: Fancy MotD  :-)  [Capture output of external command?]
 CLIENT: Guard against overwriting existing target files during download
         (E.g., append parenthesized index to filename?)
 
-CLIENT: Add command to paste the output of an external program.
-
 
 On hold:
 --------
@@ -31,6 +29,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r441
+CLIENT: Add command to paste the output of an external program.
+
 2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r440
 CLIENT: Capability to cancel outstanding offers / transfer in progress
         Bonus points for providing command(s) to list offers / tansfers.
