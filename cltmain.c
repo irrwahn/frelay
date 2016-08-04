@@ -473,7 +473,7 @@ static int process_stdin( int *srvfd )
         }
         mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, random() );
         mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
-        fname = strdup( arg[2] );
+        fname = strdup_s( arg[2] );
         bname = basename( fname );
         mbuf_addattrib( &mp, MSG_ATTR_FILENAME, strlen( bname ) + 1, bname );
         free( fname );
@@ -572,7 +572,7 @@ static int process_stdin( int *srvfd )
         if ( 2 < a )
         {
             free( cfg.pubkey );
-            cfg.pubkey = strdup( arg[2] );
+            cfg.pubkey = strdup_s( arg[2] );
         }
         mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
@@ -743,8 +743,8 @@ static int process_srvmsg( mbuf_t **pp )
                     d->oid = NTOH64( *(uint64_t *)av );
                     break;
                 case MSG_ATTR_FILENAME:
-                    d->name = strdup( av );
-                    d->partname = strdupcat( av, ".part" );
+                    d->name = strdup_s( av );
+                    d->partname = strdupcat_s( av, ".part" );
                     break;
                 case MSG_ATTR_SIZE:
                     d->size = NTOH64( *(uint64_t *)av );
@@ -932,7 +932,7 @@ static int process_srvmsg( mbuf_t **pp )
                 {
                     char *key;
                     printcon( "Authenticating\n" );
-                    key = strdupcat( AUTH_KEY_PLAINTEXT, cfg.pubkey ? cfg.pubkey : "" );
+                    key = strdupcat_s( AUTH_KEY_PLAINTEXT, cfg.pubkey ? cfg.pubkey : "" );
                     mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trfid );
                     mbuf_addattrib( &mp, MSG_ATTR_DIGEST, strlen( key ) + 1, key );
                     free( key );

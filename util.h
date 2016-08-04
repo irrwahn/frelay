@@ -95,8 +95,11 @@ extern int set_cloexec( int fd );
 
 extern int pcmd( const char *cmd, int (*cb)(const char *) );
 
-extern void *memdup( void *s, size_t len );
-extern char *strdupcat( const char *s1, const char *s2 );
+extern void *malloc_s( size_t size );
+extern void *realloc_s( void *p, size_t size );
+extern void *memdup_s( void *s, size_t len );
+extern char *strdup_s( const char *s );
+extern char *strdupcat_s( const char *s1, const char *s2 );
 
 #ifdef DEBUG
     extern int drain_fd( int fd );

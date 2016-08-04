@@ -76,20 +76,37 @@ int pcmd( const char *cmd, int (*cb)(const char *) )
     return pclose( fp );
 }
 
-void *memdup( void *s, size_t len )
+void *malloc_s( size_t size )
 {
-    void *d = malloc( len );
-
+    void *d = malloc( size );
     die_if( NULL == d, "malloc() failed: %m.\n" );
+    return d;
+}
+
+void *realloc_s( void *p, size_t size )
+{
+    p = realloc( p, size );
+    die_if( NULL == p, "realloc() failed: %m.\n" );
+    return p;
+}
+
+void *memdup_s( void *s, size_t len )
+{
+    void *d = malloc_s( len );
     return memcpy( d, s, len );
 }
 
-char *strdupcat( const char *s1, const char *s2 )
+char *strdup_s( const char *s )
+{
+    char *d = strdup( s );
+    die_if( NULL == d, "strdup() failed: %m.\n" );
+    return d;
+}
+
+char *strdupcat_s( const char *s1, const char *s2 )
 {
     size_t l1 = strlen( s1 );
-    char *d = malloc( l1 + strlen( s2 ) + 1 );
-
-    die_if( NULL == d, "malloc() failed: %m.\n" );
+    char *d = malloc_s( l1 + strlen( s2 ) + 1 );
     strcpy( d, s1 );
     strcpy( d + l1, s2 );
     return d;

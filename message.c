@@ -48,8 +48,7 @@ mbuf_t *mbuf_new( mbuf_t **pp )
     mbuf_t *p;
 
     /* We always start out just big enough to hold the header. */
-    p = malloc( sizeof *p + MSG_HDR_SIZE );
-    die_if( NULL == p, "malloc() failed: %m.\n" );
+    p = malloc_s( sizeof *p + MSG_HDR_SIZE );
     p->next = NULL;
     p->bsize = MSG_HDR_SIZE;
     p->boff = 0;
@@ -74,8 +73,7 @@ mbuf_t *mbuf_resize( mbuf_t **pp, size_t paylen )
 
     paylen += MSG_HDR_SIZE;
     die_if( MSG_MAX_SIZE < paylen, "%d > MSG_MAX_SIZE!\n", paylen );
-    p = realloc( p, sizeof *p + paylen );
-    die_if( NULL == p, "realloc() failed: %m.\n" );
+    p = realloc_s( p, sizeof *p + paylen );
     //DLOG( "Resized buffer %p: %zu to %zu\n", p, p->bsize, paylen );
     p->b = (uint8_t *)p + sizeof *p;
     p->bsize = paylen;

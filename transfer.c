@@ -34,7 +34,7 @@
 
 #define _FILE_OFFSET_BITS 64    /* Tentative: Should work on most POSIX systems. */
 
-#define _POSIX_C_SOURCE 200809L     /* strdup */
+#define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
 #include <inttypes.h>
@@ -73,11 +73,10 @@ transfer_t *offer_new( uint64_t dest, const char *filename )
 
     if ( 0 > ( fsz = fsize( filename ) ) )
         return NULL;
-    o = malloc( sizeof *o );
-    die_if( NULL == o, "malloc() failed: %m.\n" );
+    o = malloc_s( sizeof *o );
     o->rid = dest;
     o->oid = random();
-    o->name = strdup( filename );
+    o->name = strdup_s( filename );
     o->partname = NULL;
     o->size = fsz;
     // TODO hash ?
@@ -121,8 +120,7 @@ void *offer_read( transfer_t *o, uint64_t off, uint64_t *psz )
         DLOG( "lseek() failed: %m.\n" );
         return NULL;
     }
-    p = malloc( sz );
-    die_if( NULL == p, "malloc(%zu) failed: %m.\n", sz );
+    p = malloc_s( sz );
     n = read( o->fd, p, sz );
     if ( 0 > n )
     {
@@ -155,8 +153,7 @@ transfer_t *download_new( void )
 {
     transfer_t *d;
 
-    d = malloc( sizeof *d );
-    die_if( NULL == d, "malloc() failed: %m.\n" );
+    d = malloc_s( sizeof *d );
     memset( d, 0, sizeof *d );
     /* Other fields are filled in by caller. */
     d->offset = 0;

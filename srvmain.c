@@ -147,8 +147,7 @@ static int init_server( client_t **clients )
             FD_SETSIZE );
         cfg.max_clients = FD_SETSIZE;
     }
-    *clients = malloc( cfg.max_clients * sizeof **clients );
-    die_if( NULL == *clients, "malloc() failed: %m.\n" );
+    *clients = malloc_s( cfg.max_clients * sizeof **clients );
     memset( *clients, 0, cfg.max_clients * sizeof **clients );
     for ( int i = 0; i < cfg.max_clients; ++i )
         (*clients)[i].fd = -1;
@@ -424,7 +423,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         else
         {
             char *key;
-            key = strdupcat( AUTH_KEY_PLAINTEXT, av );
+            key = strdupcat_s( AUTH_KEY_PLAINTEXT, av );
             udb_dropentry( c[i_src].name ); /* Not exactly elegant ... */
             if ( NULL != ( pu = udb_addentry( c[i_src].id, c[i_src].name, key ) ) )
             {
@@ -477,7 +476,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
             {
                 c[i_src].st = CLT_AUTH_OK;
                 c[i_src].id = udb_gettempid();
-                c[i_src].name = strdup( (char *)av );
+                c[i_src].name = strdup_s( (char *)av );
                 c[i_src].key = NULL;
                 mbuf_to_response( &c[i_src].rbuf );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
@@ -488,11 +487,11 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         {   /* Registered user: send challenge. */
             c[i_src].st = CLT_LOGIN_OK;
             c[i_src].id = pu->id;
-            c[i_src].name = strdup( pu->name );
+            c[i_src].name = strdup_s( pu->name );
             /* PROOF OF CONCEPT ONLY (road works ahead): */
             if ( 0 == strncmp( pu->key, AUTH_KEY_PLAINTEXT, strlen( AUTH_KEY_PLAINTEXT ) ) )
             {
-                c[i_src].key = strdup( pu->key );
+                c[i_src].key = strdup_s( pu->key );
                 mbuf_to_response( &c[i_src].rbuf );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( AUTH_KEY_PLAINTEXT ) + 1, AUTH_KEY_PLAINTEXT );
             }

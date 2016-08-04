@@ -85,9 +85,9 @@ static const udb_t *udb_addentry_( uint64_t id, const char *name, const char *ke
         return errno = EINVAL, NULL;
     if ( NULL != udb_lookupname_( name ) )
         return errno = EEXIST, NULL;
-    p = malloc( sizeof *p ); die_if( NULL == p, "malloc() failed: %m.\n" );
-    p->name = strdup( name ); die_if( NULL == p->name, "strdup() failed: %m.\n" );
-    p->key = strdup( key ); die_if( NULL == p->name, "strdup() failed: %m.\n" );
+    p = malloc_s( sizeof *p );
+    p->name = strdup_s( name );
+    p->key = strdup_s( key );
     p->id = id ? id : next_id;
     if ( p->id >= next_id )
         next_id = p->id + 1;
