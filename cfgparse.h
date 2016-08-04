@@ -1,5 +1,5 @@
 /*
- * srvcfg.h
+ * cfgparse.h
  *
  * Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
  *
@@ -33,40 +33,26 @@
  */
 
 
-#ifndef CONFIG_H_INCLUDED
-#define CONFIG_H_INCLUDED
+#ifndef CFGPARSE_H_INCLUDED
+#define CFGPARSE_H_INCLUDED
 
+enum CFG_PARSE_TYPE {
+    CFG_PARSE_T_NONE = 0,
+    CFG_PARSE_T_INT,
+    CFG_PARSE_T_STR,
+};
 
-/* Default interface to bind to; empty string means: any. */
-#define DEF_INTERFACE   ""
+typedef
+    struct {
+        const char *name;
+        enum CFG_PARSE_TYPE type;
+        void *pvar;
+    }
+    cfg_parse_def_t;
 
-/* Default frelay service port. (Neighbor of the mumbler ^.^) */
-#define DEF_PORT        "64740"
-
-/* Maximum number of simultaneously connected clients,
- * typically limited to 1024 on Linux. */
-#define MAX_CLIENTS     100
-
-/* Server idle timeout (upkeep interval) in seconds. */
-#define SEL_TIMEOUT_S   10
-
-/* Maximum allowed intra-message receive gap in seconds. */
-#define MSG_TIMEOUT_S   5
-
-/* Client TCP connection idle timeout in seconds. */
-#ifdef DEBUG
-#define CONN_TIMEOUT_S  60
-#else
-#define CONN_TIMEOUT_S  240
-#endif
-
-/* External command to produce a welcome message. */
-#define MOTD_CMD        "echo 'Welcome!'"
-
-/* Registration and logoff text messages. */
-#define TXT_REGISTERED  "Account created / modified."
-#define TXT_DROPPED     "Account registration dropped."
-#define TXT_BYE         "Bye."
+extern int cfg_parse_line( char *line, cfg_parse_def_t *def );
+extern int cfg_parse_fp( FILE *fp, cfg_parse_def_t *def );
+extern int cfg_parse_file( const char *filename, cfg_parse_def_t *def );
 
 
 #endif /* ndef _H_INCLUDED */

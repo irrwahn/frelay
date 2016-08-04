@@ -62,6 +62,7 @@
 #include <stricmp.h>
 
 #include "auth.h"
+#include "cfgparse.h"
 #include "message.h"
 #include "srvcfg.h"
 #include "srvuserdb.h"
@@ -98,44 +99,55 @@ struct CLIENT_T_STRUCT {
 static struct {
     const char *interface;
     const char *listenport;
-    struct timeval select_timeout;
+    int select_timeout;
     int msg_timeout;
     int conn_timeout;
     int max_clients;
     const char *motd_cmd;
-} cfg = {
-    /* .interface = */
-    NULL,
-    /* .listenport = */
-    DEF_PORT,
-    /* .select_timeout = */
-    { .tv_sec=SEL_TIMEOUT_MS/1000, .tv_usec=SEL_TIMEOUT_MS%1000*1000 },
-    /* .msg_timeout = */
-    MSG_TIMEOUT_S,
-    /* .conn_timeout = */
-    CONN_TIMEOUT_S,
-    /* .max_clients = */
-    MAX_CLIENTS,
-    /* .motd_cmd = */
-    MOTD_CMD,
-};
+} cfg;
 
+static cfg_parse_def_t cfgdef[] = {
+    { "interface",      CFG_PARSE_T_STR, &cfg.interface },
+    { "listenport",     CFG_PARSE_T_STR, &cfg.listenport },
+    { "select_timeout", CFG_PARSE_T_INT, &cfg.select_timeout },
+    { "msg_timeout",    CFG_PARSE_T_INT, &cfg.msg_timeout },
+    { "conn_timeout",   CFG_PARSE_T_INT, &cfg.conn_timeout },
+    { "max_clients",    CFG_PARSE_T_INT, &cfg.max_clients },
+    { "motd_cmd",       CFG_PARSE_T_STR, &cfg.motd_cmd },
+    { NULL, CFG_PARSE_T_NONE, NULL }
+};
 
 /**********************************************
  * INITIALIZATION
  *
  */
 
-static int eval_cmdline( int argc, char *argv[] )
+static int init_config( int argc, char *argv[] )
 {
-    return 0;
-    (void)argc;
-    (void)argv;
+    const char *cfg_filename = "./frelaysrv.conf";
+
+    /* Assign default build time default values. */
+    cfg.interface = strdup_s( DEF_INTERFACE );
+    cfg.listenport = strdup_s( DEF_PORT );
+    cfg.select_timeout = SEL_TIMEOUT_S;
+    cfg.msg_timeout = MSG_TIMEOUT_S;
+    cfg.conn_timeout = CONN_TIMEOUT_S;
+    cfg.max_clients = MAX_CLIENTS;
+    cfg.motd_cmd = strdup_s( MOTD_CMD );
+
+    /* -c <config_file> is the only supported command line option! */
+    /* TODO: -?|h prints usage message */
+    if ( 2 < argc && 0 == strcmp( "-c", argv[1] ) )
+        cfg_filename = argv[2];
+
+    /* Parse configuration file. */
+    return cfg_parse_file( cfg_filename, cfgdef );
 }
 
 static int init_server( client_t **clients )
 {
     int res = 0;
+    const char *iface = ( cfg.interface && *cfg.interface ) ? cfg.interface : NULL;
     int fd = -1;
     struct addrinfo hints, *info, *ai;
 
@@ -157,7 +169,7 @@ static int init_server( client_t **clients )
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    res = getaddrinfo( cfg.interface, cfg.listenport, &hints, &info );
+    res = getaddrinfo( iface, cfg.listenport, &hints, &info );
     die_if( 0 != res,
             "getaddrinfo(%s,%s) failed: %s\n", cfg.interface, cfg.listenport,
             (EAI_SYSTEM!=res)?gai_strerror(res):strerror(errno) );
@@ -803,10 +815,12 @@ int main( int argc, char *argv[] )
     int listenfd;
     fd_set m_rfds, m_wfds;
     client_t *clients;
+    struct timeval to_sav;
 
     /* Initialization. */
     XLOG_INIT( argv[0] );
-    eval_cmdline( argc, argv );
+    init_config( argc, argv );
+    to_sav = (struct timeval){ .tv_sec = cfg.select_timeout, 0 };
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     /* TODO: ignore or handle other signals? */
 
@@ -827,7 +841,7 @@ int main( int argc, char *argv[] )
         fd_set rfds, wfds;
         struct timeval to;
 
-        if ( now - last_upkeep > cfg.select_timeout.tv_sec )
+        if ( now - last_upkeep > to_sav.tv_sec )
         {   /* Avoid doing upkeep continuously under load. */
             last_upkeep = now;
             maxfd = listenfd;
@@ -836,7 +850,7 @@ int main( int argc, char *argv[] )
         }
         FD_COPY( &rfds, &m_rfds );
         FD_COPY( &wfds, &m_wfds );
-        to = cfg.select_timeout;
+        to = to_sav;
         nset = select( maxfd + 1, &rfds, &wfds, NULL, &to );
         if ( 0 < nset )
         {

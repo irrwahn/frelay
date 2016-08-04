@@ -12,7 +12,9 @@ GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
 
-SERVER: Command line options & config file support
+SERVER: Working directory config item and user db file config item.
+
+CLIENT: Command line options & config file support
 
 CLIENT: Guard against overwriting existing target files during download
         (E.g., append parenthesized index to filename?)
@@ -33,6 +35,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-04  Urban Wallasch  <irrwahn35@freenet.de> SVN r452
+SERVER: Command line options & config file support
+
 2016-08-04  Urban Wallasch  <irrwahn35@freenet.de> SVN r449
 GENERAL: Support plain-text password authentication
 
