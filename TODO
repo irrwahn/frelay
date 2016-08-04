@@ -4,11 +4,13 @@ Outstanding TODOs In no particular order
 GENERAL: Provide means to create a distribution tarball (WIP)
 
 GENERAL: Support for broadcast / multicast transfers
-         (Requires server side chaching.)
+         (Requires server side caching.)
 
 GENERAL: Implement FILEHASH and TTL attributes
 
 GENERAL: Complete TheFineManual
+
+GENERAL: Support hashed nonce + password authentication
 
 SERVER: Command line options & config file support
 
@@ -31,7 +33,7 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
-2016-08-04  Urban Wallasch  <irrwahn35@freenet.de> SVN r442
+2016-08-04  Urban Wallasch  <irrwahn35@freenet.de> SVN r449
 GENERAL: Support plain-text password authentication
 
 2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r442

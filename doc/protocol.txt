@@ -454,6 +454,7 @@ TEXT_MAX := 1024
 
 #TODO:
 
+ * describe challenge/digest mechanism(s)
  * describe broadcast offers and related server-side offer caching
  * point-to-point encryption (get peer's pubkey from server)
  * ...
