@@ -60,6 +60,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 
+#include "auth.h"
 #include "message.h"
 #include "cltcfg.h"
 #include "transfer.h"
@@ -88,9 +89,9 @@ static struct {
     int msg_timeout;
     int res_timeout;
     int offer_timeout;
-    const char *username;
-    const char *pubkey;
-    const char *privkey;
+    char *username;
+    char *pubkey;
+    char *privkey;
     enum CLT_STATE st;
 } cfg = {
     /* .host = */
@@ -565,8 +566,13 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging in.\n" );
         if ( 2 > a  && NULL == ( arg[1] = cfg.username ) )
         {
-            printcon( "Usage: login username\n" );
+            printcon( "Usage: login username [key]\n" );
             return -1;
+        }
+        if ( 2 < a )
+        {
+            free( cfg.pubkey );
+            cfg.pubkey = strdup( arg[2] );
         }
         mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
@@ -656,7 +662,7 @@ static int process_stdin( int *srvfd )
             "  disconnect|close\n"
             "  exit|quit|bye\n"
             "  list\n"
-            "  login [user_name]\n"
+            "  login [username [key]]\n"
             "  logout\n"
             "  offer peer_id filename [\"text message\"]\n"
             "  peerlist|who\n"
@@ -921,11 +927,19 @@ static int process_srvmsg( mbuf_t **pp )
             }
             else if ( MSG_ATTR_CHALLENGE == at )
             {   /* Registered user: authenticate. */
-                cfg.st = CLT_LOGIN_OK;
-                printcon( "Authenticating\n" );
-                mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trfid );
-                DLOG( "TODO: hashing, crypt, whatever, ...\n" );
-                mbuf_addattrib( &mp, MSG_ATTR_DIGEST, al, av );
+                /* PROOF OF CONCEPT ONLY (road works ahead): */
+                if ( 0 == strncmp( av, AUTH_KEY_PLAINTEXT, strlen( AUTH_KEY_PLAINTEXT ) ) )
+                {
+                    char *key;
+                    printcon( "Authenticating\n" );
+                    key = strdupcat( AUTH_KEY_PLAINTEXT, cfg.pubkey ? cfg.pubkey : "" );
+                    mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trfid );
+                    mbuf_addattrib( &mp, MSG_ATTR_DIGEST, strlen( key ) + 1, key );
+                    free( key );
+                    cfg.st = CLT_LOGIN_OK;
+                }
+                else
+                    printcon( "Authentication method not supported\n" );
             }
         }
         break;
@@ -953,6 +967,12 @@ static int process_srvmsg( mbuf_t **pp )
             cfg.st = CLT_PRE_LOGIN;
         }
         break;
+
+    /* Errors: */
+    case MSG_TYPE_AUTH_ERR:
+        if ( CLT_LOGIN_OK == cfg.st )
+            cfg.st = CLT_PRE_LOGIN;
+        /* Fall through to default! */
     default:
         if ( MCLASS_IS_ERR( mtype )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )

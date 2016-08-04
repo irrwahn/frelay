@@ -47,7 +47,7 @@ STRIP   := strip
 RM      := rm -f
 CP      := cp
 
-COMSRC  := message.c statcodes.c util.c
+COMSRC  := auth.c message.c statcodes.c util.c
 
 SRVBIN  := $(PROJECT)srv
 SRVSRC  := $(COMSRC) srvmain.c srvuserdb.c

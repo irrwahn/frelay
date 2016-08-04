@@ -61,6 +61,7 @@
 
 #include <stricmp.h>
 
+#include "auth.h"
 #include "message.h"
 #include "srvcfg.h"
 #include "srvuserdb.h"
@@ -422,8 +423,10 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         }
         else
         {
+            char *key;
+            key = strdupcat( AUTH_KEY_PLAINTEXT, av );
             udb_dropentry( c[i_src].name ); /* Not exactly elegant ... */
-            if ( NULL != ( pu = udb_addentry( c[i_src].id, c[i_src].name, av ) ) )
+            if ( NULL != ( pu = udb_addentry( c[i_src].id, c[i_src].name, key ) ) )
             {
                 mbuf_to_response( &c[i_src].rbuf );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
@@ -431,6 +434,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
             }
             else
                 mbuf_to_error_response( &c[i_src].rbuf, SC_LOCKED );
+            free( key );
         }
         break;
     case MSG_TYPE_DROP_REQ:
@@ -485,10 +489,15 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
             c[i_src].st = CLT_LOGIN_OK;
             c[i_src].id = pu->id;
             c[i_src].name = strdup( pu->name );
-            c[i_src].key = strdup( pu->key );
-            mbuf_to_response( &c[i_src].rbuf );
-            /* DEBUG ONLY (road works ahead): */
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( c[i_src].key ) + 1, c[i_src].key );
+            /* PROOF OF CONCEPT ONLY (road works ahead): */
+            if ( 0 == strncmp( pu->key, AUTH_KEY_PLAINTEXT, strlen( AUTH_KEY_PLAINTEXT ) ) )
+            {
+                c[i_src].key = strdup( pu->key );
+                mbuf_to_response( &c[i_src].rbuf );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_CHALLENGE, strlen( AUTH_KEY_PLAINTEXT ) + 1, AUTH_KEY_PLAINTEXT );
+            }
+            else
+                mbuf_to_error_response( &c[i_src].rbuf, SC_METHOD_NOT_ALLOWED );
         }
         break;
     case MSG_TYPE_AUTH_REQ:
@@ -497,12 +506,14 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
             || 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
             || at != MSG_ATTR_DIGEST )
         {
+            c[i_src].st = CLT_PRE_LOGIN;
             mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
             break;
         }
-                /* DEBUG ONLY (road works ahead): */
+        /* PROOF OF CONCEPT ONLY (road works ahead): */
         if ( 0 != strcmp( (const char *)av, c[i_src].key ) )
         {
+            c[i_src].st = CLT_PRE_LOGIN;
             mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
             break;
         }
@@ -513,7 +524,6 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         mbuf_to_response( &c[i_src].rbuf );
         mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
         mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, strlen( motd ) + 1, motd );
-        //mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME2, TXT_WELCOME2 );
         break;
     case MSG_TYPE_LOGOUT_REQ:
         DLOG( "Process LOGOUT request.\n" );

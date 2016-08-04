@@ -3,8 +3,6 @@ Outstanding TODOs In no particular order
 
 GENERAL: Provide means to create a distribution tarball (WIP)
 
-GENERAL: Support plain-text password authentication
-
 GENERAL: Support for broadcast / multicast transfers
          (Requires server side chaching.)
 
@@ -33,6 +31,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-04  Urban Wallasch  <irrwahn35@freenet.de> SVN r442
+GENERAL: Support plain-text password authentication
+
 2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r442
 SERVER: Fancy MotD  :-)  [Capture output of external command?]
 
