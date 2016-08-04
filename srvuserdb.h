@@ -51,6 +51,7 @@ struct USER_STRUCT {
 
 extern const udb_t *udb_lookupname( const char *s );
 extern const udb_t *udb_addentry( uint64_t id, const char *name, const char *key );
+extern int udb_dropentry( const char *name );
 extern uint64_t udb_gettempid( void );
 
 

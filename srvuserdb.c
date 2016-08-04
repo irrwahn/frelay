@@ -71,7 +71,7 @@ static int udb_nameisvalid( const char *s )
 
 static const udb_t *udb_lookupname_( const char *s )
 {
-    for ( udb_t *p = userdb; p; p = p->next )
+    for ( udb_t *p = userdb; NULL != p; p = p->next )
         if ( 0 == strcmp( s, p->name ) )
             return p;
     return NULL;
@@ -95,6 +95,30 @@ static const udb_t *udb_addentry_( uint64_t id, const char *name, const char *ke
     userdb = p;
     DLOG( "Added user: %016"PRIX64"|%s|%s\n", id, name, key );
     return p;
+}
+
+static int udb_dropentry_( const char *name )
+{
+    udb_t *p = userdb, *this, *prev = NULL;
+
+    while ( NULL != p )
+    {
+        this = p;
+        p = p->next;
+        if ( 0 == strcmp( name, this->name ) )
+        {
+            if ( NULL == prev )
+                userdb = p;
+            else
+                prev->next = p;
+            free( this->name );
+            free( this->key );
+            free( this );
+            return 0;
+        }
+        prev = this;
+    }
+    return -1;
 }
 
 static int udb_load( const char *path )
@@ -166,6 +190,15 @@ const udb_t *udb_addentry( uint64_t id, const char *name, const char *key )
     u = udb_addentry_( id, name, key );
     udb_save( userdb_path );
     return u;
+}
+
+int udb_dropentry( const char *name )
+{
+    int r;
+    udb_load( userdb_path );
+    if ( 0 == ( r = udb_dropentry_( name ) ) )
+        udb_save( userdb_path );
+    return r;
 }
 
 uint64_t udb_gettempid( void )

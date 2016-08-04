@@ -61,7 +61,7 @@
 #define MOTD_CMD        "echo '---'; date; motd; echo -n '---'"
 
 /* Registration and logoff text messages. */
-#define TXT_REGISTERED  "Registered, now log in."
+#define TXT_REGISTERED  "Account created / modified."
 #define TXT_BYE         "Bye."
 
 

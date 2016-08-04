@@ -174,21 +174,14 @@ Payload data carried by the message, consisting of type-length-value
 Message Types
 =============
 
-REGISTER
---------
-#TODO: description
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0011              0x0012              0x001a
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   USERNAME, PUBKEY    OK                  ERROR
-Opt. Attrib.                        NOTICE              NOTICE
-
-
 LOGIN
 -----
-#TODO: description
+A client must first login to the server, before it can use any of the
+other requests or receive any offers from other peers. USERNAME may be
+either the name of an already registered account, in which case the
+server responds with a CHALLENGE, or an unregistered name currently not
+in use by another client, in which case the server responds with OK,
+and an optional NOTICE.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
@@ -200,7 +193,9 @@ Opt. Attrib.    -                   NOTICE              NOTICE
 
 AUTH
 ----
-#TODO: description
+Request sent by the client in reaction to a server LOGIN response
+containing a CHALLENGE attribute, in order to authenticate for the
+existing account associated with the login name.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
@@ -210,9 +205,25 @@ Mand. Attrib.   DIGEST              OK                  ERROR
 Opt. Attrib.    -                   NOTICE              NOTICE
 
 
+REGISTER
+--------
+Sent by an already logged in client to either a) convert its temporary
+login into a registered account under the current name with the provided
+key, or b) change the key of the already existing permanent account it
+currently uses.
+
+                Request             Response            Error Response
+--------------------------------------------------------------------------
+Message type    0x0011              0x0012              0x001a
+Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
+Mand. Attrib.   PUBKEY              OK                  ERROR
+Opt. Attrib.                        NOTICE              NOTICE
+
+
 LOGOUT
 ------
-#TODO: description
+Log off from the server. No further messages are processed, by neither
+the client nor the server, until the client sends another LOGIN request.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
@@ -224,20 +235,24 @@ Opt. Attrib.    -                   NOTICE              NOTICE
 
 PEERLIST
 --------
-#TODO: description
+Request sent by the client to get a list of the IDs and names of all
+peers currently logged into the server. The returned list will at least
+contain one entry (that of the client which sent the request), and its
+size is only limited by the per-message payload limit.
+
+#DEFECT: List may be incomplete, if more peers logged in than can be
+         fit in a single message.
 
 #CONSIDER: server uses unsolicited indication to inform client about
            changes (peers appearing, others disconnecting)?
-
-More than one peer may be included in a single response.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
 Message type    0x0051              0x0052              0x005a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   -                                       ERROR
-Opt. Attrib.    -                   PEERID, PEERNAME,   NOTICE
-                                    ...
+Mand. Attrib.   -                   PEERID, PEERNAME,   ERROR
+Opt. Attrib.    -                   [...]               NOTICE
+
 
 OFFER
 -----

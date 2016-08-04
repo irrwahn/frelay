@@ -547,14 +547,13 @@ static int process_stdin( int *srvfd )
     else if ( MATCH_CMD( "register" ) )
     {   /* register user pubkey */
         DLOG( "Registering.\n" );
-        if ( 3 > a )
+        if ( 2 > a )
         {
-            printcon( "Usage: register username pubkey\n" );
+            printcon( "Usage: register pubkey\n" );
             return -1;
         }
         mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random() );
-        mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
-        mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[2] ) + 1, arg[2] );
+        mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[1] ) + 1, arg[1] );
     }
     else if ( MATCH_CMD( "login" ) )
     {   /* login [user] */
@@ -658,7 +657,7 @@ static int process_stdin( int *srvfd )
             "  peerlist|who\n"
             "  ping [peer_id [\"text message\"]]\n"
             "  pwd\n"
-            "  register [user_name [pubkey]]\n"
+            "  register key\n"
             "  remove|delete type,remote_id,offer_id\n"
             "\n" );
         return 1;
@@ -881,7 +880,7 @@ static int process_srvmsg( mbuf_t **pp )
         }
         break;
     case MSG_TYPE_REGISTER_RES:
-        if ( CLT_PRE_LOGIN == cfg.st
+        if ( CLT_AUTH_OK == cfg.st
             && 0ULL == srcid
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )

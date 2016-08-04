@@ -208,7 +208,7 @@ static int motd_cb( const char *s )
     if ( strlen( s ) < sizeof motd - motd_sz )
         strcpy( motd + motd_sz, s );
     motd_sz += strlen( s );
-    return 0;    
+    return 0;
 }
 
 static const char *motd_get( void )
@@ -411,36 +411,26 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         break;
     case MSG_TYPE_REGISTER_REQ:
         DLOG( "Process REGISTER request.\n" );
+        if ( CLT_AUTH_OK != c[i_src].st )
         {
-            char *name = NULL, *key = NULL;
-            if ( CLT_PRE_LOGIN != c[i_src].st
-                || 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
-                || at != MSG_ATTR_USERNAME )
-            {
-                mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
-                goto ERR;
-            }
-            name = strdup( (const char*)av );
-            die_if( NULL == name, "malloc() failed: %m.\n" );
-            if ( 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
+            mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
+        }
+        else if ( 0 != mbuf_getnextattrib( c[i_src].rbuf, &at, &al, &av )
                 || at != MSG_ATTR_PUBKEY )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
+        }
+        else
+        {
+            udb_dropentry( c[i_src].name ); /* Not exactly elegant ... */
+            if ( NULL != ( pu = udb_addentry( c[i_src].id, c[i_src].name, av ) ) )
             {
-                mbuf_to_error_response( &c[i_src].rbuf, SC_BAD_REQUEST );
-                goto ERR;
+                mbuf_to_response( &c[i_src].rbuf );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+                mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_REGISTERED, TXT_REGISTERED );
             }
-            key = strdup( (const char*)av );
-            die_if( NULL == key, "malloc() failed: %m.\n" );
-            if ( NULL == ( pu = udb_addentry( 0, name, key ) ) )
-            {
+            else
                 mbuf_to_error_response( &c[i_src].rbuf, SC_LOCKED );
-                goto ERR;
-            }
-            mbuf_to_response( &c[i_src].rbuf );
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
-            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_REGISTERED, TXT_REGISTERED );
-        ERR:
-            free( name );
-            free( key );
         }
         break;
     case MSG_TYPE_LOGIN_REQ:
