@@ -433,6 +433,23 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
                 mbuf_to_error_response( &c[i_src].rbuf, SC_LOCKED );
         }
         break;
+    case MSG_TYPE_DROP_REQ:
+        DLOG( "Process DROP request.\n" );
+        if ( CLT_AUTH_OK != c[i_src].st )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_UNAUTHORIZED );
+        }
+        else if ( 0 != udb_dropentry( c[i_src].name ) )
+        {
+            mbuf_to_error_response( &c[i_src].rbuf, SC_NOT_FOUND );
+        }
+        else
+        {
+            mbuf_to_response( &c[i_src].rbuf );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
+            mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_DROPPED, TXT_DROPPED );
+        }
+        break;
     case MSG_TYPE_LOGIN_REQ:
         DLOG( "WIP: Process LOGIN request.\n" );
         if ( CLT_PRE_LOGIN != c[i_src].st
@@ -461,7 +478,6 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
                 mbuf_to_response( &c[i_src].rbuf );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_OK, 0, NULL );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, strlen( motd ) + 1, motd );
-                //mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_NOTICE, sizeof TXT_WELCOME, TXT_WELCOME );
             }
         }
         else

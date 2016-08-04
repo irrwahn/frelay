@@ -555,6 +555,11 @@ static int process_stdin( int *srvfd )
         mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random() );
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[1] ) + 1, arg[1] );
     }
+    else if ( MATCH_CMD( "drop" ) )
+    {
+        DLOG( "Dropping.\n" );
+        mbuf_compose( &mp, MSG_TYPE_DROP_REQ, 0, 0, random() );
+    }
     else if ( MATCH_CMD( "login" ) )
     {   /* login [user] */
         DLOG( "Logging in.\n" );
@@ -886,6 +891,17 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             printcon( "Registered\n" );
+            if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
+                printcon( "%s\n", (char *)av );
+        }
+        break;
+    case MSG_TYPE_DROP_RES:
+        if ( CLT_AUTH_OK == cfg.st
+            && 0ULL == srcid
+            && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
+            && MSG_ATTR_OK == at )
+        {
+            printcon( "Dropped.\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 printcon( "%s\n", (char *)av );
         }

@@ -185,7 +185,7 @@ and an optional NOTICE.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0021              0x0022              0x002a
+Message type    0x0011              0x0012              0x001a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   USERNAME            OK | CHALLENGE      ERROR
 Opt. Attrib.    -                   NOTICE              NOTICE
@@ -199,9 +199,22 @@ existing account associated with the login name.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0031              0x0032              0x003a
+Message type    0x0021              0x0022              0x002a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   DIGEST              OK                  ERROR
+Opt. Attrib.    -                   NOTICE              NOTICE
+
+
+LOGOUT
+------
+Log off from the server. No further messages are processed, by neither
+the client nor the server, until the client sends another LOGIN request.
+
+                Request             Response            Error Response
+--------------------------------------------------------------------------
+Message type    0x0031              0x0032              0x003a
+Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
+Mand. Attrib.   -                   OK                  ERROR
 Opt. Attrib.    -                   NOTICE              NOTICE
 
 
@@ -214,20 +227,22 @@ currently uses.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0011              0x0012              0x001a
+Message type    0x0041              0x0042              0x004a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   PUBKEY              OK                  ERROR
-Opt. Attrib.                        NOTICE              NOTICE
+Opt. Attrib.    -                   NOTICE              NOTICE
 
 
-LOGOUT
-------
-Log off from the server. No further messages are processed, by neither
-the client nor the server, until the client sends another LOGIN request.
+DROP
+----
+Sent by a client to drop the registration of the account it is currently
+logged as. The client will still stay logged in with its current name,
+but once it has logged out, the name becomes available for registration
+again.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0041              0x0042              0x004a
+Message type    0x0051              0x0052              0x005a
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   -                   OK                  ERROR
 Opt. Attrib.    -                   NOTICE              NOTICE
@@ -248,7 +263,7 @@ size is only limited by the per-message payload limit.
 
                 Request             Response            Error Response
 --------------------------------------------------------------------------
-Message type    0x0051              0x0052              0x005a
+Message type    0x00a1              0x00a2              0x00aa
 Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
 Mand. Attrib.   -                   PEERID, PEERNAME,   ERROR
 Opt. Attrib.    -                   [...]               NOTICE

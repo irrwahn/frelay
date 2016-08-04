@@ -62,6 +62,7 @@
 
 /* Registration and logoff text messages. */
 #define TXT_REGISTERED  "Account created / modified."
+#define TXT_DROPPED     "Account registration dropped."
 #define TXT_BYE         "Bye."
 
 
