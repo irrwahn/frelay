@@ -27,6 +27,10 @@ CLIENT: If run non-interactively, prefix every console output line with
         some context specific, easy to parse tag to simplify frontend
         programming.
 
+CLIENT: Drop the NOTICE attribute from OFFER?
+
+CLIENT: Calculate RTT for every request/response pair?
+
 
 On hold:
 --------

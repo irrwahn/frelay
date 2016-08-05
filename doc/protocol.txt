@@ -1,458 +1,11 @@
-------------------------------------------------------------------------
- protocol.txt
 
- Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
 
- Redistribution and use in source and binary forms, with or without
- modification, are permitted provided that the following conditions
- are met:
+File Relay (frelay): Protocol Specification
 
- * Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
- * Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer
-   in the documentation and/or other materials provided with the
-   distribution.
- * Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived
-   from this software without specific prior written permission.
 
- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-------------------------------------------------------------------------
 
-
-File Relay (frelay) Protocol Specification
-==========================================
-
-Informal Description
-====================
-
-- The client opens a TCP connection to server; this connection is kept
-alive, all communication is directed through this single TCP connection.
-The tuple {Source ID; Destination ID; Transaction ID} is used to ascribe
-a message to a certain operation.
-
-- Once the connection to the server is established, the client must
-identify itself with its credentials.
-
-- A client can then retrieve a list of peers currently known from the
-server, offer files to others, retrieve files offered to him, and send
-files to satisfy requests made by others.
-
-- #TODO: what more?
-
-
-
-Message Structure
-=================
-
-Each message consists of a 40 byte fixed-size message header and a
-variable length payload segment.
-
-All header fields are encoded in 16-, 32-, or 64-bit wide words, and
-transmitted in network byte order, i.e. MSB first.
-
-       6         5          4          3         2          1
-B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
-   +----------------+----------------+----------------+----------------+
- 0 |  Message Type  | Payload Length |            Reserved             |
-   +----------------+----------------+----------------+----------------+
- 8 |                             Timestamp                             |
-   +----------------+----------------+----------------+----------------+
-16 |                             Source ID                             |
-   +----------------+----------------+----------------+----------------+
-24 |                          Destination ID                           |
-   +----------------+----------------+----------------+----------------+
-32 |                          Transaction ID                           |
-   +----------------+----------------+----------------+----------------+
-   +----------------+----------------+----------------+----------------+
-40 |          Payload length octets of TLV encoded attributes          |
- . |                               . . .                               |
- . |                 (padded to next 64 bit boundary)                  |
-   +----------------+----------------+----------------+----------------+
-
-
-Message Type
-------------
-The first 16 bits of a message header indicate the type of the message.
-Of those, the four lowest order bits specify the general class of the
-message:
-
-    b0000 (0x0)  Indication
-    b0001 (0x1)  Request
-    b0010 (0x2)  Response
-    b1010 (0xa)  Error Response
-
-All other possible combinations of those four bits are reserved for
-future use and shall be treated as invalid message class specifiers for
-the time being.
-
-The twelve high order bits encode the individual message type. The
-various message types are described in more detail below.
-
-
-Payload Length
---------------
-Sixteen bit unsigned integer representing the message payload length,
-i.e. the number of data octets encapsulated in the message, excluding
-the message header and message digest. Since the payload segment must
-be padded to the next 64 bit boundary this number must be evenly
-dividable by eight, thus the four least significant bits must always
-be zero.
-
-In theory, 16 bit would allow for up to 65532 octets of payload data
-in a single message. However, the maximum supported value is limited
-to 65400, to enable implementations to fit the largest possible message
-plus some additional management data into one single 64KiB chunk of
-memory.
-
-
-Reserved
---------
-32 bits reserved for future use as e.g. option flags or version tag.
-For the time being these shall be set to zero by the sender of a message
-and shall be ignored by the recipient.
-
-
-Timestamp
-----------
-64-bit message creation timestamp in nanosecond resolution.
-
-
-Source ID
----------
-64-bit user ID of the message origin (sender). This ID is persistently
-assigned by the server at account creation time, and once issued will
-never be reused for another account. It is provided to uniquely identify
-each individual client.
-
-A client need not fill in this field when sending a message, as the
-server will in any case overwrite it with the correct value based on
-its own notion about the user account associated with the connected
-client.
-
-Messages originating at the server will always have their source ID
-set to all bits zero.
-
-
-Destination ID
---------------
-64-bit user ID specifying the message recipient. This field must always
-be filled in by the sender of a message.
-
-An all bits zero destination ID is reserved for messages directed at
-the server. An all bits one destination ID is reserved for future use
-as the broadcast address.
-
-
-Transaction ID
---------------
-The transaction ID is a 64-bit pseudo-random number generated by the
-initiator of a logical transaction. A transaction may comprise one or
-more request/response pairs, referred to as "exchanges". All exchanges
-pertaining to one logical transaction, e.g. transfer of a file larger
-than ~64KiB, shall be tagged with the same transaction id.
-
-
-Message Payload
----------------
-Payload data carried by the message, consisting of type-length-value
-(TLV) encoded attributes, see below.
-
-
-
-Message Types
-=============
-
-LOGIN
------
-A client must first login to the server, before it can use any of the
-other requests or receive any offers from other peers. USERNAME may be
-either the name of an already registered account, in which case the
-server responds with a CHALLENGE, or an unregistered name currently not
-in use by another client, in which case the server responds with OK,
-and an optional NOTICE.
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0011              0x0012              0x001a
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   USERNAME            OK | CHALLENGE      ERROR
-Opt. Attrib.    -                   NOTICE              NOTICE
-
-
-AUTH
-----
-Request sent by the client in reaction to a server LOGIN response
-containing a CHALLENGE attribute, in order to authenticate for the
-existing account associated with the login name.
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0021              0x0022              0x002a
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   DIGEST              OK                  ERROR
-Opt. Attrib.    -                   NOTICE              NOTICE
-
-
-LOGOUT
-------
-Log off from the server. No further messages are processed, by neither
-the client nor the server, until the client sends another LOGIN request.
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0031              0x0032              0x003a
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   -                   OK                  ERROR
-Opt. Attrib.    -                   NOTICE              NOTICE
-
-
-REGISTER
---------
-Sent by an already logged in client to either a) convert its temporary
-login into a registered account under the current name with the provided
-key, or b) change the key of the already existing permanent account it
-currently uses.
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0041              0x0042              0x004a
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   PUBKEY              OK                  ERROR
-Opt. Attrib.    -                   NOTICE              NOTICE
-
-
-DROP
-----
-Sent by a client to drop the registration of the account it is currently
-logged as. The client will still stay logged in with its current name,
-but once it has logged out, the name becomes available for registration
-again.
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0051              0x0052              0x005a
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   -                   OK                  ERROR
-Opt. Attrib.    -                   NOTICE              NOTICE
-
-
-PEERLIST
---------
-Request sent by the client to get a list of the IDs and names of all
-peers currently logged into the server. The returned list will at least
-contain one entry (that of the client which sent the request), and its
-size is only limited by the per-message payload limit.
-
-#DEFECT: List may be incomplete, if more peers logged in than can be
-         fit in a single message.
-
-#CONSIDER: server uses unsolicited indication to inform client about
-           changes (peers appearing, others disconnecting)?
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x00a1              0x00a2              0x00aa
-Direction       Clt-->Srv           Srv-->Clt           Srv-->Clt
-Mand. Attrib.   -                   PEERID, PEERNAME,   ERROR
-Opt. Attrib.    -                   [...]               NOTICE
-
-
-OFFER
------
-#TODO: description
-
-More than one offer may be included in a single request.
-
-                Indication|Request  Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0111              0x0112              0x011a
-Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
-Mand. Attrib.   OFFERID, FILENAME,  OFFERID             ERROR
-                SIZE
-Opt. Attrib.    FILEHASH, TTL,      -                   NOTICE
-                NOTICE
-
-GETFILE
--------
-#TODO: description
-
-If both OFFSET and SIZE are set to zero, or omitted, the
-
-                Request             Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0121              0x0122              0x012a
-Direction       Clt-->Clt           Clt-->Clt           Clt-->Clt
-Mand. Attrib.   OFFERID             OFFERID, DATA       ERROR
-Opt. Attrib.    OFFSET, SIZE                            NOTICE
-
-
-PING
--------
-#TODO: description
-
-The optional NOTICE attribute may be used for chat-like exchange of text
-messages between clients.
-
-                Indication|Request  Response            Error Response
---------------------------------------------------------------------------
-Message type    0x0200|0x0201       0x0202              0x020a
-Direction       Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv   Clt|Srv-->Clt|Srv
-Mand. Attrib.   -                   OK                  ERROR
-Opt. Attrib.    NOTICE              -                   NOTICE
-
-
-
-Attributes
-==========
-
-Attributes are encoded using a type-length-value (TLV) pattern.
-
-       6         5          4          3         2          1
-B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
-   +----------------+----------------+----------------+----------------+
-0  | Attribute Type |Attribute Length|          Option Flags           |
-   +----------------+----------------+----------------+----------------+
-8  |                   Attribute length value octets                   |
-.  |                               . . .                               |
-.  |                  (padded to next 64 bit boundary)                 |
-   +----------------+----------------+----------------+----------------+
-
-The first sixteen bits specify the type of the attribute. See below for
-a list of defined attributes.
-
-It is followed by a 16-bit unsigned integer to specify the number of
-value octets. Depending on the type of the this length may be any number
-between 0 and 65400. The value field however is always padded to the
-next 64-bit boundary. The value of padding bits is not specified, and it
-must be ignored, except it shall be included in, and thus affect the
-result of, any message SIGNATURE computation.
-
-The next 32 bits are reserved for future use as e.g. option flags or
-version tag. For the time being these shall be set to zero by the sender
-of a message and shall be ignored by the recipient.
-
-The order in which attributes appear in a message matters. For example,
-any SIZE, NAME or MD5 attributes must immediately follow the OFFER
-attribute they pertain to. Moreover, a SIGNATURE attribute shall only
-appear as the last attribute in a message.
-
-The following attributes are currently defined:
-
-Attr.   Attribute   Valid
-Type    Name        Lengths     Description
---------------------------------------------------------------------------
-0x0001  USERNAME    3..NAME_MAX Null-terminated UTF-8 encoded character
-                                string representing the user login name;
-                                matched against the regular expression
-                                "^[a-zA-Z_0-9]{3,31}$".
---------------------------------------------------------------------------
-0x0002  PUBKEY      1..KEY_MAX  Public key provided by a client during
-                                account creation.
---------------------------------------------------------------------------
-0x0003  CHALLENGE   1..KEY_MAX  Challenge sent by the server as reply to
-                                a LOGIN request. Used by the client to
-                                generate a subsequent AUTH request.
-                                #TODO: "nonce" encrypted with client's PUBKEY?
---------------------------------------------------------------------------
-0x0004  DIGEST      1..KEY_MAX  Authentication digest generated by the
-                                client from the server CHALLENGE.
---------------------------------------------------------------------------
-0x0005  SIGNATURE   1..KEY_MAX  #TODO:
---------------------------------------------------------------------------
-0x0008  TTL         8           Timespan in nanoseconds during which a
-                                message can be considered valid.
---------------------------------------------------------------------------
-0x0010  PEERID      8           ID of a peer currently logged into the
-                                server. This ID is dynamically assigned
-                                for each session.
---------------------------------------------------------------------------
-0x0011  PEERNAME    3..NAME_MAX Null-terminated UTF-8 encoded character
-                                string representing the friendly name
-                                associated with the user identified by
-                                the preceding PEERID, cref. USERNAME.
---------------------------------------------------------------------------
-0x0021  OFFERID     8           ID assigned to an offer. Used in every
-                                exchange related to that individual offer.
---------------------------------------------------------------------------
-0x0022  FILENAME    1..PATH_MAX Null-terminated UTF-8 encoded character
-                                string representing the name of the file
-                                that is offered or requested.
---------------------------------------------------------------------------
-0x0023  SIZE        8           64 bit size in octets of the file offered,
-                                or length of a range requested. Defaults
-                                to 0, if attribute is omitted.
---------------------------------------------------------------------------
-0x0024  FILEHASH    1..KEY_MAX  Hash providing a way to detect accidental
-                                file corruption.
-                                #TODO: algorithm?
---------------------------------------------------------------------------
-0x0025  OFFSET      8           64 bit start offset of requested range,
-                                in octets. Defaults to 0, if attribute is
-                                omitted.
---------------------------------------------------------------------------
-0x0026  DATA        1..DATA_MAX Actual file data sent in response to a
-                                previous GETFILE request, as identified
-                                by the transaction ID. The length of the
-                                value shall be less than or equal to the
-                                requested range in octets.
---------------------------------------------------------------------------
-0x0041  OK          0           Used in simple affirmative responses, e.g.
-                                upon successful authentication, or receipt
-                                of a file offer.
---------------------------------------------------------------------------
-0x0042  ERROR       8           Numerical code to specify an actual error
-                                condition.
---------------------------------------------------------------------------
-0x0043  NOTICE      1..TEXT_MAX Null-terminated UTF-8 encoded character
-                                string of arbitrary human readable text,
-                                Either as informative part of a PING
-                                message, or as textual description of the
-                                error code specified in an error response.
---------------------------------------------------------------------------
-
-Symbolic constants used above:
-
-NAME_MAX := 32
-    Maximum length in octets of a user name, including the terminating
-    null character.
-
-KEY_MAX  := 8192
-    Maximum length in octets of a cryptographic key or signature.
-
-PATH_MAX := 4096
-    Maximum length in octets of a file name, including the terminating
-    null character.
-
-DATA_MAX := 65392
-    Maximum length in octets of a DATA attribute value. 65392 is the
-    theoretical limit (maximum payload length minus 8). However, the
-    actual limit may be lower, if the message contains additional
-    attributes.
-
-TEXT_MAX := 1024
-    Maximum length in octets of a login challenge, or a login digest,
-    or a text message, including the terminating null character.
-
-
-
-
-
-
-///////////////////////////////////////////////
-
-#TODO:
+@@@ ///////////////////////////////////////////////
+@@@ TODO:
 
  * describe challenge/digest mechanism(s)
  * describe broadcast offers and related server-side offer caching
@@ -468,14 +21,493 @@ TEXT_MAX := 1024
 |    [#TODO: move to payload as an attribute?]
 \
 
-
-
-==========================================================================
-
-
+@@@
+@@@ ///////////////////////////////////////////////
 
 
 
+Abstract
+
+   @@@TODO
 
 
-# EOF
+Status of This Memo
+
+   @@@TODO
+
+
+Copyright Notice
+
+   Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
+
+   * Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer
+   in the documentation and/or other materials provided with the
+   distribution.
+   * Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Table of Contents
+
+   1. Introduction ....................................................5
+     1.1. Requirements Notation .......................................6
+   @@@TODO complete
+
+
+1.  Introduction
+
+   @@@TODO: flesh out
+
+   The client opens a TCP connection to server; this connection is kept
+   alive, all communication is directed through this single TCP
+   connection.  The tuple {Source ID; Destination ID; Transaction ID} is
+   used to ascribe a message to a certain operation.
+
+   Once the connection to the server is established, the client must
+   identify itself with its credentials.
+
+   A client can then retrieve a list of peers currently known from the
+   server, offer files to others, retrieve files offered to him, and
+   send files to satisfy requests made by others.
+
+
+
+
+1.1.  Requirements Notation
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC2119[0].
+
+
+
+
+
+
+
+_.  Message Structure
+
+   Each message consists of a 40 byte fixed-size message header and a
+   variable length payload segment.
+
+   All header fields are encoded in 16-, 32-, or 64-bit wide words, and
+   transmitted in network byte order, i.e. MSB first.
+
+       6         5          4          3         2          1
+ B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
+   +----------------+----------------+----------------+----------------+
+  0|  Message Type  | Payload Length |            Reserved             |
+   +----------------+----------------+----------------+----------------+
+  8|                             Timestamp                             |
+   +----------------+----------------+----------------+----------------+
+ 16|                             Source ID                             |
+   +----------------+----------------+----------------+----------------+
+ 24|                          Destination ID                           |
+   +----------------+----------------+----------------+----------------+
+ 32|                          Transaction ID                           |
+   +----------------+----------------+----------------+----------------+
+   +----------------+----------------+----------------+----------------+
+ 40|          Payload length octets of TLV encoded attributes          |
+  .|                               . . .                               |
+  .|                 (padded to next 64 bit boundary)                  |
+   +----------------+----------------+----------------+----------------+
+
+
+_.1. Message Type
+
+   The first 16 bits of a message header indicate the type of the
+   message.  Of those, the four lowest order bits specify the general
+   class of the message:
+
+       b0000 (0x0)  Indication
+       b0001 (0x1)  Request
+       b0010 (0x2)  Response
+       b1010 (0xa)  Error Response
+
+   All other possible combinations of those four bits are reserved for
+   future use and shall be treated as invalid message class specifiers
+   for the time being.
+
+   The twelve high order bits encode the individual message type.  The
+   various message types are described in more detail below.
+
+
+_.2.  Payload Length
+
+   Sixteen bit unsigned integer representing the message payload
+   length, i.e. the number of data octets encapsulated in the message,
+   excluding the message header and message digest.  Since the payload
+   segment must be padded to the next 64 bit boundary this number must
+   be evenly dividable by eight, thus the four least significant bits
+   must always be zero.
+
+   In theory, 16 bit would allow for up to 65532 octets of payload data
+   in a single message.  However, the maximum supported value is limited
+   to 65400, to enable implementations to fit the largest possible
+   message plus some additional management data into one single 64KiB
+   chunk of memory.
+
+
+_.3.  Reserved
+
+   32 bits reserved for future use as e.g. option flags or version tag.
+   For the time being these shall be set to zero by the sender of a
+   message and shall be ignored by the recipient.
+
+
+_.4.  Timestamp
+
+   64-bit message creation timestamp in nanosecond resolution.
+
+
+_.5.  Source ID
+
+   64-bit user ID of the message origin (sender).  This ID is
+   persistently assigned by the server at account creation time, and
+   once issued will never be reused for another account.  It is provided
+   to uniquely identify each individual client.
+
+   A client need not fill in this field when sending a message, as the
+   server will in any case overwrite it with the correct value based on
+   its own notion about the user account associated with the connected
+   client.
+
+   Messages originating at the server will always have their source ID
+   set to all bits zero.
+
+
+_.6. Destination ID
+--------------
+   64-bit user ID specifying the message recipient.  This field must
+   always be filled in by the sender of a message.
+
+   An all bits zero destination ID is reserved for messages directed at
+   the server.  An all bits one destination ID is reserved for future
+   use as the broadcast address.
+
+
+_.7.  Transaction ID
+
+   The transaction ID is a 64-bit pseudo-random number generated by the
+   initiator of a logical transaction.  A transaction may comprise one
+   or more request/response pairs, referred to as "exchanges".  All
+   exchanges pertaining to one logical transaction, e.g. transfer of a
+   file larger than ~64KiB, shall be tagged with the same transaction
+   ID.
+
+
+_.8.  Message Payload
+
+   Payload data carried by the message, consisting of type-length-value
+   (TLV) encoded attributes, see below.
+
+
+
+_.  Message Types
+=============
+
+_.1.  LOGIN
+
+   A client must first login to the server, before it can use any of
+   the other requests or receive any offers from other peers.  USERNAME
+   may be either the name of an already registered account, in which
+   case the server responds with a CHALLENGE, or an unregistered name
+   currently not in use by another client, in which case the server
+   responds with OK, and an optional NOTICE.
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0011              0x0012              0x001a
+   Direction      Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  USERNAME            OK | CHALLENGE      ERROR
+   Opt. Attrib.   -                   NOTICE              NOTICE
+
+
+_.2.  AUTH
+
+   Request sent by the client in reaction to a server LOGIN response
+   containing a CHALLENGE attribute, in order to authenticate for the
+   existing account associated with the login name.
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0021              0x0022              0x002a
+   Direction      Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  DIGEST              OK                  ERROR
+   Opt. Attrib.   -                   NOTICE              NOTICE
+
+
+_.3.  LOGOUT
+
+   Log off from the server. No further messages are processed, by
+   neither the client nor the server, until the client sends another
+   LOGIN request.
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0031              0x0032              0x003a
+   Direction      Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  -                   OK                  ERROR
+   Opt. Attrib.   -                   NOTICE              NOTICE
+
+
+_.4.  REGISTER
+
+   Sent by an already logged in client to either a) convert its
+   temporary login into a registered account under the current name
+   with the provided key, or b) change the key of the already existing
+   permanent account it currently uses.
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0041              0x0042              0x004a
+   Direction      Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  PUBKEY              OK                  ERROR
+   Opt. Attrib.   -                   NOTICE              NOTICE
+
+
+_.5.  DROP
+
+   Sent by a client to drop the registration of the account it is
+   currently logged as. The client will still stay logged in with its
+   current name, but once it has logged out, the name becomes available
+   for registration again.
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0051              0x0052              0x005a
+   Direction      Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  -                   OK                  ERROR
+   Opt. Attrib.   -                   NOTICE              NOTICE
+
+
+_.6.  PEERLIST
+
+   Request sent by the client to get a list of the IDs and names of all
+   peers currently logged into the server.  The returned list will at
+   least contain one entry (that of the client which sent the request),
+   and its size is only limited by the per-message payload limit.
+
+   @@@DEFECT: List may be incomplete, if more peers logged in than can
+              be fit in a single message.
+
+   @@@CONSIDER: server uses unsolicited indication to inform client
+                about changes (peers appearing, others disconnecting)?
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x00a1              0x00a2              0x00aa
+   Direction      Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  -                   PEERID, PEERNAME,   ERROR
+   Opt. Attrib.   -                   [...]               NOTICE
+
+
+_.7.  OFFER
+
+   @@@TODO: description
+
+   More than one offer may be included in a single request.
+
+                  Indication|Request  Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0111              0x0112              0x011a
+   Direction      Clt-->Clt           Clt-->Clt           Clt-->Clt
+   Mand. Attrib.  OFFERID, FILENAME,  OFFERID             ERROR
+                  SIZE
+   Opt. Attrib.   FILEHASH, TTL,      -                   NOTICE
+                  NOTICE
+
+_.8.  GETFILE
+
+   @@@TODO: description
+
+   If both OFFSET and SIZE are set to zero, or omitted, the file
+   transfer is considered complete.
+
+                  Request             Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0121              0x0122              0x012a
+   Direction      Clt-->Clt           Clt-->Clt           Clt-->Clt
+   Mand. Attrib.  OFFERID             OFFERID, DATA       ERROR
+   Opt. Attrib.   OFFSET, SIZE                            NOTICE
+
+
+_.9.  PING
+
+   Sent as indication or request to either the server or a peer, serves
+   as a connection test and keep-alive message.  Through the optional
+   NOTICE attribute it can also double as a means for chat-like
+   exchange of text messages between clients.
+
+                  Indication|Request  Response            Error Response
+   ---------------------------------------------------------------------
+   Message type   0x0200|0x0201       0x0202              0x020a
+   Direction      Clt-->Clt           Clt-->Clt           Clt-->Clt
+                  Clt-->Srv           Srv-->Clt           Srv-->Clt
+   Mand. Attrib.  -                   OK                  ERROR
+   Opt. Attrib.   NOTICE              -                   NOTICE
+
+
+
+_.  Attributes
+
+   Attributes are encoded using a type-length-value (TLV) pattern.
+
+       6         5          4          3         2          1
+B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
+   +----------------+----------------+----------------+----------------+
+  0| Attribute Type |Attribute Length|          Option Flags           |
+   +----------------+----------------+----------------+----------------+
+  8|                   Attribute length value octets                   |
+  .|                               . . .                               |
+  .|                  (padded to next 64 bit boundary)                 |
+   +----------------+----------------+----------------+----------------+
+
+   The first sixteen bits specify the type of the attribute.  See below
+   for a list of defined attributes.
+
+   It is followed by a 16-bit unsigned integer to specify the number of
+   value octets.  Depending on the type of the this length may be any
+   number between 0 and 65400. The  value field however is always
+   padded to the next 64-bit boundary.  The value of padding bits is
+   not specified, and it must be ignored, except it shall be included
+   in, and thus affect the result of, any message SIGNATURE
+   computation.
+
+   The next 32 bits are reserved for future use as e.g. option flags or
+   version tag.  For the time being these shall be set to zero by the
+   sender of a message and shall be ignored by the recipient.
+
+   The order in which attributes appear in a message matters. For
+   example, any SIZE, NAME or MD5 attributes must immediately follow
+   the OFFER attribute they pertain to.  Moreover, a SIGNATURE
+   attribute shall only appear as the last attribute in a message.
+
+   The following attributes are currently defined:
+
+   Attr.   Attribute   Valid
+   Type    Name        Lengths     Description
+   ---------------------------------------------------------------------
+   0x0001  USERNAME   3..NAME_MAX Null-terminated UTF-8 encoded string
+                                  representing the user login name.
+                                  Matched against the regular
+                                  expression "^[a-zA-Z_0-9]{3,31}$".
+   ---------------------------------------------------------------------
+   0x0002  PUBKEY     1..KEY_MAX  Public key provided by a client during
+                                  account creation.
+   ---------------------------------------------------------------------
+   0x0003  CHALLENGE  1..KEY_MAX  Challenge sent by the server as reply
+                                  to a LOGIN request. Used by the client
+                                  generate a subsequent AUTH request.
+                                  @@@TODO: "nonce" encrypted with client's PUBKEY?
+   ---------------------------------------------------------------------
+   0x0004  DIGEST     1..KEY_MAX  Authentication digest generated by the
+                                  client from the server CHALLENGE.
+   ---------------------------------------------------------------------
+   0x0005  SIGNATURE  1..KEY_MAX  @@@TODO:
+   ---------------------------------------------------------------------
+   0x0008  TTL        8           Timespan in nanoseconds during which a
+                                   message can be considered valid.
+   ---------------------------------------------------------------------
+   0x0010  PEERID     8           ID of a peer currently logged into the
+                                  server.  This ID is dynamically
+                                  assigned for each session.
+   ---------------------------------------------------------------------
+   0x0011  PEERNAME   3..NAME_MAX Null-terminated UTF-8 encoded string
+                                  representing the friendly name
+                                  associated with the user identified by
+                                  the preceding PEERID, cref. USERNAME.
+   ---------------------------------------------------------------------
+   0x0021  OFFERID    8           ID assigned to an offer. Used in every
+                                  exchange related to that individual
+                                  offer.
+   ---------------------------------------------------------------------
+   0x0022  FILENAME   1..PATH_MAX Null-terminated UTF-8 encoded string
+                                  representing the name of the file
+                                  that is offered or requested.
+   ---------------------------------------------------------------------
+   0x0023  SIZE       8           64 bit size in octets of the file
+                                  offered, or length of a range
+                                  requested. Defaults to 0, if
+                                  attribute is omitted.
+   ---------------------------------------------------------------------
+   0x0024  FILEHASH   1..KEY_MAX  Hash providing a way to detect
+                                   accidental file corruption.
+                                  @@@TODO: algorithm?
+   ---------------------------------------------------------------------
+   0x0025  OFFSET     8           64 bit start offset of requested
+                                  range, in octets. Defaults to 0, if
+                                  attribute is omitted.
+   ---------------------------------------------------------------------
+   0x0026  DATA       1..DATA_MAX Actual file data sent in response to
+                                  a previous GETFILE request, as
+                                  identified by the transaction ID. The
+                                  length of the value shall be less
+                                  than or equal to the requested range
+                                  in octets.
+   ---------------------------------------------------------------------
+   0x0041  OK         0           Used in simple affirmative responses,
+                                  e.g. upon successful authentication,
+                                  or receipt of a file offer.
+   ---------------------------------------------------------------------
+   0x0042  ERROR      8           Numerical code to specify an actual
+                                  error condition.
+   ---------------------------------------------------------------------
+   0x0043  NOTICE     1..TEXT_MAX Null-terminated UTF-8 encoded string
+                                  of arbitrary human readable text,
+                                  Either as informative part of a PING
+                                  message, or as textual description of
+                                  the error code specified in an error
+                                  response.
+   ---------------------------------------------------------------------
+
+   Symbolic constants used in the table above:
+
+   NAME_MAX := 32
+      Maximum length in octets of a user name, including the terminating
+      null character.
+
+   KEY_MAX  := 8192
+      Maximum length in octets of a cryptographic key or signature.
+
+   PATH_MAX := 4096
+      Maximum length in octets of a file name, including the terminating
+      null character.
+
+   DATA_MAX := 65392
+      Maximum length in octets of a DATA attribute value. 65392 is the
+      theoretical limit (maximum payload length minus 8). However, the
+      actual limit may be lower, if the message contains additional
+      attributes.
+
+   TEXT_MAX := 1024
+      Maximum length in octets of a login challenge, or a login digest,
+      or a text message, including the terminating null character.
+
+
+
+_.  Footnotes
+
+[0] https://tools.ietf.org/html/rfc2119
+
+
+
+[End of document]
