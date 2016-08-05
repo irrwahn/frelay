@@ -43,7 +43,6 @@
  */
 
 #include <ctype.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -97,10 +96,13 @@ static inline int cfg_parse_assign( const char *name, const char *val, cfg_parse
             {
             case CFG_PARSE_T_INT:
                 *(int *)p->pvar = strtol( val, NULL, 0 );
+                DLOG( "Config set: %s=%d\n", name, *(int *)p->pvar );
                 break;
             case CFG_PARSE_T_STR:
                 free( *(char **)p->pvar );
                 *(char **)p->pvar = strdup_s( val );
+                DLOG( "Config set: %s=%s\n", name, *(char **)p->pvar );
+                break;
             default:
                 break;
             }
@@ -112,6 +114,7 @@ static inline int cfg_parse_assign( const char *name, const char *val, cfg_parse
 
 int cfg_parse_line( char *line, cfg_parse_def_t *def )
 {
+    int r;
     char *name = "", *val = "";
 
     name = skip_ws( line );
@@ -125,7 +128,9 @@ int cfg_parse_line( char *line, cfg_parse_def_t *def )
     if ( '\0' == *name )
         return -1;
     val = rtrim( skip_ws( val ) );
-    return cfg_parse_assign( name, val, def );
+    if ( 0 != ( r = cfg_parse_assign( name, val, def ) ) )
+        DLOG( "Config ignored: %s=%s\n", name, val );
+    return r;
 }
 
 int cfg_parse_fp( FILE *fp, cfg_parse_def_t *def )
@@ -133,22 +138,23 @@ int cfg_parse_fp( FILE *fp, cfg_parse_def_t *def )
     int r = 0;
     char *line = malloc_s( LINE_MAX );
 
-    errno = 0;
     while ( NULL != fgets( line, LINE_MAX, fp ) )
         r += cfg_parse_line( line, def );
     free( line );
-    return r ? r : errno;
+    return r ? -1 : 0;
 }
 
 int cfg_parse_file( const char *filename, cfg_parse_def_t *def )
 {
-    int r;
+    int r = -1;
     FILE *fp;
 
-    if ( NULL == ( fp = fopen( filename, "r" ) ) )
-        return -1;
-    r = cfg_parse_fp( fp, def );
-    fclose( fp );
+    if ( NULL != ( fp = fopen( filename, "r" ) ) )
+    {
+        DLOG( "Reading config from '%s'\n", filename );
+        r = cfg_parse_fp( fp, def );
+        fclose( fp );
+    }
     return r;
 }
 

@@ -15,7 +15,7 @@ GENERAL: Support hashed nonce + password authentication
 LIB: Add -DWITH_SYSLOG to release builds, and probably -DWITH_OWN_VSYSLOG
      to stay POSIX compliant.
 
-CLIENT: Command line option parsing
+CLIENT: Command line option parsing; create config file, if not present
 
 CLIENT: Guard against overwriting existing target files during download
         (e.g., append parenthesized index to filename); pre-create

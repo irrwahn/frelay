@@ -150,16 +150,18 @@ static int init_config( int argc, char *argv[] )
 
     /* Parse configuration file. */
     tmp = getenv( "HOME" );
-    cfg_filename = strdupcat_s( tmp ? tmp : ".", "/.frelayclt.conf" );
-    r = cfg_parse_file( cfg_filename, cfgdef );
+    cfg_filename = strdupcat2_s( tmp ? tmp : ".", CONFIG_PATH, "/.frelayclt.conf" );
+    errno = 0;
+    if ( 0 != ( r = cfg_parse_file( cfg_filename, cfgdef ) ) && 0 != errno )
+        XLOG( LOG_WARNING, "fopen(%s) failed: %m\n", cfg_filename );
     free( cfg_filename );
 
     /* Last resort to pre-set a sensible user name. */
-    if ( NULL == cfg.username || '\0' == *cfg.username )
+    if ( ( NULL == cfg.username || '\0' == *cfg.username )
+        && NULL != ( tmp = getenv( "USER" ) ) )
     {
         free( cfg.username );
-        tmp = getenv( "USER" );
-        cfg.username = strdup_s( tmp ? tmp : "" );
+        cfg.username = strdup_s( tmp );
     }
     return r;
 }

@@ -37,7 +37,7 @@
 #define CONFIG_H_INCLUDED
 
 
-/* Default frelay service port. (Neighbor of the mumbler ^.^) */
+/* Default frelay server address. */
 #define DEF_HOST            "localhost"
 
 /* Default frelay service port. (Neighbor of the mumbler ^.^) */
@@ -59,6 +59,10 @@
 #define DEF_USER            ""
 #define DEF_PUBKEY          ""
 #define DEF_PRIVKEY         ""
+
+/* Config file location, relative to users home directory.
+ * CAVEAT: Leading slash is mandatory! */
+#define CONFIG_PATH         "/.config"
 
 /* Argument vector used to start an interactive shell. */
 #define DEFAULT_SHELL      (char *[]){ "/bin/sh", "-l", (char *)NULL }

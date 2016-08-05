@@ -100,6 +100,7 @@ extern void *realloc_s( void *p, size_t size );
 extern void *memdup_s( void *s, size_t len );
 extern char *strdup_s( const char *s );
 extern char *strdupcat_s( const char *s1, const char *s2 );
+extern char *strdupcat2_s( const char *s1, const char *s2, const char *s3 );
 
 #ifdef DEBUG
     extern int drain_fd( int fd );

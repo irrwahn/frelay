@@ -112,6 +112,17 @@ char *strdupcat_s( const char *s1, const char *s2 )
     return d;
 }
 
+char *strdupcat2_s( const char *s1, const char *s2, const char *s3 )
+{
+    size_t l1 = strlen( s1 );
+    size_t l2 = strlen( s2 );
+    char *d = malloc_s( l1 + l2 + strlen( s3 ) + 1 );
+    strcpy( d, s1 );
+    strcpy( d + l1, s2 );
+    strcpy( d + l1 + l2, s3 );
+    return d;
+}
+
 
 #ifdef DEBUG
 int drain_fd( int fd )
