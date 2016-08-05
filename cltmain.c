@@ -61,6 +61,7 @@
 #include <sys/wait.h>
 
 #include "auth.h"
+#include "cfgparse.h"
 #include "message.h"
 #include "cltcfg.h"
 #include "transfer.h"
@@ -85,36 +86,29 @@ enum CLT_STATE {
 static struct {
     const char *host;
     const char *port;
-    struct timeval select_timeout;
+    int select_timeout;
     int msg_timeout;
-    int res_timeout;
+    int resp_timeout;
     int offer_timeout;
     char *username;
     char *pubkey;
     char *privkey;
     enum CLT_STATE st;
-} cfg = {
-    /* .host = */
-    NULL,
-    /* .port = */
-    DEFAULT_PORT,
-    /* .select_timeout = */
-    { .tv_sec=SELECT_TIMEOUT_MS/1000, .tv_usec=SELECT_TIMEOUT_MS%1000*1000 },
-    /* .msg_timeout = */
-    MESSAGE_TIMEOUT_S,
-    /* .res_timeout = */
-    RESPONSE_TIMEOUT_S,
-    /* .offer_timeout = */
-    OFFER_TIMEOUT_S,
-    /* .username = */
-    NULL,
-    /* .pubkey = */
-    NULL,
-    /* .privkey = */
-    NULL,
-    /* .st = */
-    CLT_INVALID,
+} cfg;
+
+static cfg_parse_def_t cfgdef[] = {
+    { "host",           CFG_PARSE_T_STR, &cfg.host },
+    { "port",           CFG_PARSE_T_STR, &cfg.port },
+    { "select_timeout", CFG_PARSE_T_INT, &cfg.select_timeout },
+    { "msg_timeout",    CFG_PARSE_T_INT, &cfg.msg_timeout },
+    { "res_timeout",    CFG_PARSE_T_INT, &cfg.resp_timeout },
+    { "offer_timeout",  CFG_PARSE_T_INT, &cfg.offer_timeout },
+    { "username",       CFG_PARSE_T_STR, &cfg.username },
+    { "pubkey",         CFG_PARSE_T_STR, &cfg.pubkey },
+    { "privkey",        CFG_PARSE_T_STR, &cfg.privkey },
+    { NULL, CFG_PARSE_T_NONE, NULL }
 };
+
 
 
 /**********************************************
@@ -124,6 +118,8 @@ static struct {
 
 static int eval_cmdline( int argc, char *argv[] )
 {
+    /* TODO: -c <config_file> */
+    /* TODO: -?|h prints usage message */
     if ( 1 < argc )
         cfg.host = argv[1];
     if ( 2 < argc )
@@ -131,6 +127,42 @@ static int eval_cmdline( int argc, char *argv[] )
     return 0;
 }
 
+static int init_config( int argc, char *argv[] )
+{
+    int r = 0;
+    char *tmp;
+    char *cfg_filename;
+
+    /* Assign build time default values. */
+    cfg.host = strdup_s( DEF_HOST );
+    cfg.port = strdup_s( DEF_PORT );
+    cfg.select_timeout = SELECT_TIMEOUT_S;
+    cfg.msg_timeout = MSG_TIMEOUT_S;
+    cfg.resp_timeout = RESP_TIMEOUT_S;
+    cfg.offer_timeout = OFFER_TIMEOUT_S;
+    cfg.username = strdup( DEF_USER );
+    cfg.pubkey = strdup( DEF_PUBKEY );
+    cfg.privkey = strdup( DEF_PRIVKEY );
+    cfg.st = CLT_INVALID;
+
+    /* Parse command line options. */
+    eval_cmdline( argc, argv );
+
+    /* Parse configuration file. */
+    tmp = getenv( "HOME" );
+    cfg_filename = strdupcat_s( tmp ? tmp : ".", "/.frelayclt.conf" );
+    r = cfg_parse_file( cfg_filename, cfgdef );
+    free( cfg_filename );
+
+    /* Last resort to pre-set a sensible user name. */
+    if ( NULL == cfg.username || '\0' == *cfg.username )
+    {
+        free( cfg.username );
+        tmp = getenv( "USER" );
+        cfg.username = strdup_s( tmp ? tmp : "" );
+    }
+    return r;
+}
 
 /**********************************************
  * CONSOLE STUFF
@@ -354,7 +386,7 @@ static void upkeep_pending( void )
     for ( q = requests; NULL != q; q = next )
     {
         next = q->next;
-        if ( (time_t)ntime_to_s( HDR_GET_TS(q) ) + cfg.res_timeout < now )
+        if ( (time_t)ntime_to_s( HDR_GET_TS(q) ) + cfg.resp_timeout < now )
         {   /* Request passed best before date, trash it. */
             DLOG( "Request timed out:\n" ); mbuf_dump( q );
             if ( prev )
@@ -1112,17 +1144,18 @@ DISC:
 int main( int argc, char *argv[] )
 {
     int srvfd = -1;
+    struct timeval to_sav;
 
     /* Initialization. */
     XLOG_INIT( argv[0] );
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     //signal( SIGINT, SIG_IGN );      /* Ctrl-C no more. */
     /* TODO: ignore or handle other signals? */
-    srandom( time( NULL ) ^ getpid() );
-    eval_cmdline( argc, argv );
-    cfg.username = getenv( "USER" );
-    cfg.st = CLT_INVALID;
-    if ( NULL != cfg.host )
+    srandom( ntime_get() ^ getpid() );
+    init_config( argc, argv );
+    to_sav = (struct timeval){ .tv_sec = cfg.select_timeout, 0 };
+
+    if ( NULL != cfg.host && '\0' != *cfg.host )
     {
         connect_srv( &srvfd, cfg.host, cfg.port );
         if ( 0 <= srvfd )
@@ -1149,7 +1182,7 @@ int main( int argc, char *argv[] )
         }
         else
             maxfd = STDIN_FILENO;
-        to = cfg.select_timeout;
+        to = to_sav;
         nset = select( maxfd + 1, &rfds, &wfds, NULL, &to );
         if ( 0 < nset )
         {

@@ -129,7 +129,7 @@ static int init_config( int argc, char *argv[] )
 {
     const char *cfg_filename = "./frelaysrv.conf";
 
-    /* Assign default build time default values. */
+    /* Assign build time default values. */
     cfg.interface = strdup_s( DEF_INTERFACE );
     cfg.listenport = strdup_s( DEF_PORT );
     cfg.select_timeout = SEL_TIMEOUT_S;

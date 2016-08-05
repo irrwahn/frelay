@@ -37,23 +37,31 @@
 #define CONFIG_H_INCLUDED
 
 
-/* Argument vector used to start an interactive shell */
-#define DEFAULT_SHELL       (char *[]){ "/bin/sh", "-l", (char *)NULL }
+/* Default frelay service port. (Neighbor of the mumbler ^.^) */
+#define DEF_HOST            "localhost"
 
 /* Default frelay service port. (Neighbor of the mumbler ^.^) */
-#define DEFAULT_PORT        "64740"
+#define DEF_PORT            "64740"
 
 /* Idle timeout for select(), i.e. maximum interval between upkeeps. */
-#define SELECT_TIMEOUT_MS   10000
+#define SELECT_TIMEOUT_S    10
 
 /* Maximum intra-message receive gap. */
-#define MESSAGE_TIMEOUT_S   5
+#define MSG_TIMEOUT_S       5
 
 /* Timespan during which a response to a request is considered valid. */
-#define RESPONSE_TIMEOUT_S  30
+#define RESP_TIMEOUT_S      30
 
 /* Inactivity timeout for an open offer. */
 #define OFFER_TIMEOUT_S     300
+
+/* Default user name and credentials. */
+#define DEF_USER            ""
+#define DEF_PUBKEY          ""
+#define DEF_PRIVKEY         ""
+
+/* Argument vector used to start an interactive shell. */
+#define DEFAULT_SHELL      (char *[]){ "/bin/sh", "-l", (char *)NULL }
 
 
 #endif /* ndef _H_INCLUDED */
