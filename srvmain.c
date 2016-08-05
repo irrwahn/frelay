@@ -103,6 +103,7 @@ static struct {
     int msg_timeout;
     int conn_timeout;
     int max_clients;
+    const char *userdb_path;
     const char *motd_cmd;
 } cfg;
 
@@ -113,9 +114,11 @@ static cfg_parse_def_t cfgdef[] = {
     { "msg_timeout",    CFG_PARSE_T_INT, &cfg.msg_timeout },
     { "conn_timeout",   CFG_PARSE_T_INT, &cfg.conn_timeout },
     { "max_clients",    CFG_PARSE_T_INT, &cfg.max_clients },
+    { "userdb_path",    CFG_PARSE_T_STR, &cfg.userdb_path },
     { "motd_cmd",       CFG_PARSE_T_STR, &cfg.motd_cmd },
     { NULL, CFG_PARSE_T_NONE, NULL }
 };
+
 
 /**********************************************
  * INITIALIZATION
@@ -133,6 +136,7 @@ static int init_config( int argc, char *argv[] )
     cfg.msg_timeout = MSG_TIMEOUT_S;
     cfg.conn_timeout = CONN_TIMEOUT_S;
     cfg.max_clients = MAX_CLIENTS;
+    cfg.userdb_path = strdup_s( USERDB_PATH );
     cfg.motd_cmd = strdup_s( MOTD_CMD );
 
     /* -c <config_file> is the only supported command line option! */
@@ -818,11 +822,14 @@ int main( int argc, char *argv[] )
     struct timeval to_sav;
 
     /* Initialization. */
+    die_if( 0 == getuid() || 0 == geteuid() || 0 == getgid() || 0 == getegid(),
+        "%s started with root privileges, aborting!\n", argv[0] );
+    signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
+    /* TODO: gracefully handle termination signals (SIGINT, SIGQUIT, SIGTERM)? */
     XLOG_INIT( argv[0] );
     init_config( argc, argv );
+    udb_init( cfg.userdb_path );
     to_sav = (struct timeval){ .tv_sec = cfg.select_timeout, 0 };
-    signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
-    /* TODO: ignore or handle other signals? */
 
     /* Bring up the server. */
     listenfd = init_server( &clients );
@@ -833,6 +840,7 @@ int main( int argc, char *argv[] )
 #endif
     FD_SET( listenfd, &m_rfds );
     DLOG( "Entering main loop.\n" );
+    puts( "" ); /* May serve as a "service ready" signal for a supervisor. */
     while ( 1 )
     {
         static time_t last_upkeep = 0;

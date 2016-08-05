@@ -49,6 +49,7 @@ struct USER_STRUCT {
 };
 
 
+extern int udb_init( const char *dbpath );
 extern const udb_t *udb_lookupname( const char *s );
 extern const udb_t *udb_addentry( uint64_t id, const char *name, const char *key );
 extern int udb_dropentry( const char *name );

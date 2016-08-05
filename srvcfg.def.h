@@ -60,6 +60,9 @@
 #define CONN_TIMEOUT_S  240
 #endif
 
+/* User database file */
+#define USERDB_PATH     "./user.db"
+
 /* External command to produce a welcome message. */
 #define MOTD_CMD        "echo 'Welcome!'"
 

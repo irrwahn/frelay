@@ -51,7 +51,7 @@
 #define DELIM    '|'
 
 static udb_t *userdb = NULL;
-static const char *userdb_path = "./user.db";
+static char *userdb_path = NULL;
 static uint64_t next_id = 1ULL;
 
 static int udb_nameisvalid( const char *s )
@@ -129,6 +129,7 @@ static int udb_load( const char *path )
     char *name;
     char *key;
 
+    die_if( NULL == path, "User db path not initialized!\n" );
     if ( NULL != userdb )
     {
         DLOG( "userdb already loaded.\n" );
@@ -161,6 +162,7 @@ static int udb_save( const char *path )
 {
     FILE *fp;
 
+    die_if( NULL == path, "User db path not initialized!\n" );
     DLOG( "Save user db as '%s'.\n", path );
     if ( NULL == ( fp = fopen( path, "w" ) ) )
     {
@@ -175,6 +177,13 @@ static int udb_save( const char *path )
     }
     fclose( fp );
     return 0;
+}
+
+int udb_init( const char *dbpath )
+{
+    free( userdb_path );
+    userdb_path = strdup_s( dbpath );
+    return udb_load( userdb_path );
 }
 
 const udb_t *udb_lookupname( const char *s )

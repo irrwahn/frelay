@@ -1,4 +1,4 @@
-Outstanding TODOs In no particular order
+Outstanding TODOs in no particular order
 ----------------------------------------
 
 GENERAL: Provide means to create a distribution tarball (WIP)
@@ -12,12 +12,14 @@ GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
 
-SERVER: Working directory config item and user db file config item.
+LIB: Add -DWITH_SYSLOG to release builds, and probably -DWITH_OWN_VSYSLOG
+     to stay POSIX compliant.
 
 CLIENT: Command line options & config file support
 
 CLIENT: Guard against overwriting existing target files during download
-        (E.g., append parenthesized index to filename?)
+        (e.g., append parenthesized index to filename); pre-create
+        non-existent target file when starting download.
 
 CLIENT: Minimal command line editing and history support?
 
@@ -35,6 +37,12 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-05  Urban Wallasch  <irrwahn35@freenet.de> SVN r453
+SERVER: User db file config item.
+        Note: chdir() and setuid() are the job of a service supervisor,
+        as is ignoring any signals other than SIGPIPE (and, theoretically,
+        SIGCHLD, but we do not fork anyway).
+
 2016-08-04  Urban Wallasch  <irrwahn35@freenet.de> SVN r452
 SERVER: Command line options & config file support
 

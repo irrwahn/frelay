@@ -53,7 +53,7 @@
     #ifdef DEBUG
         #define XLOG_INIT(S)    logprintf_init(LOG_DEBUG,(S),LOG_TO_FILE,stderr)
     #else
-        #define XLOG_INIT(S)    logprintf_init(LOG_WARNING,(S),LOG_TO_SYSLOG,NULL)
+        #define XLOG_INIT(S)    logprintf_init(LOG_WARNING,(S),LOG_TO_SYSLOG|LOG_TO_FILE,stderr)
     #endif
 #endif
 
