@@ -661,9 +661,25 @@ static int process_stdin( int *srvfd )
     {
         pid_t pid = fork();
         if ( 0 == pid )
-        {
-            execvp( DEFAULT_SHELL[0], DEFAULT_SHELL );
-            XLOG( LOG_WARNING, "execvp(%s) failed: %m\n", DEFAULT_SHELL[0] );
+        {   /* Try various incantations to spawn a shell,
+               until one succeeds or we finally give up. */
+            const char *sh[2];
+            sh[0] = getenv( "SHELL" );
+            sh[1] = DEFAULT_SHELL;
+            for ( int i = 0; i < 2; ++i )
+            {
+                if ( NULL != sh[i] )
+                    continue;
+                DLOG( "Trying %s -l\n", sh[i] );
+                execlp( sh[i], sh[i], "-l", NULL );
+                DLOG( "Trying %s [-]\n", sh[i] );
+                execlp( sh[i], "-", NULL );
+                DLOG( "Trying %s -i\n", sh[i] );
+                execlp( sh[i], sh[i], "-i", NULL );
+                DLOG( "Trying %s\n", sh[i] );
+                execlp( sh[i], sh[i], NULL );
+            }
+            XLOG( LOG_WARNING, "execlp() failed: %m\n" );
             exit( EXIT_FAILURE );
         }
         else if ( 0 < pid )

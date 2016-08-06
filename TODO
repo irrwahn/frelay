@@ -28,8 +28,6 @@ CLIENT: Command line option parsing;
         - add option to write config file
         - provide no-clobber option (append dot-index to filename)
 
-CLIENT: Evaluate $SHELL and use it in "!" command
-
 CLIENT: pre-create non-existent target file when starting download.
 
 CLIENT: If run non-interactively, prefix every console output line with
@@ -46,6 +44,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-06  Urban Wallasch  <irrwahn35@freenet.de> SVN r465
+CLIENT: Evaluate $SHELL and use it in "!" command
+
 2016-08-06  Urban Wallasch  <irrwahn35@freenet.de> SVN r459
 CLIENT: Drop the NOTICE attribute from OFFER
 

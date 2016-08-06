@@ -64,8 +64,9 @@
  * CAVEAT: Leading slash is mandatory! */
 #define CONFIG_PATH         "/.config"
 
-/* Argument vector used to start an interactive shell. */
-#define DEFAULT_SHELL      (char *[]){ "/bin/sh", "-l", (char *)NULL }
+/* Name of program to execute for an interactive shell,
+ * should the one from $SHELL fail. */
+#define DEFAULT_SHELL      "/bin/sh"
 
 
 #endif /* ndef _H_INCLUDED */
