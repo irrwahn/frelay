@@ -123,7 +123,7 @@ static int eval_cmdline( int argc, char *argv[] )
     if ( 1 < argc )
         cfg.host = strdup_s( argv[1] );
     if ( 2 < argc )
-        cfg.port = strdup_s( argv[1] );
+        cfg.port = strdup_s( argv[2] );
     return 0;
 }
 
