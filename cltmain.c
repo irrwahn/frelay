@@ -153,7 +153,7 @@ static int init_config( int argc, char *argv[] )
     cfg_filename = strdupcat2_s( tmp ? tmp : ".", CONFIG_PATH, "/.frelayclt.conf" );
     errno = 0;
     if ( 0 != ( r = cfg_parse_file( cfg_filename, cfgdef ) ) && 0 != errno )
-        XLOG( LOG_WARNING, "fopen(%s) failed: %m\n", cfg_filename );
+        DLOG( "fopen(%s) failed: %m\n", cfg_filename );
     free( cfg_filename );
 
     /* Last resort to pre-set a sensible user name. */
@@ -235,7 +235,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     if ( 0 != res )
     {
         const char *emsg = EAI_SYSTEM != res ? gai_strerror( res ) : strerror( errno );
-        XLOG( LOG_WARNING, "getaddrinfo(%s,%s) failed: %s\n", host, service, emsg );
+        DLOG( "getaddrinfo(%s,%s) failed: %s\n", host, service, emsg );
         printcon( "%s:%s: %s\n", host, service, emsg );
         return -1;
     }
@@ -292,16 +292,15 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     freeaddrinfo( info );
     if ( NULL == ai )
     {
-        XLOG( LOG_ERR, "Unable to connect.\n" );
         printcon( "%s:%s: %s\n", host, service, strerror( errno ) );
         return -1;
     }
     DLOG( "Connected to [%s:%s].\n", host, service );
     printcon( "Connected to %s:%s\n", host, service );
     if ( 0 != set_nonblocking( fd ) )
-        XLOG( LOG_WARNING, "set_nonblocking() failed: %m.\n" );
+        DLOG( "set_nonblocking() failed: %m.\n" );
     if ( 0 != set_cloexec( fd ) )
-        XLOG( LOG_WARNING, "set_cloexec() failed: %m.\n" );
+        DLOG( "set_cloexec() failed: %m.\n" );
     *pfd = fd;
     return 0;
 }
@@ -427,7 +426,7 @@ static int process_stdin( int *srvfd )
         if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
             XLOG( LOG_ERR, "read() failed miserably: %m.\n" );
         else
-            XLOG( LOG_ERR, "read() failed: %m.\n" );
+            DLOG( "read() failed: %m.\n" );
         return -1;
     }
     else if ( 0 == r )
@@ -838,7 +837,7 @@ static int process_srvmsg( mbuf_t **pp )
             mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
             free( data );
             if ( 0 < size )
-                printcon( "Sending %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
+                DLOG( "Sending %"PRIu64" bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
                         size, o->oid, o->name, (o->offset+size)*100/o->size, o->offset + size, o->size );
         }
         break;
@@ -905,7 +904,7 @@ static int process_srvmsg( mbuf_t **pp )
                 mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
                 mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
-                printcon( "Received %zu bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
+                DLOG( "Received %zu bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
                             al, d->oid, d->name, d->offset*100/d->size, d->offset, d->size );
             }
         }
@@ -1016,8 +1015,6 @@ static int process_srvmsg( mbuf_t **pp )
             char *es = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 es = av;
-            DLOG( "Received error: mtype=0x%04"PRIx16": %"PRIu64"%s%s.\n",
-                    mtype, ec, es?" ":"", es?es:"" );
             printcon( "%s Error %"PRIu64"%s%s.\n",
                         mtype2str( mtype ), ec, es?" ":"", es?es:"" );
         }
@@ -1196,7 +1193,7 @@ int main( int argc, char *argv[] )
                     break;  /* EOF on stdin terminates client. */
             }
             if ( 0 < nset ) /* Can happen on read errors. */
-                XLOG( LOG_INFO, "%d file descriptors still set!\n", nset );
+                DLOG( "%d file descriptors still set!\n", nset );
         }
         else if ( 0 == nset )
         {   /* Select timed out */
