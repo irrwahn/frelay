@@ -1,6 +1,8 @@
 CREDITS
 TODO
 BUGS
+auth.c
+auth.h
 cfgparse.c
 cfgparse.h
 cltcfg.def.h
