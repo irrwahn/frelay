@@ -1,5 +1,6 @@
 Outstanding:
 ------------
+CLIENT: Non-option arguments (host, port) are evaluated before config file is read.
 
 
 On hold:

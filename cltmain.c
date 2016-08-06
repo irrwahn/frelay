@@ -121,9 +121,9 @@ static int eval_cmdline( int argc, char *argv[] )
     /* TODO: -c <config_file> */
     /* TODO: -?|h prints usage message */
     if ( 1 < argc )
-        cfg.host = argv[1];
+        cfg.host = strdup_s( argv[1] );
     if ( 2 < argc )
-        cfg.port = argv[2];
+        cfg.port = strdup_s( argv[1] );
     return 0;
 }
 
