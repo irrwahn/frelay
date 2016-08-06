@@ -56,9 +56,9 @@
 
 #define LEFTROT(x,k)    (((x)<<(k))|((x)>>(64-(k))))
 
-static random_ctx_t ctx_unsafe = RANDOM_CTX_INITIALIZER;
+static prng_random_ctx_t ctx_unsafe = PRNG_RANDOM_CTX_INITIALIZER;
 
-uint64_t random_r( random_ctx_t *ctx )
+uint64_t prng_random_r( prng_random_ctx_t *ctx )
 {
     uint64_t
          e = ctx->a - LEFTROT( ctx->b,  7 );
@@ -66,25 +66,25 @@ uint64_t random_r( random_ctx_t *ctx )
     ctx->b = ctx->c + LEFTROT( ctx->d, 37 );
     ctx->c = ctx->d + e;
     ctx->d = e + ctx->a;
-    return ctx->d & RANDOM_MAX;
+    return ctx->d & PRNG_RANDOM_MAX;
 }
 
-uint64_t random()
+uint64_t prng_random()
 {
-    return random_r( &ctx_unsafe );
+    return prng_random_r( &ctx_unsafe );
 }
 
-void srandom_r( random_ctx_t *ctx, uint64_t seed )
+void prng_srandom_r( prng_random_ctx_t *ctx, uint64_t seed )
 {
-    ctx->a = RANDOM_FLEASEED;
+    ctx->a = PRNG_RANDOM_FLEASEED;
     ctx->b = ctx->c = ctx->d = seed;
     for ( int i = 20; i--; )
-        random_r( ctx );
+        prng_random_r( ctx );
 }
 
-void srandom( uint64_t seed )
+void prng_srandom( uint64_t seed )
 {
-    srandom_r( &ctx_unsafe, seed );
+    prng_srandom_r( &ctx_unsafe, seed );
 }
 
 #undef LEFTROT
@@ -94,7 +94,7 @@ void srandom( uint64_t seed )
  * RNG implementation agnostic functions.
  */
 
-uint64_t random_uni_r( random_ctx_t *ctx, uint64_t upper )
+uint64_t prng_random_uni_r( prng_random_ctx_t *ctx, uint64_t upper )
 {
     uint64_t r = 0;
 
@@ -104,7 +104,7 @@ uint64_t random_uni_r( random_ctx_t *ctx, uint64_t upper )
          * upper without remainder.  This is not expected to loop
          * terribly often, if at all!
          */
-        while ( ( r = random_r( ctx ) ) >= RANDOM_MAX - ( RANDOM_MAX % upper ) )
+        while ( ( r = prng_random_r( ctx ) ) >= PRNG_RANDOM_MAX - ( PRNG_RANDOM_MAX % upper ) )
             ;
         /* The modulo operation now cannot introduce any bias. */
         r %= upper;
@@ -112,9 +112,9 @@ uint64_t random_uni_r( random_ctx_t *ctx, uint64_t upper )
     return r;
 }
 
-uint64_t random_uni( uint64_t upper )
+uint64_t prng_random_uni( uint64_t upper )
 {
-    return random_uni_r( &ctx_unsafe, upper );
+    return prng_random_uni_r( &ctx_unsafe, upper );
 }
 
 

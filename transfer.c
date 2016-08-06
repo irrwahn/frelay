@@ -75,7 +75,7 @@ transfer_t *offer_new( uint64_t dest, const char *filename )
         return NULL;
     o = malloc_s( sizeof *o );
     o->rid = dest;
-    o->oid = random();
+    o->oid = prng_random();
     o->name = strdup_s( filename );
     o->partname = NULL;
     o->size = fsz;

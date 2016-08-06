@@ -46,37 +46,37 @@
  * and one more than the largest possible value returned by
  * random_uni[_r]().
  */
-#define RANDOM_MAX  (ULLONG_MAX)
+#define PRNG_RANDOM_MAX  (ULLONG_MAX)
 
 /*
  * Constants suitable to initialize objects of type random_ctx_t.
  */
-#define RANDOM_FLEASEED         0xf1ea5eedULL
-#define RANDOM_CTX_INITIALIZER  { RANDOM_FLEASEED, 0ULL, 0ULL, 0ULL }
+#define PRNG_RANDOM_FLEASEED         0xf1ea5eedULL
+#define PRNG_RANDOM_CTX_INITIALIZER  { PRNG_RANDOM_FLEASEED, 0ULL, 0ULL, 0ULL }
 
 /*
  * Type to hold the PRNG state information.
  */
-struct random_ctx_t_struct {
+struct prng_random_ctx_t_struct {
     uint64_t a, b, c, d;
 };
 
 typedef
-    struct random_ctx_t_struct
-    random_ctx_t;
+    struct prng_random_ctx_t_struct
+    prng_random_ctx_t;
 
 /*
  * Generate a pseudorandom number in the range 0 <= n <= RANDOM_MAX,
  * that is, pick from the closed interval [0;RANDOM_MAX].
  */
-uint64_t random( void );
-uint64_t random_r( random_ctx_t *ctx );
+uint64_t prng_random( void );
+uint64_t prng_random_r( prng_random_ctx_t *ctx );
 
 /*
  * Initialize the pseudorandom number generator with a given seed.
  */
-void srandom( uint64_t seed );
-void srandom_r( random_ctx_t *ctx, uint64_t seed );
+void prng_srandom( uint64_t seed );
+void prng_srandom_r( prng_random_ctx_t *ctx, uint64_t seed );
 
 /*
  * Returns an unbiased PRN from the half-open interval [0;upper[,
@@ -84,8 +84,8 @@ void srandom_r( random_ctx_t *ctx, uint64_t seed );
  * NOTE: Use random[_r]() to pick from the interval [0;RANDOM_MAX].
  * Returns 0 for upper < 2.
  */
-uint64_t random_uni( uint64_t upper );
-uint64_t random_uni_r( random_ctx_t *ctx, uint64_t upper );
+uint64_t prng_random_uni( uint64_t upper );
+uint64_t prng_random_uni_r( prng_random_ctx_t *ctx, uint64_t upper );
 
 #endif  //ndef PRNG_H_INCLUDED
 

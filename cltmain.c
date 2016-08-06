@@ -478,7 +478,7 @@ static int process_stdin( int *srvfd )
     if ( MATCH_CMD( "ping" ) )
     {   /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
-                ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, random() );
+                ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, prng_random() );
         if ( 2 < a )
         {
             cp = aline + ( arg[2] - arg[0] );
@@ -487,7 +487,7 @@ static int process_stdin( int *srvfd )
     }
     else if ( MATCH_CMD( "peerlist" ) || MATCH_CMD( "who" ) )
     {   /* peerlist */
-        mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, random() );
+        mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, prng_random() );
     }
     else if ( MATCH_CMD( "offer" ) )
     {   /* offer destination file [notice] */
@@ -504,7 +504,7 @@ static int process_stdin( int *srvfd )
             printcon( "No such file: '%s'\n", arg[2] );
             return -1;
         }
-        mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, random() );
+        mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, prng_random() );
         mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
         fname = strdup_s( arg[2] );
         bname = basename( fname );
@@ -537,7 +537,7 @@ static int process_stdin( int *srvfd )
             printcon( "Download failed to start: %s\n", strerror( errno ) );
             return -1;
         }
-        mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
+        mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
         mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
         mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
         mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8,
@@ -579,13 +579,13 @@ static int process_stdin( int *srvfd )
             printcon( "Usage: register pubkey\n" );
             return -1;
         }
-        mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, random() );
+        mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, prng_random() );
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[1] ) + 1, arg[1] );
     }
     else if ( MATCH_CMD( "drop" ) )
     {
         DLOG( "Dropping.\n" );
-        mbuf_compose( &mp, MSG_TYPE_DROP_REQ, 0, 0, random() );
+        mbuf_compose( &mp, MSG_TYPE_DROP_REQ, 0, 0, prng_random() );
     }
     else if ( MATCH_CMD( "login" ) )
     {   /* login [user] */
@@ -600,13 +600,13 @@ static int process_stdin( int *srvfd )
             free( cfg.pubkey );
             cfg.pubkey = strdup_s( arg[2] );
         }
-        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, random() );
+        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, prng_random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
     }
     else if ( MATCH_CMD( "logout" ) )
     {
         DLOG( "Logging out.\n" );
-        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, random() );
+        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, prng_random() );
     }
     else if ( MATCH_CMD( "list" ) )
     {
@@ -893,7 +893,7 @@ static int process_srvmsg( mbuf_t **pp )
             {
                 d->offset += al;
                 uint64_t sz = d->size - d->offset;
-                mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, random() );
+                mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
                 mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
                 mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
@@ -911,7 +911,8 @@ static int process_srvmsg( mbuf_t **pp )
                 && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
                 && MSG_ATTR_PEERNAME == at2 )
             {
-                printcon( "%016"PRIx64"%s %s\n", NTOH64( *(uint64_t *)av ), (HDR_GET_DSTID(*pp)==NTOH64( *(uint64_t *)av ))?"*":"",  (char *)av2  );
+                printcon( "%016"PRIx64"%s %s\n", NTOH64( *(uint64_t *)av ),
+                        (HDR_GET_DSTID(*pp)==NTOH64( *(uint64_t *)av ))?"*":"",  (char *)av2  );
             }
             printcon( "Peer list end\n" );
         }
@@ -1143,7 +1144,7 @@ int main( int argc, char *argv[] )
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     //signal( SIGINT, SIG_IGN );      /* Ctrl-C no more. */
     /* TODO: ignore or handle other signals? */
-    srandom( ntime_get() ^ getpid() );
+    prng_srandom( ntime_get() ^ getpid() );
     init_config( argc, argv );
     to_sav = (struct timeval){ .tv_sec = cfg.select_timeout, 0 };
 
@@ -1193,7 +1194,7 @@ int main( int argc, char *argv[] )
             if ( CLT_AUTH_OK == cfg.st )
             {   /* Send ping to server. */
                 mbuf_t *mb = NULL;
-                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, random() );
+                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, prng_random() );
                 enqueue_msg( mb );
             }
             upkeep_pending();
