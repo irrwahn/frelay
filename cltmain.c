@@ -467,7 +467,6 @@ static int process_stdin( int *srvfd )
 #undef MAX_CMDLINE
 
     /* Ye shoddy command pars0r. */
-#define MATCH_CMD(S)   ( 0 == strnicmp((S),arg[0],strlen(arg[0])) )
     if ( NULL == arg[0] || '\0' == arg[0][0] )
     {
         printcon( "" );
@@ -475,8 +474,84 @@ static int process_stdin( int *srvfd )
     }
     aline[ arg[a-1] - arg[0] + strlen( arg[a-1] ) ] = '\0';
 
-    if ( MATCH_CMD( "ping" ) )
-    {   /* ping [destination [notice]] */
+    enum cmd_enum {
+        CMD_NONE = 0,
+        CMD_ACCEPT,
+        CMD_CD,
+        CMD_CMD,
+        CMD_CONNECT,
+        CMD_DISCONNECT,
+        CMD_DROP,
+        CMD_EXIT,
+        CMD_HELP,
+        CMD_LIST,
+        CMD_LOGIN,
+        CMD_LOGOUT,
+        CMD_OFFER,
+        CMD_PEERLIST,
+        CMD_PING,
+        CMD_PWD,
+        CMD_REGISTER,
+        CMD_REMOVE,
+        CMD_SH,
+    };
+    static struct {
+        const char *cmd_name;
+        enum cmd_enum cmd;
+        const char *help_txt;
+    } cmd_list[] = {
+        { "?",          CMD_HELP,       "\tsame as 'help'" },
+        { "!",          CMD_SH,         "\tsame as 'sh'" },
+        { "^",          CMD_CMD,        "\tsame as 'cmd" },
+        { "accept",     CMD_ACCEPT,     "\taccept offer_id" },
+        { "bye",        CMD_EXIT,       "\tsame as 'exit'" },
+        { "cd",         CMD_CD,         "\tchange current working directory" },
+        { "close",      CMD_DISCONNECT, "\tclose connection to server" },
+        { "cmd",        CMD_CMD,        "\tcmd program_name [arguments]" },
+        { "connect",    CMD_CONNECT,    "\tconnect [host [port]]" },
+        { "delete",     CMD_REMOVE,     "\tdelete type,remote_id,offer_id" },
+        { "disconnect", CMD_DISCONNECT, "same as 'close'" },
+        { "drop",       CMD_DROP,       "\tdrop account registration" },
+        { "exit",       CMD_EXIT,       "\tterminate frelay" },
+        { "help",       CMD_HELP,       "\tdisplay this command list" },
+        { "lcd",        CMD_CD,         "\tsame as 'cd'" },
+        { "list",       CMD_LIST,       "\tlist active transfers / open offers" },
+        { "login",      CMD_LOGIN,      "\tlogin [username [password]]" },
+        { "logout",     CMD_LOGOUT,     "\tlogout" },
+        { "offer",      CMD_OFFER,      "\toffer peer_id filename" },
+        { "open",       CMD_CONNECT,    "\tsame as 'connect'" },
+        { "peerlist",   CMD_PEERLIST,   "get list of active peers from server" },
+        { "ping",       CMD_PING,       "\tping [peer_id [\"text message\"]]" },
+        { "pwd",        CMD_PWD,        "\tprint current working directory" },
+        { "quit",       CMD_EXIT,       "\tsame as 'exit'" },
+        { "register",   CMD_REGISTER,   "register password" },
+        { "remove",     CMD_REMOVE,     "\tsame as delete" },
+        { "sh",         CMD_SH,         "\topen an interactive sub-shell" },
+        { "who",        CMD_PEERLIST,   "\tsame as 'peerlist'" },
+        { NULL, CMD_NONE, NULL }
+    };
+    enum cmd_enum cmd = CMD_NONE;
+    int cmd_len = strlen( arg[0] );
+    for ( int i = 0; NULL != cmd_list[i].cmd_name; ++i )
+    {
+        if ( 0 != strnicmp( cmd_list[i].cmd_name, arg[0], cmd_len ) )
+            continue;
+        if ( CMD_NONE != cmd )
+        {
+            printcon( "Ambiguous command\n" );
+            return -1;
+        }
+        cmd = cmd_list[i].cmd;
+    }
+
+    switch ( cmd )
+    {
+    case CMD_HELP:
+        for ( int i = 0; NULL != cmd_list[i].cmd_name; ++i )
+            printcon( "%s\t%s\n", cmd_list[i].cmd_name, cmd_list[i].help_txt );
+        return 1;
+        break;
+    case CMD_PING:      /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
                 ( 1 < a ) ? strtoull( arg[1], NULL, 16 ) : 0, prng_random() );
         if ( 2 < a )
@@ -484,67 +559,67 @@ static int process_stdin( int *srvfd )
             cp = aline + ( arg[2] - arg[0] );
             mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( cp ) + 1, cp );
         }
-    }
-    else if ( MATCH_CMD( "peerlist" ) || MATCH_CMD( "who" ) )
-    {   /* peerlist */
+        break;
+    case CMD_PEERLIST:  /* peerlist */
         mbuf_compose( &mp, MSG_TYPE_PEERLIST_REQ, 0, 0, prng_random() );
-    }
-    else if ( MATCH_CMD( "offer" ) )
-    {   /* offer destination file [notice] */
-        const transfer_t *o;
-        char *bname, *fname;
-
+        break;
+    case CMD_OFFER:     /* offer destination file [notice] */
         if ( 3 > a )
         {
             printcon( "Usage: offer destination file\n" );
             return -1;
         }
-        if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
+        else
         {
-            printcon( "No such file: '%s'\n", arg[2] );
-            return -1;
+            const transfer_t *o;
+            char *bname, *fname;
+            if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
+            {
+                printcon( "No such file: '%s'\n", arg[2] );
+                return -1;
+            }
+            mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, prng_random() );
+            mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
+            fname = strdup_s( arg[2] );
+            bname = basename( fname );
+            mbuf_addattrib( &mp, MSG_ATTR_FILENAME, strlen( bname ) + 1, bname );
+            free( fname );
+            mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, o->size );
         }
-        mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, prng_random() );
-        mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
-        fname = strdup_s( arg[2] );
-        bname = basename( fname );
-        mbuf_addattrib( &mp, MSG_ATTR_FILENAME, strlen( bname ) + 1, bname );
-        free( fname );
-        mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, o->size );
-    }
-    else if ( MATCH_CMD( "accept" ) )
-    {   /* accept offer_id */
-        uint64_t oid = strtoull( arg[1], NULL, 16 );
-        transfer_t *d;
-
+        break;
+    case CMD_ACCEPT:    /* accept offer_id */
         if ( 2 > a )
         {
             printcon( "Usage: accept offer_id\n" );
             return -1;
         }
-        if ( NULL == ( d = download_match( oid ) ) )
-        {
-            printcon( "Invalid offer ID %"PRIx64"\n", oid );
-            return -1;
-        }
-        d->act = time( NULL );
-        if ( 0 == download_resume( d ) )
-            printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
-        else if ( 0 == download_write( d, NULL, 0 ) )
-            printcon( "Download started\n" );
         else
         {
-            printcon( "Download failed to start: %s\n", strerror( errno ) );
-            return -1;
+            uint64_t oid = strtoull( arg[1], NULL, 16 );
+            transfer_t *d;
+            if ( NULL == ( d = download_match( oid ) ) )
+            {
+                printcon( "Invalid offer ID %"PRIx64"\n", oid );
+                return -1;
+            }
+            d->act = time( NULL );
+            if ( 0 == download_resume( d ) )
+                printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
+            else if ( 0 == download_write( d, NULL, 0 ) )
+                printcon( "Download started\n" );
+            else
+            {
+                printcon( "Download failed to start: %s\n", strerror( errno ) );
+                return -1;
+            }
+            mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
+            mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
+            mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
+            mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8,
+                            d->size < MAX_DATA_SIZE ? d->size : MAX_DATA_SIZE );
         }
-        mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
-        mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
-        mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
-        mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8,
-                        d->size < MAX_DATA_SIZE ? d->size : MAX_DATA_SIZE );
-    }
-    else if ( MATCH_CMD( "connect" ) || MATCH_CMD( "open" ) )
-    {   /* connect [host [port]] */
+        break;
+    case CMD_CONNECT:   /* connect [host [port]] */
         if ( 3 > a )
             arg[2] = cfg.port;
         if ( 2 > a && NULL == ( arg[1] = cfg.host ) )
@@ -559,9 +634,8 @@ static int process_stdin( int *srvfd )
             return -1;
         }
         cfg.st = CLT_PRE_LOGIN;
-    }
-    else if ( MATCH_CMD( "disconnect" ) || MATCH_CMD( "close" ) )
-    {
+        break;
+    case CMD_DISCONNECT:
         if ( 0 <= *srvfd )
         {
             transfer_closeall();
@@ -570,9 +644,8 @@ static int process_stdin( int *srvfd )
             printcon( "Connection closed\n" );
         }
         cfg.st = CLT_INVALID;
-    }
-    else if ( MATCH_CMD( "register" ) )
-    {   /* register user pubkey */
+        break;
+    case CMD_REGISTER:      /* register user pubkey */
         DLOG( "Registering.\n" );
         if ( 2 > a )
         {
@@ -581,14 +654,12 @@ static int process_stdin( int *srvfd )
         }
         mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, prng_random() );
         mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[1] ) + 1, arg[1] );
-    }
-    else if ( MATCH_CMD( "drop" ) )
-    {
+        break;
+    case CMD_DROP:
         DLOG( "Dropping.\n" );
         mbuf_compose( &mp, MSG_TYPE_DROP_REQ, 0, 0, prng_random() );
-    }
-    else if ( MATCH_CMD( "login" ) )
-    {   /* login [user] */
+        break;
+    case CMD_LOGIN:     /* login [user] */
         DLOG( "Logging in.\n" );
         if ( 2 > a  && NULL == ( arg[1] = cfg.username ) )
         {
@@ -602,40 +673,38 @@ static int process_stdin( int *srvfd )
         }
         mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, prng_random() );
         mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
-    }
-    else if ( MATCH_CMD( "logout" ) )
-    {
+        break;
+    case CMD_LOGOUT:
         DLOG( "Logging out.\n" );
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, prng_random() );
-    }
-    else if ( MATCH_CMD( "list" ) )
-    {
+        break;
+    case CMD_LIST:
         printcon( "Transfer list start\n" );
         transfer_list( putscon_cb );
         printcon( "Transfer list end\n" );
-    }
-    else if ( MATCH_CMD( "remove" ) || MATCH_CMD( "delete" ) )
-    {
-        int n = 0;
+        break;
+    case CMD_REMOVE:
         if ( 2 > a )
         {
             printcon( "Usage: remove type|remote_id|offer_id\n" );
             return -1;
         }
-        n = transfer_remove( arg[1] );
-        if ( 0 < n )
-            printcon( "Removed %d transfer%s\n", n, 1 < n ? "s" : "" );
         else
-            printcon( "Removing %s failed\n", arg[1] );
-    }
-    else if ( MATCH_CMD( "exit" ) || MATCH_CMD( "quit" ) || MATCH_CMD( "bye" ) )
-    {
+        {
+            int n = 0;
+            n = transfer_remove( arg[1] );
+            if ( 0 < n )
+                printcon( "Removed %d transfer%s\n", n, 1 < n ? "s" : "" );
+            else
+                printcon( "Removing %s failed\n", arg[1] );
+        }
+        break;
+    case CMD_EXIT:
         disconnect_srv( srvfd );
         cfg.st = CLT_INVALID;
         return 0;
-    }
-    else if ( MATCH_CMD( "cd" ) || MATCH_CMD( "lcd" ) )
-    {   /* cd [path] */
+        break;
+    case CMD_CD:        /* cd [path] */
         if ( 1 < a )
         {
             cp = aline + ( arg[1] - arg[0] );
@@ -645,9 +714,8 @@ static int process_stdin( int *srvfd )
         }
         printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
         return 1;
-    }
-    else if ( MATCH_CMD( "cmd" ) || MATCH_CMD( "^" ) )
-    {
+        break;
+    case CMD_CMD:       /* cmd command */
         if ( 2 > a )
         {
             printcon( "Usage: cmd \"command\"\n" );
@@ -656,71 +724,48 @@ static int process_stdin( int *srvfd )
         cp = aline + ( arg[1] - arg[0] );
         pcmd( cp, putscon_cb );
         prompt( 1 );
-    }
-    else if ( MATCH_CMD( "shell" ) || MATCH_CMD( "!" ) )
-    {
-        pid_t pid = fork();
-        if ( 0 == pid )
-        {   /* Try various incantations to spawn a shell,
-               until one succeeds or we finally give up. */
-            const char *sh[2];
-            sh[0] = getenv( "SHELL" );
-            sh[1] = DEFAULT_SHELL;
-            for ( int i = 0; i < 2; ++i )
-            {
-                if ( NULL != sh[i] )
-                    continue;
-                DLOG( "Trying %s -l\n", sh[i] );
-                execlp( sh[i], sh[i], "-l", NULL );
-                DLOG( "Trying %s [-]\n", sh[i] );
-                execlp( sh[i], "-", NULL );
-                DLOG( "Trying %s -i\n", sh[i] );
-                execlp( sh[i], sh[i], "-i", NULL );
-                DLOG( "Trying %s\n", sh[i] );
-                execlp( sh[i], sh[i], NULL );
-            }
-            XLOG( LOG_WARNING, "execlp() failed: %m\n" );
-            exit( EXIT_FAILURE );
-        }
-        else if ( 0 < pid )
-            waitpid( pid, NULL, 0 );
-        else
+        break;
+    case CMD_SH:
         {
-            XLOG( LOG_WARNING, "fork() failed: %m\n" );
-            return -1;
+            pid_t pid = fork();
+            if ( 0 == pid )
+            {   /* Try various incantations to spawn a shell,
+                   until one succeeds or we finally give up. */
+                const char *sh[2];
+                sh[0] = getenv( "SHELL" );
+                sh[1] = DEFAULT_SHELL;
+                for ( int i = 0; i < 2; ++i )
+                {
+                    if ( NULL == sh[i] )
+                        continue;
+                    DLOG( "Trying %s -l\n", sh[i] );
+                    execlp( sh[i], sh[i], "-l", NULL );
+                    DLOG( "Trying %s [-]\n", sh[i] );
+                    execlp( sh[i], "-", NULL );
+                    DLOG( "Trying %s -i\n", sh[i] );
+                    execlp( sh[i], sh[i], "-i", NULL );
+                    DLOG( "Trying %s\n", sh[i] );
+                    execlp( sh[i], sh[i], NULL );
+                }
+                XLOG( LOG_WARNING, "execlp() failed: %m\n" );
+                exit( EXIT_FAILURE );
+            }
+            else if ( 0 < pid )
+                waitpid( pid, NULL, 0 );
+            else
+            {
+                XLOG( LOG_WARNING, "fork() failed: %m\n" );
+                return -1;
+            }
         }
         printcon( "" );
         return 1;
-    }
-    else if ( MATCH_CMD( "help" ) || MATCH_CMD( "?" ) )
-    {
-        printcon( "Commands may be abbreviated.  Commands are:\n\n"
-            "  ?|help\n"
-            "  !|sh\n"
-            "  ^|cmd ext_command [args]\n"
-            "  accept offer_id\n"
-            "  cd|lcd\n"
-            "  connect|open [host [port]]\n"
-            "  disconnect|close\n"
-            "  exit|quit|bye\n"
-            "  list\n"
-            "  login [username [key]]\n"
-            "  logout\n"
-            "  offer peer_id filename\n"
-            "  peerlist|who\n"
-            "  ping [peer_id [\"text message\"]]\n"
-            "  pwd\n"
-            "  register key\n"
-            "  remove|delete type,remote_id,offer_id\n"
-            "\n" );
-        return 1;
-    }
-    else
-    {
+        break;
+    default:
         printcon( "Invalid command. Enter 'help' to get a list of valid commands.\n" );
         DLOG( "unknown command sequence: \"%s\"\n", aline );
+        break;
     }
-#undef MATCH_CMD
 
     if ( 0 > *srvfd )
     {
