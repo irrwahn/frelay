@@ -332,8 +332,8 @@ _.7.  OFFER
    Direction      Clt-->Clt           Clt-->Clt           Clt-->Clt
    Mand. Attrib.  OFFERID, FILENAME,  OFFERID             ERROR
                   SIZE
-   Opt. Attrib.   FILEHASH, TTL,      -                   NOTICE
-                  NOTICE
+   Opt. Attrib.   -                   -                   NOTICE
+
 
 _.8.  GETFILE
 
@@ -347,7 +347,7 @@ _.8.  GETFILE
    Message type   0x0121              0x0122              0x012a
    Direction      Clt-->Clt           Clt-->Clt           Clt-->Clt
    Mand. Attrib.  OFFERID             OFFERID, DATA       ERROR
-   Opt. Attrib.   OFFSET, SIZE                            NOTICE
+   Opt. Attrib.   OFFSET, SIZE        -                   NOTICE
 
 
 _.9.  PING
@@ -424,9 +424,6 @@ B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
    ---------------------------------------------------------------------
    0x0005  SIGNATURE  1..KEY_MAX  @@@TODO:
    ---------------------------------------------------------------------
-   0x0008  TTL        8           Timespan in nanoseconds during which a
-                                   message can be considered valid.
-   ---------------------------------------------------------------------
    0x0010  PEERID     8           ID of a peer currently logged into the
                                   server.  This ID is dynamically
                                   assigned for each session.
@@ -448,10 +445,6 @@ B\b 321098765432109876 54321098765432 1098765432109876 5432109876543210
                                   offered, or length of a range
                                   requested. Defaults to 0, if
                                   attribute is omitted.
-   ---------------------------------------------------------------------
-   0x0024  FILEHASH   1..KEY_MAX  Hash providing a way to detect
-                                   accidental file corruption.
-                                  @@@TODO: algorithm?
    ---------------------------------------------------------------------
    0x0025  OFFSET     8           64 bit start offset of requested
                                   range, in octets. Defaults to 0, if

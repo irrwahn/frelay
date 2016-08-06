@@ -496,7 +496,7 @@ static int process_stdin( int *srvfd )
 
         if ( 3 > a )
         {
-            printcon( "Usage: offer destination file [notice]\n" );
+            printcon( "Usage: offer destination file\n" );
             return -1;
         }
         if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
@@ -511,13 +511,6 @@ static int process_stdin( int *srvfd )
         mbuf_addattrib( &mp, MSG_ATTR_FILENAME, strlen( bname ) + 1, bname );
         free( fname );
         mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, o->size );
-        //TODO MSG_ATTR_FILEHASH ?
-        //TODO MSG_ATTR_TTL ?
-        if ( 3 < a )
-        {
-            cp = aline + ( arg[3] - arg[0] );
-            mbuf_addattrib( &mp, MSG_ATTR_NOTICE, strlen( cp ) + 1, cp );
-        }
     }
     else if ( MATCH_CMD( "accept" ) )
     {   /* accept offer_id */
@@ -697,7 +690,7 @@ static int process_stdin( int *srvfd )
             "  list\n"
             "  login [username [key]]\n"
             "  logout\n"
-            "  offer peer_id filename [\"text message\"]\n"
+            "  offer peer_id filename\n"
             "  peerlist|who\n"
             "  ping [peer_id [\"text message\"]]\n"
             "  pwd\n"

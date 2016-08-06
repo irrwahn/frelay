@@ -3,6 +3,8 @@ Outstanding TODOs in no particular order
 
 GENERAL: Provide means to create a distribution tarball (WIP)
 
+GENERAL: Provide install target
+
 GENERAL: Release/revision versioning
 
 GENERAL: Implement some kind of protocol version / capabilities in option
@@ -11,8 +13,6 @@ GENERAL: Implement some kind of protocol version / capabilities in option
 GENERAL: Support for broadcast / multicast transfers
          (Requires server side caching.)
 
-GENERAL: Implement FILEHASH and TTL attributes
-
 GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
@@ -20,24 +20,21 @@ GENERAL: Support hashed nonce + password authentication
 LIB: Add -DWITH_SYSLOG to release builds, and probably -DWITH_OWN_VSYSLOG
      to stay POSIX compliant.
 
+CLIENT: Improve command parser (command to enum -> switch/case, warn
+        about ambiguous input)
+
 CLIENT: Command line option parsing;
+        - add option to read specific config file
         - add option to write config file
+        - provide no-clobber option (append dot-index to filename)
 
 CLIENT: Evaluate $SHELL and use it in "!" command
 
-CLIENT: Guard against overwriting existing target files during download
-        (e.g., append parenthesized index to filename); pre-create
-        non-existent target file when starting download.
-
-CLIENT: Minimal command line editing and history support?
+CLIENT: pre-create non-existent target file when starting download.
 
 CLIENT: If run non-interactively, prefix every console output line with
         some context specific, easy to parse tag to simplify frontend
         programming.
-
-CLIENT: Drop the NOTICE attribute from OFFER?
-
-CLIENT: Calculate RTT for every request/response pair?
 
 
 On hold:
@@ -49,6 +46,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-06  Urban Wallasch  <irrwahn35@freenet.de> SVN r459
+CLIENT: Drop the NOTICE attribute from OFFER
+
 2016-08-05  Urban Wallasch  <irrwahn35@freenet.de> SVN r455
 CLIENT: Config file support
 
