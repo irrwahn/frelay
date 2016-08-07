@@ -5,8 +5,6 @@ GENERAL: Provide means to create a distribution tarball (WIP)
 
 GENERAL: Provide install target
 
-GENERAL: Release/revision versioning
-
 GENERAL: Implement some kind of protocol version / capabilities in option
          flags
 
@@ -17,8 +15,7 @@ GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
 
-LIB: Add -DWITH_SYSLOG to release builds, and probably -DWITH_OWN_VSYSLOG
-     to stay POSIX compliant.
+SERVER: Command line options; Release/revision versioning
 
 CLIENT: Support wildcards in transfer_remove().
 
@@ -36,6 +33,10 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r470
+CLIENT: Release/revision versioning
+LIB: Add -DWITH_SYSLOG and -DWITH_OWN_VSYSLOG to release builds
+
 2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r469
 CLIENT: Provide no-clobber option (append dot-index to filename)
 CLIENT: pre-create non-existent target file when starting download.

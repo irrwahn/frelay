@@ -66,6 +66,7 @@
 #include "cltcfg.h"
 #include "transfer.h"
 #include "util.h"
+#include "version.h"
 
 #include <ntime.h>
 #include <prng.h>
@@ -127,6 +128,8 @@ static void print_usage( const char *argv0 )
         "  -p <string>   : set password\n"
         "  -u <string>   : set username\n"
         "  -n            : no clobber (do not overwrite files)\n"
+        "  -h            : print help text and exit\n"
+        "  -v            : print version information and exit\n"
         , p
     );
 }
@@ -134,7 +137,7 @@ static void print_usage( const char *argv0 )
 static int eval_cmdline( int argc, char *argv[] )
 {
     int opt, nonopt = 0, r;
-    const char *optstr = ":c:p:u:w:hn";
+    const char *optstr = ":c:p:u:w:hnv";
 
     opterr = 0;
     errno = 0;
@@ -186,6 +189,10 @@ static int eval_cmdline( int argc, char *argv[] )
             break;
         case 'n':
             cfg.no_clobber = 1;
+            break;
+        case 'v':
+            fprintf( stderr, "frelay client version %s-%s\n", VERSION, SVNVER );
+            exit( EXIT_SUCCESS );
             break;
         case '?':
             print_usage( argv[0] );

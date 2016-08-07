@@ -49,9 +49,14 @@ DEP     := $(OBJ:%.o=%.d)
 SELF    := $(lastword $(MAKEFILE_LIST))
 
 
-.PHONY: all clean distclean
+.PHONY: all release debug clean distclean
 
-all: $(LIB)
+all: release
+
+release: CFLAGS += -DWITH_SYSLOG -DWITH_OWN_VSYSLOG
+release: $(LIB)
+
+debug: $(LIB)
 
 $(LIB): $(OBJ) $(SELF)
 	$(AR) $(LIB) $(OBJ)

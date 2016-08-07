@@ -36,7 +36,7 @@
 PROJECT := frelay
 
 export CC      ?= cc
-export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -O2 -I./lib -MMD -MP
+export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -I./lib -MMD -MP
 
 LD      := $(CC)
 LIBDIR  := ./lib
@@ -61,30 +61,41 @@ CLTDEP  := $(CLTOBJ:%.o=%.d)
 
 SELF    := $(lastword $(MAKEFILE_LIST))
 
-
-.PHONY: all debug lib clean distclean
-
-all: $(SRVBIN) $(CLTBIN)
-
-debug: CFLAGS  += -g3 -pg -DDEBUG
-debug: STRIP   := @:
-debug: all
+VERGEN	= sh version.sh
+VER_IN	= version.in
+VER_H	= version.h
 
 
-$(SRVBIN): $(SRVOBJ) $(SELF) lib
-	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
+.PHONY: all release debug gen lib clean distclean
+
+all: release
+
+release: CFLAGS += -O2 -DNDEBUG
+release: TAG = -rls
+release: gen lib $(SRVBIN) $(CLTBIN)
 	$(STRIP) $(SRVBIN)
-
-$(CLTBIN): $(CLTOBJ) $(SELF) lib
-	$(LD) $(LDFLAGS) $(CLTOBJ) $(LIBS) -o $(CLTBIN)
 	$(STRIP) $(CLTBIN)
+
+debug: CFLAGS  += -O0 -DDEBUG -g3 -pg
+debug: TAG = -dbg
+debug: gen lib $(SRVBIN) $(CLTBIN)
+
+gen:
+	-@$(CP) $(VER_IN) $(VER_H) 2> /dev/null
+	-$(VERGEN) $(VER_IN) $(VER_H) $(TAG)
+
+$(SRVBIN): $(SRVOBJ) $(SELF)
+	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
+
+$(CLTBIN): $(CLTOBJ) $(SELF)
+	$(LD) $(LDFLAGS) $(CLTOBJ) $(LIBS) -o $(CLTBIN)
 
 $(SRVOBJ): srvcfg.h
 
 $(CLTOBJ): cltcfg.h
 
 lib:
-	$(MAKE) -C $(LIBDIR)
+	$(MAKE) -C $(LIBDIR) $(MAKECMDGOALS)
 
 %.o: %.c $(SELF) config.h
 	$(CC) -c $(CFLAGS) -o $*.o $*.c
@@ -97,7 +108,7 @@ cltcfg.h: cltcfg.def.h
 
 clean:
 	$(MAKE) -C $(LIBDIR) $@
-	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) *.d
+	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) $(VER_H) *.d
 
 distclean: clean
 	$(MAKE) -C $(LIBDIR) $@
