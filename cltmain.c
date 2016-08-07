@@ -84,8 +84,8 @@ enum CLT_STATE {
 
 /* Configuration singleton. */
 static struct {
-    const char *host;
-    const char *port;
+    char *host;
+    char *port;
     int select_timeout;
     int msg_timeout;
     int resp_timeout;
@@ -116,14 +116,92 @@ static cfg_parse_def_t cfgdef[] = {
  *
  */
 
+static void print_usage( const char *argv0 )
+{
+    const char *p = ( NULL == ( p = strrchr( argv0, '/' ) ) ) ? argv0 : p+1;
+    fprintf( stderr,
+        "Usage: %s [OPTION]... [hostname [port]] [OPTION]... \n"
+        "  -c : read configuration from specified file\n"
+        "  -p : specify password\n"
+        "  -u : specify username\n"
+        "  -w : write configuration to specified file\n"
+        , p
+    );
+}
+
 static int eval_cmdline( int argc, char *argv[] )
 {
-    /* TODO: -c <config_file> */
-    /* TODO: -?|h prints usage message */
-    if ( 1 < argc )
-        cfg.host = strdup_s( argv[1] );
-    if ( 2 < argc )
-        cfg.port = strdup_s( argv[2] );
+    int opt, nonopt = 0, r;
+    const char *optstr = ":c:p:u:w:h";
+
+    opterr = 0;
+    errno = 0;
+    do
+    {
+        opt = getopt( argc, argv, optstr );
+        switch ( opt )
+        {
+        case -1:
+            if ( optind >= argc )
+                break;
+            opt = 0;
+            if ( 0 == nonopt )
+            {
+                ++nonopt;
+                free( cfg.host );
+                cfg.host = strdup_s( argv[optind++] );
+            }
+            else if ( 1 == nonopt )
+            {
+                ++nonopt;
+                free( cfg.port );
+                cfg.port = strdup_s( argv[optind++] );
+            }
+            else
+            {
+                print_usage( argv[0] );
+                fprintf( stderr, "Excess non-option argument: '%s'\n", argv[optind++] );
+                exit( EXIT_FAILURE );
+            }
+            break;
+        case 'c':
+            errno = 0;
+            if ( 0 != ( r = cfg_parse_file( optarg, cfgdef ) ) && 0 != errno )
+                fprintf( stderr, "Reading config file '%s' failed: %s\n", optarg, strerror( errno ) );
+            break;
+        case 'w':
+            errno = 0;
+            if ( 0 != ( r = cfg_write_file( optarg, cfgdef ) ) && 0 != errno )
+                fprintf( stderr, "Writing config file '%s' failed: %s\n", optarg, strerror( errno ) );
+            break;
+        case 'p':
+            free( cfg.pubkey );
+            cfg.pubkey = strdup_s( optarg );
+            break;
+        case 'u':
+            free( cfg.username );
+            cfg.username = strdup_s( optarg );
+            break;
+        case '?':
+            print_usage( argv[0] );
+            fprintf( stderr, "Unrecognized option '-%c'\n", optopt );
+            exit( EXIT_FAILURE );
+            break;
+        case ':':
+            print_usage( argv[0] );
+            fprintf( stderr, "Missing argument for option '-%c'\n", optopt );
+            exit( EXIT_FAILURE );
+            break;
+        case 'h':
+            print_usage( argv[0] );
+            exit( EXIT_SUCCESS );
+        default:
+            print_usage( argv[0] );
+            exit( EXIT_FAILURE );
+            break;
+        }
+    }
+    while ( -1 != opt );
     return 0;
 }
 
@@ -145,16 +223,16 @@ static int init_config( int argc, char *argv[] )
     cfg.privkey = strdup( DEF_PRIVKEY );
     cfg.st = CLT_INVALID;
 
-    /* Parse command line options. */
-    eval_cmdline( argc, argv );
-
-    /* Parse configuration file. */
+    /* Parse default configuration file. */
     tmp = getenv( "HOME" );
     cfg_filename = strdupcat2_s( tmp ? tmp : ".", CONFIG_PATH, "/.frelayclt.conf" );
     errno = 0;
     if ( 0 != ( r = cfg_parse_file( cfg_filename, cfgdef ) ) && 0 != errno )
         DLOG( "fopen(%s) failed: %m\n", cfg_filename );
     free( cfg_filename );
+
+    /* Parse command line options. */
+    eval_cmdline( argc, argv );
 
     /* Last resort to pre-set a sensible user name. */
     if ( ( NULL == cfg.username || '\0' == *cfg.username )
@@ -546,7 +624,8 @@ static int process_stdin( int *srvfd )
     r = 0;  // -1: error, 0: remote, 1: local
     switch ( cmd )
     {
-    case CMD_HELP:
+    case CMD_HELP:      /* help */
+        printcon( "Commands may be abbreviated.  Commands are:\n" );
         for ( int i = 0; NULL != cmd_list[i].cmd_name; ++i )
             printcon( "%s%s\n", cmd_list[i].cmd_name, cmd_list[i].help_txt );
         r = 1;

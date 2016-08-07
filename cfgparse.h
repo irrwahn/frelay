@@ -54,6 +54,9 @@ extern int cfg_parse_line( char *line, cfg_parse_def_t *def );
 extern int cfg_parse_fp( FILE *fp, cfg_parse_def_t *def );
 extern int cfg_parse_file( const char *filename, cfg_parse_def_t *def );
 
+extern int cfg_write_fp( FILE *fp, cfg_parse_def_t *def );
+extern int cfg_write_file( const char *filename, cfg_parse_def_t *def );
+
 
 #endif /* ndef _H_INCLUDED */
 

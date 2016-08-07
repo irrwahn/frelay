@@ -104,6 +104,7 @@ static inline int cfg_parse_assign( const char *name, const char *val, cfg_parse
                 DLOG( "Config set: %s=%s\n", name, *(char **)p->pvar );
                 break;
             default:
+                DLOG( "Ignoring unknown config type %d\n", (int)p->type );
                 break;
             }
             return 0;
@@ -153,6 +154,42 @@ int cfg_parse_file( const char *filename, cfg_parse_def_t *def )
     {
         DLOG( "Reading config from '%s'\n", filename );
         r = cfg_parse_fp( fp, def );
+        fclose( fp );
+    }
+    return r;
+}
+
+int cfg_write_fp( FILE *fp, cfg_parse_def_t *def )
+{
+    int r = 0;
+
+    for ( cfg_parse_def_t *p = def; 0 <= r && NULL != p && NULL != p->name; ++p )
+    {
+        switch ( p->type )
+        {
+        case CFG_PARSE_T_INT:
+            r = fprintf( fp, "%s=%d\n", p->name, *(int *)p->pvar );
+            break;
+        case CFG_PARSE_T_STR:
+            r = fprintf( fp, "%s=%s\n", p->name, *(char **)p->pvar );
+            break;
+        default:
+            DLOG( "Ignoring unknown config type %d\n", (int)p->type );
+            break;
+        }
+    }
+    return r < 0 ? -1 : 0;
+}
+
+int cfg_write_file( const char *filename, cfg_parse_def_t *def )
+{
+    int r = -1;
+    FILE *fp;
+
+    if ( NULL != ( fp = fopen( filename, "w" ) ) )
+    {
+        DLOG( "Writing config to '%s'\n", filename );
+        r = cfg_write_fp( fp, def );
         fclose( fp );
     }
     return r;
