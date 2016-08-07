@@ -20,15 +20,14 @@ GENERAL: Support hashed nonce + password authentication
 LIB: Add -DWITH_SYSLOG to release builds, and probably -DWITH_OWN_VSYSLOG
      to stay POSIX compliant.
 
-CLIENT: Improve command parser (command to enum -> switch/case, warn
-        about ambiguous input)
-
 CLIENT: Command line option parsing;
         - add option to read specific config file
         - add option to write config file
         - provide no-clobber option (append dot-index to filename)
 
 CLIENT: pre-create non-existent target file when starting download.
+
+CLIENT: Support wildcards in transfer_remove().
 
 CLIENT: If run non-interactively, prefix every console output line with
         some context specific, easy to parse tag to simplify frontend
@@ -44,6 +43,10 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-06  Urban Wallasch  <irrwahn35@freenet.de> SVN r466
+CLIENT: Improve command parser (command to enum -> switch/case, warn
+        about ambiguous input)
+
 2016-08-06  Urban Wallasch  <irrwahn35@freenet.de> SVN r465
 CLIENT: Evaluate $SHELL and use it in "!" command
 

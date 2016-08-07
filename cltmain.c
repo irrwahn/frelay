@@ -431,7 +431,7 @@ static int process_stdin( int *srvfd )
     }
     else if ( 0 == r )
     {   /* EOF on stdin. */
-        return 0;
+        return -2;
     }
     line[r] = '\0';
     strcpy( aline, line ); /* backup copy of command line */
@@ -500,34 +500,34 @@ static int process_stdin( int *srvfd )
         enum cmd_enum cmd;
         const char *help_txt;
     } cmd_list[] = {
-        { "?",          CMD_HELP,       "\tsame as 'help'" },
-        { "!",          CMD_SH,         "\tsame as 'sh'" },
-        { "^",          CMD_CMD,        "\tsame as 'cmd" },
-        { "accept",     CMD_ACCEPT,     "\taccept offer_id" },
-        { "bye",        CMD_EXIT,       "\tsame as 'exit'" },
-        { "cd",         CMD_CD,         "\tchange current working directory" },
-        { "close",      CMD_DISCONNECT, "\tclose connection to server" },
-        { "cmd",        CMD_CMD,        "\tcmd program_name [arguments]" },
-        { "connect",    CMD_CONNECT,    "\tconnect [host [port]]" },
-        { "delete",     CMD_REMOVE,     "\tdelete type,remote_id,offer_id" },
-        { "disconnect", CMD_DISCONNECT, "same as 'close'" },
-        { "drop",       CMD_DROP,       "\tdrop account registration" },
-        { "exit",       CMD_EXIT,       "\tterminate frelay" },
-        { "help",       CMD_HELP,       "\tdisplay this command list" },
-        { "lcd",        CMD_CD,         "\tsame as 'cd'" },
-        { "list",       CMD_LIST,       "\tlist active transfers / open offers" },
-        { "login",      CMD_LOGIN,      "\tlogin [username [password]]" },
-        { "logout",     CMD_LOGOUT,     "\tlogout" },
-        { "offer",      CMD_OFFER,      "\toffer peer_id filename" },
-        { "open",       CMD_CONNECT,    "\tsame as 'connect'" },
-        { "peerlist",   CMD_PEERLIST,   "get list of active peers from server" },
-        { "ping",       CMD_PING,       "\tping [peer_id [\"text message\"]]" },
-        { "pwd",        CMD_PWD,        "\tprint current working directory" },
-        { "quit",       CMD_EXIT,       "\tsame as 'exit'" },
-        { "register",   CMD_REGISTER,   "register password" },
-        { "remove",     CMD_REMOVE,     "\tsame as delete" },
-        { "sh",         CMD_SH,         "\topen an interactive sub-shell" },
-        { "who",        CMD_PEERLIST,   "\tsame as 'peerlist'" },
+        { "?",          CMD_HELP,       "\t\t\tsame as 'help'" },
+        { "!",          CMD_SH,         "\t\t\tsame as 'sh'" },
+        { "^",          CMD_CMD,        "\t\t\tsame as 'cmd" },
+        { "accept",     CMD_ACCEPT,     " offer_id\t\taccept an offer" },
+        { "bye",        CMD_EXIT,       "\t\t\tsame as 'exit'" },
+        { "cd",         CMD_CD,         " [path]\t\tchange current working directory" },
+        { "close",      CMD_DISCONNECT, "\t\t\tclose connection to server" },
+        { "cmd",        CMD_CMD,        "prog [args]\t\texecute external program" },
+        { "connect",    CMD_CONNECT,    " [host [port]]\tconnect to specified server" },
+        { "delete",     CMD_REMOVE,     " D|O,peer,offer\tcancel a pending offer" },
+        { "disconnect", CMD_DISCONNECT, "\t\tsame as 'close'" },
+        { "drop",       CMD_DROP,       "\t\t\tdrop account registration" },
+        { "exit",       CMD_EXIT,       "\t\t\tterminate frelay" },
+        { "help",       CMD_HELP,       "\t\t\tdisplay this command list" },
+        { "lcd",        CMD_CD,         "\t\t\tsame as 'cd'" },
+        { "list",       CMD_LIST,       "\t\t\tlist active transfers / open offers" },
+        { "login",      CMD_LOGIN,      " [user [passwd]]\tlog on to connected server" },
+        { "logout",     CMD_LOGOUT,     "\t\t\tlog off from connected server" },
+        { "offer",      CMD_OFFER,      " peer_id filename\tplace an offer" },
+        { "open",       CMD_CONNECT,    "\t\t\tsame as 'connect'" },
+        { "peerlist",   CMD_PEERLIST,   "\t\tget list of peers active on server" },
+        { "ping",       CMD_PING,       " [peer_id [text]]\tping server or peer" },
+        { "pwd",        CMD_PWD,        "\t\t\tprint current working directory" },
+        { "quit",       CMD_EXIT,       "\t\t\tsame as 'exit'" },
+        { "register",   CMD_REGISTER,   " password\tcreate or change an account" },
+        { "remove",     CMD_REMOVE,     "\t\t\tsame as 'delete'" },
+        { "sh",         CMD_SH,         "\t\t\topen an interactive sub-shell" },
+        { "who",        CMD_PEERLIST,   "\t\t\tsame as 'peerlist'" },
         { NULL, CMD_NONE, NULL }
     };
     enum cmd_enum cmd = CMD_NONE;
@@ -543,13 +543,13 @@ static int process_stdin( int *srvfd )
         }
         cmd = cmd_list[i].cmd;
     }
-
+    r = 0;  // -1: error, 0: remote, 1: local
     switch ( cmd )
     {
     case CMD_HELP:
         for ( int i = 0; NULL != cmd_list[i].cmd_name; ++i )
-            printcon( "%s\t%s\n", cmd_list[i].cmd_name, cmd_list[i].help_txt );
-        return 1;
+            printcon( "%s%s\n", cmd_list[i].cmd_name, cmd_list[i].help_txt );
+        r = 1;
         break;
     case CMD_PING:      /* ping [destination [notice]] */
         mbuf_compose( &mp, MSG_TYPE_PING_REQ, 0,
@@ -567,7 +567,7 @@ static int process_stdin( int *srvfd )
         if ( 3 > a )
         {
             printcon( "Usage: offer destination file\n" );
-            return -1;
+            r = -1;
         }
         else
         {
@@ -576,7 +576,7 @@ static int process_stdin( int *srvfd )
             if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
             {
                 printcon( "No such file: '%s'\n", arg[2] );
-                return -1;
+                r = -1;
             }
             mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, prng_random() );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
@@ -591,7 +591,7 @@ static int process_stdin( int *srvfd )
         if ( 2 > a )
         {
             printcon( "Usage: accept offer_id\n" );
-            return -1;
+            r = -1;
         }
         else
         {
@@ -600,7 +600,8 @@ static int process_stdin( int *srvfd )
             if ( NULL == ( d = download_match( oid ) ) )
             {
                 printcon( "Invalid offer ID %"PRIx64"\n", oid );
-                return -1;
+                r = -1;
+                break;
             }
             d->act = time( NULL );
             if ( 0 == download_resume( d ) )
@@ -610,7 +611,8 @@ static int process_stdin( int *srvfd )
             else
             {
                 printcon( "Download failed to start: %s\n", strerror( errno ) );
-                return -1;
+                r = -1;
+                break;
             }
             mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
@@ -620,22 +622,29 @@ static int process_stdin( int *srvfd )
         }
         break;
     case CMD_CONNECT:   /* connect [host [port]] */
-        if ( 3 > a )
-            arg[2] = cfg.port;
         if ( 2 > a && NULL == ( arg[1] = cfg.host ) )
         {
             printcon( "Usage: connect [host [port]]\n" );
-            return -1;
+            r = -1;
         }
-        connect_srv( srvfd, arg[1], arg[2] );
-        if ( 0 > *srvfd )
+        else
         {
-            cfg.st = CLT_INVALID;
-            return -1;
+            if ( 3 > a )
+                arg[2] = cfg.port;
+            connect_srv( srvfd, arg[1], arg[2] );
+            if ( 0 > *srvfd )
+            {
+                cfg.st = CLT_INVALID;
+                r = -1;
+            }
+            else
+            {
+                cfg.st = CLT_PRE_LOGIN;
+                r = 1;
+            }
         }
-        cfg.st = CLT_PRE_LOGIN;
         break;
-    case CMD_DISCONNECT:
+    case CMD_DISCONNECT:    /* disconnect */
         if ( 0 <= *srvfd )
         {
             transfer_closeall();
@@ -644,18 +653,22 @@ static int process_stdin( int *srvfd )
             printcon( "Connection closed\n" );
         }
         cfg.st = CLT_INVALID;
+        r = 1;
         break;
     case CMD_REGISTER:      /* register user pubkey */
         DLOG( "Registering.\n" );
         if ( 2 > a )
         {
-            printcon( "Usage: register pubkey\n" );
-            return -1;
+            printcon( "Usage: register password\n" );
+            r = -1;
         }
-        mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, prng_random() );
-        mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[1] ) + 1, arg[1] );
+        else
+        {
+            mbuf_compose( &mp, MSG_TYPE_REGISTER_REQ, 0, 0, prng_random() );
+            mbuf_addattrib( &mp, MSG_ATTR_PUBKEY, strlen( arg[1] ) + 1, arg[1] );
+        }
         break;
-    case CMD_DROP:
+    case CMD_DROP:   /* drop */
         DLOG( "Dropping.\n" );
         mbuf_compose( &mp, MSG_TYPE_DROP_REQ, 0, 0, prng_random() );
         break;
@@ -663,48 +676,57 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging in.\n" );
         if ( 2 > a  && NULL == ( arg[1] = cfg.username ) )
         {
-            printcon( "Usage: login username [key]\n" );
-            return -1;
-        }
-        if ( 2 < a )
-        {
-            free( cfg.pubkey );
-            cfg.pubkey = strdup_s( arg[2] );
-        }
-        mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, prng_random() );
-        mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
-        break;
-    case CMD_LOGOUT:
-        DLOG( "Logging out.\n" );
-        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, prng_random() );
-        break;
-    case CMD_LIST:
-        printcon( "Transfer list start\n" );
-        transfer_list( putscon_cb );
-        printcon( "Transfer list end\n" );
-        break;
-    case CMD_REMOVE:
-        if ( 2 > a )
-        {
-            printcon( "Usage: remove type|remote_id|offer_id\n" );
-            return -1;
+            printcon( "Usage: login [user [password]]\n" );
+            r = -1;
         }
         else
         {
-            int n = 0;
-            n = transfer_remove( arg[1] );
-            if ( 0 < n )
-                printcon( "Removed %d transfer%s\n", n, 1 < n ? "s" : "" );
-            else
-                printcon( "Removing %s failed\n", arg[1] );
+            if ( 2 < a )
+            {
+                free( cfg.pubkey );
+                cfg.pubkey = strdup_s( arg[2] );
+            }
+            mbuf_compose( &mp, MSG_TYPE_LOGIN_REQ, 0, 0, prng_random() );
+            mbuf_addattrib( &mp, MSG_ATTR_USERNAME, strlen( arg[1] ) + 1, arg[1] );
         }
         break;
-    case CMD_EXIT:
+    case CMD_LOGOUT:    /* logout */
+        DLOG( "Logging out.\n" );
+        mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, prng_random() );
+        break;
+    case CMD_LIST:      /* list */
+        printcon( "Transfer list start\n" );
+        transfer_list( putscon_cb );
+        printcon( "Transfer list end\n" );
+        r = 1;
+        break;
+    case CMD_REMOVE:    /* remove "T|peer|offer" */
+        if ( 2 > a )
+        {
+            printcon( "Usage: remove type|remote_id|offer_id\n" );
+            r = -1;
+        }
+        else
+        {
+            int n;
+            if ( 0 < ( n = transfer_remove( arg[1] ) ) )
+            {
+                printcon( "Removed %d transfer%s\n", n, 1 < n ? "s" : "" );
+                r = 1;
+            }
+            else
+            {
+                printcon( "Removing %s failed\n", arg[1] );
+                r = -1;
+            }
+        }
+        break;
+    case CMD_EXIT:  /* exit */
         disconnect_srv( srvfd );
         cfg.st = CLT_INVALID;
-        return 0;
+        r = -2;
         break;
-    case CMD_CD:        /* cd [path] */
+    case CMD_CD:    /* cd [path] */
         if ( 1 < a )
         {
             cp = aline + ( arg[1] - arg[0] );
@@ -712,23 +734,28 @@ static int process_stdin( int *srvfd )
             if ( 0 != chdir( cp ) )
                 printcon( "%s\n", strerror( errno ) );
         }
+        /* fall- through to CMD_PWD */
+    case CMD_PWD:   /* pwd */
         printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
-        return 1;
+        r = 1;
         break;
-    case CMD_CMD:       /* cmd command */
+    case CMD_CMD:   /* cmd prog [args] */
         if ( 2 > a )
         {
             printcon( "Usage: cmd \"command\"\n" );
-            return -1;
+            r = -1;
         }
-        cp = aline + ( arg[1] - arg[0] );
-        pcmd( cp, putscon_cb );
-        prompt( 1 );
-        break;
-    case CMD_SH:
+        else
         {
-            pid_t pid = fork();
-            if ( 0 == pid )
+            cp = aline + ( arg[1] - arg[0] );
+            pcmd( cp, putscon_cb );
+            r = 1;
+        }
+        break;
+    case CMD_SH:    /* sh */
+        {
+            pid_t pid;
+            if ( 0 == ( pid = fork() ) )
             {   /* Try various incantations to spawn a shell,
                    until one succeeds or we finally give up. */
                 const char *sh[2];
@@ -751,29 +778,36 @@ static int process_stdin( int *srvfd )
                 exit( EXIT_FAILURE );
             }
             else if ( 0 < pid )
+            {
                 waitpid( pid, NULL, 0 );
+                r = 1;
+            }
             else
             {
                 XLOG( LOG_WARNING, "fork() failed: %m\n" );
-                return -1;
+                r = -1;
             }
         }
-        printcon( "" );
-        return 1;
         break;
     default:
         printcon( "Invalid command. Enter 'help' to get a list of valid commands.\n" );
         DLOG( "unknown command sequence: \"%s\"\n", aline );
+        r = -1;
         break;
     }
 
-    if ( 0 > *srvfd )
+    if ( 0 == r )
     {
-        printcon( "Not connected\n" );
-        mbuf_free( &mp );
+        if ( 0 > *srvfd )
+        {
+            printcon( "Not connected\n" );
+            mbuf_free( &mp );
+        }
+        else if ( NULL != mp )
+            enqueue_msg( mp );
     }
-    else if ( NULL != mp )
-        enqueue_msg( mp );
+    else if ( 1 == r )
+        printcon( "" );
     return r;
 }
 
@@ -1244,8 +1278,8 @@ int main( int argc, char *argv[] )
             if ( 0 < nset && FD_ISSET( STDIN_FILENO, &rfds ) )
             {
                 --nset;
-                if ( 0 == process_stdin( &srvfd ) )
-                    break;  /* EOF on stdin terminates client. */
+                if ( -2 == process_stdin( &srvfd ) )
+                    break;  /* 'exit' or EOF on stdin terminates client. */
             }
             if ( 0 < nset ) /* Can happen on read errors. */
                 DLOG( "%d file descriptors still set!\n", nset );
@@ -1282,7 +1316,6 @@ int main( int argc, char *argv[] )
         }
     }
     DLOG( "Terminating\n" );
-    //prompt( 0 );
     transfer_closeall();
     disconnect_srv( &srvfd );
     exit( EXIT_SUCCESS );
