@@ -1,6 +1,5 @@
 Outstanding:
 ------------
-CLIENT: Non-option arguments (host, port) are evaluated before config file is read.
 
 
 On hold:
@@ -11,8 +10,11 @@ CLIENT: Needs to be built with large file support on 32-bit hosts (_FILE_OFFSET_
         Relevant: http://pubs.opengroup.org/onlinepubs/9699919799/utilities/c99.html#tag_20_11_13_03
 
 
-(Hopefully) fixed:
-------------------
+Resolved:
+---------
+2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r468
+CLIENT: Non-option arguments (host, port) are evaluated before config file is read.
+
 2016-08-03  Urban Wallasch  <irrwahn35@freenet.de> SVN r439
 GENERAL: Bogus RTT values on 32-bit hosts (only sometimes?)
 GENERAL: Calculated RTT is sometimes wrong

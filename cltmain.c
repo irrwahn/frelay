@@ -93,6 +93,7 @@ static struct {
     char *username;
     char *pubkey;
     char *privkey;
+    int no_clobber;
     enum CLT_STATE st;
 } cfg;
 
@@ -121,10 +122,11 @@ static void print_usage( const char *argv0 )
     const char *p = ( NULL == ( p = strrchr( argv0, '/' ) ) ) ? argv0 : p+1;
     fprintf( stderr,
         "Usage: %s [OPTION]... [hostname [port]] [OPTION]... \n"
-        "  -c : read configuration from specified file\n"
-        "  -p : specify password\n"
-        "  -u : specify username\n"
-        "  -w : write configuration to specified file\n"
+        "  -c <filename> : read configuration from specified file\n"
+        "  -w <filename> : write configuration to specified file\n"
+        "  -p <string>   : set password\n"
+        "  -u <string>   : set username\n"
+        "  -n            : no clobber (do not overwrite files)\n"
         , p
     );
 }
@@ -132,7 +134,7 @@ static void print_usage( const char *argv0 )
 static int eval_cmdline( int argc, char *argv[] )
 {
     int opt, nonopt = 0, r;
-    const char *optstr = ":c:p:u:w:h";
+    const char *optstr = ":c:p:u:w:hn";
 
     opterr = 0;
     errno = 0;
@@ -182,6 +184,9 @@ static int eval_cmdline( int argc, char *argv[] )
             free( cfg.username );
             cfg.username = strdup_s( optarg );
             break;
+        case 'n':
+            cfg.no_clobber = 1;
+            break;
         case '?':
             print_usage( argv[0] );
             fprintf( stderr, "Unrecognized option '-%c'\n", optopt );
@@ -221,6 +226,7 @@ static int init_config( int argc, char *argv[] )
     cfg.username = strdup( DEF_USER );
     cfg.pubkey = strdup( DEF_PUBKEY );
     cfg.privkey = strdup( DEF_PRIVKEY );
+    cfg.no_clobber = 0;
     cfg.st = CLT_INVALID;
 
     /* Parse default configuration file. */
@@ -656,6 +662,7 @@ static int process_stdin( int *srvfd )
             {
                 printcon( "No such file: '%s'\n", arg[2] );
                 r = -1;
+                break;
             }
             mbuf_compose( &mp, MSG_TYPE_OFFER_REQ, 0, o->rid, prng_random() );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, o->oid );
@@ -684,7 +691,12 @@ static int process_stdin( int *srvfd )
             }
             d->act = time( NULL );
             if ( 0 == download_resume( d ) )
-                printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
+            {
+                if ( 0 < d->offset )
+                    printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
+                else
+                    printcon( "Download started\n" );
+            }
             else if ( 0 == download_write( d, NULL, 0 ) )
                 printcon( "Download started\n" );
             else
@@ -943,21 +955,18 @@ static int process_srvmsg( mbuf_t **pp )
                     d->oid = NTOH64( *(uint64_t *)av );
                     break;
                 case MSG_ATTR_FILENAME:
-                    d->name = strdup_s( av );
-                    d->partname = strdupcat_s( av, ".part" );
+                    make_filenames( d, av, cfg.no_clobber );
                     break;
                 case MSG_ATTR_SIZE:
                     d->size = NTOH64( *(uint64_t *)av );
                     break;
-                // TODO: FILEHASH, TTL, NOTICE
                 default:
                     break;
                 }
             }
-            if ( NULL == d->name || 0 == d->size )
+            if ( NULL == d->name || 0 == strlen( d->name ) || 0 == d->size )
             {
-                d->oid = 0;
-                d->act = 0;
+                transfer_invalidate( d );
                 status = SC_BAD_REQUEST;
                 break;
             }

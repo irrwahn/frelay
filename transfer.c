@@ -65,6 +65,45 @@ int64_t fsize( const char *filename )
     return 0 == stat( filename, &st ) ? st.st_size : -1;
 }
 
+int make_filenames( transfer_t *d, const char *s, int no_clobber )
+{
+    if ( no_clobber )
+    {
+        int fd0 = -1, fd1 = -1;
+        const char *e = strrchr( s, '.' );
+        int extpos = e ? e - s : (int)strlen( s );
+        char *name = malloc_s( strlen( s ) + 21 );
+        char *partname = malloc_s( strlen( s ) + 25 );
+
+        strcpy( name, s );
+        sprintf( partname, "%s.part", name );
+        for ( int i = 1; i < INT_MAX; ++i )
+        {
+            sprintf( name, "%.*s.%d%s", extpos, s, i, s + extpos );
+            sprintf( partname, "%s.part", name );
+            if ( 0 > ( fd0 = open( name, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 00600 ) ) )
+                continue;
+            if ( 0 > ( fd1 = open( partname, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 00600 ) ) )
+            {
+                unlink( name );
+                close( fd0 );
+                continue;
+            }
+            break;
+        }
+        close( fd0 );
+        d->fd = fd1;
+        d->name = name;
+        d->partname = partname;
+    }
+    else
+    {
+        d->name = strdup_s( s );
+        d->partname = strdupcat_s( d->name, ".part" );
+    }
+    return 0;
+}
+
 /* Add an offer to the pending list. */
 transfer_t *offer_new( uint64_t dest, const char *filename )
 {
@@ -79,8 +118,6 @@ transfer_t *offer_new( uint64_t dest, const char *filename )
     o->name = strdup_s( filename );
     o->partname = NULL;
     o->size = fsz;
-    // TODO hash ?
-    // TODO ttl ?
     o->offset = 0;
     o->fd = -1;
     o->act = time( NULL );
@@ -181,7 +218,7 @@ int download_write( transfer_t *d, void *data, size_t sz )
 
     errno = 0;
     if ( 0 > d->fd )
-        d->fd = open( d->partname, O_WRONLY | O_CREAT | O_EXCL| O_CLOEXEC , 00600 );
+        d->fd = open( d->partname, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 00600 );
     if ( 0 > d->fd )
     {
         DLOG( "open(%s,O_WRONLY|O_CREAT|O_EXCL) failed: %m.\n", d->partname );

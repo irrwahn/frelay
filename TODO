@@ -20,10 +20,6 @@ GENERAL: Support hashed nonce + password authentication
 LIB: Add -DWITH_SYSLOG to release builds, and probably -DWITH_OWN_VSYSLOG
      to stay POSIX compliant.
 
-CLIENT: Provide no-clobber option (append dot-index to filename)
-
-CLIENT: pre-create non-existent target file when starting download.
-
 CLIENT: Support wildcards in transfer_remove().
 
 CLIENT: If run non-interactively, prefix every console output line with
@@ -40,6 +36,11 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r469
+CLIENT: Provide no-clobber option (append dot-index to filename)
+CLIENT: pre-create non-existent target file when starting download.
+        Note: no-clobber only!
+
 2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r468
 CLIENT: Command line option parsing;
         - add option to read specific config file

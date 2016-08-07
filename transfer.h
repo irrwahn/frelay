@@ -62,6 +62,7 @@ struct TRANSFER_T_STRUCT {
 
 
 extern int64_t fsize( const char *filename );
+extern int make_filenames( transfer_t *d, const char *s, int no_clobber );
 
 extern transfer_t *offer_new( uint64_t dest, const char *filename );
 extern transfer_t *offer_match( uint64_t oid, uint64_t rid );
