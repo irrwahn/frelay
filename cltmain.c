@@ -44,6 +44,7 @@
 #include <inttypes.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -96,6 +97,7 @@ static struct {
     char *privkey;
     int no_clobber;
     enum CLT_STATE st;
+    bool istty[3];
 } cfg;
 
 static cfg_parse_def_t cfgdef[] = {
@@ -235,6 +237,8 @@ static int init_config( int argc, char *argv[] )
     cfg.privkey = strdup( DEF_PRIVKEY );
     cfg.no_clobber = 0;
     cfg.st = CLT_INVALID;
+    for ( int i = 0; i < 3; ++i )
+        cfg.istty[i] = isatty( i );
 
     /* Parse default configuration file. */
     tmp = getenv( "HOME" );
@@ -262,22 +266,36 @@ static int init_config( int argc, char *argv[] )
  *
  */
 
+#define PFX_IMSG    "IMSG"  // informative message
+#define PFX_COUT    "COUT"  // external command output
+#define PFX_TLIST   "TLIST" // transfer list item
+#define PFX_PLIST   "PLIST" // peer list item
+#define PFX_QPING   "QPING" // received PING request
+#define PFX_RPING   "RPING" // received PING response
+#define PFX_OFFER   "OFFER" // received OFFER request
+#define PFX_RPING   "RPING" // received PING response
+#define PFX_CERR    "CERR"  // command error
+#define PFX_LERR    "LERR"  // local error
+#define PFX_SERR    "SERR"  // remote error
+
 static void prompt( int on )
 {
-    if ( isatty( STDIN_FILENO ) )
+    if ( cfg.istty[STDIN_FILENO] )
         fprintf( stderr, on ? "\rfrelay> " :"\r       \r" );
 }
 
 /*
  * Just to have a central function to control console output.
  */
-static int printcon( const char *fmt, ... )
+static int printcon( const char *pfx, const char *fmt, ... )
 {
     int r;
     va_list arglist;
     FILE *ofp = stdout;
 
     prompt( 0 );
+    if ( !cfg.istty[STDOUT_FILENO] )
+        fprintf( ofp, "%s: ", pfx );
     va_start( arglist, fmt );
     r = vfprintf( ofp, fmt, arglist );
     va_end( arglist );
@@ -291,9 +309,14 @@ static int printcon( const char *fmt, ... )
     return r;
 }
 
-static int putscon_cb( const char *s )
+static int tlist_cb( const char *s )
 {
-    return printcon( "%s", s );
+    return printcon( PFX_TLIST, "%s", s );
+}
+
+static int pcmd_cb( const char *s )
+{
+    return printcon( PFX_COUT, "%s", s );
 }
 
 
@@ -327,7 +350,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     {
         const char *emsg = EAI_SYSTEM != res ? gai_strerror( res ) : strerror( errno );
         DLOG( "getaddrinfo(%s,%s) failed: %s\n", host, service, emsg );
-        printcon( "%s:%s: %s\n", host, service, emsg );
+        printcon( PFX_CERR, "%s:%s: %s\n", host, service, emsg );
         return -1;
     }
 
@@ -383,11 +406,11 @@ static int connect_srv( int *pfd, const char *host, const char *service )
     freeaddrinfo( info );
     if ( NULL == ai )
     {
-        printcon( "%s:%s: %s\n", host, service, strerror( errno ) );
+        printcon( PFX_CERR, "%s:%s: %s\n", host, service, strerror( errno ) );
         return -1;
     }
     DLOG( "Connected to [%s:%s].\n", host, service );
-    printcon( "Connected to %s:%s\n", host, service );
+    printcon( PFX_IMSG, "Connected to %s:%s\n", host, service );
     if ( 0 != set_nonblocking( fd ) )
         DLOG( "set_nonblocking() failed: %m.\n" );
     if ( 0 != set_cloexec( fd ) )
@@ -560,7 +583,7 @@ static int process_stdin( int *srvfd )
     /* Ye shoddy command pars0r. */
     if ( NULL == arg[0] || '\0' == arg[0][0] )
     {
-        printcon( "" );
+        prompt( 1 );
         return -1;
     }
     aline[ arg[a-1] - arg[0] + strlen( arg[a-1] ) ] = '\0';
@@ -629,7 +652,7 @@ static int process_stdin( int *srvfd )
             continue;
         if ( CMD_NONE != cmd )
         {
-            printcon( "Ambiguous command\n" );
+            printcon( PFX_LERR, "Ambiguous command\n" );
             return -1;
         }
         cmd = cmd_list[i].cmd;
@@ -638,9 +661,9 @@ static int process_stdin( int *srvfd )
     switch ( cmd )
     {
     case CMD_HELP:      /* help */
-        printcon( "Commands may be abbreviated.  Commands are:\n" );
+        printcon( PFX_IMSG, "Commands may be abbreviated.  Commands are:\n" );
         for ( int i = 0; NULL != cmd_list[i].cmd_name; ++i )
-            printcon( "%s%s\n", cmd_list[i].cmd_name, cmd_list[i].help_txt );
+            printcon( PFX_IMSG, "%s%s\n", cmd_list[i].cmd_name, cmd_list[i].help_txt );
         r = 1;
         break;
     case CMD_PING:      /* ping [destination [notice]] */
@@ -658,7 +681,7 @@ static int process_stdin( int *srvfd )
     case CMD_OFFER:     /* offer destination file [notice] */
         if ( 3 > a )
         {
-            printcon( "Usage: offer destination file\n" );
+            printcon( PFX_CERR, "Usage: offer destination file\n" );
             r = -1;
         }
         else
@@ -667,7 +690,7 @@ static int process_stdin( int *srvfd )
             char *bname, *fname;
             if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
             {
-                printcon( "No such file: '%s'\n", arg[2] );
+                printcon( PFX_CERR, "No such file: '%s'\n", arg[2] );
                 r = -1;
                 break;
             }
@@ -683,7 +706,7 @@ static int process_stdin( int *srvfd )
     case CMD_ACCEPT:    /* accept offer_id */
         if ( 2 > a )
         {
-            printcon( "Usage: accept offer_id\n" );
+            printcon( PFX_CERR, "Usage: accept offer_id\n" );
             r = -1;
         }
         else
@@ -692,7 +715,7 @@ static int process_stdin( int *srvfd )
             transfer_t *d;
             if ( NULL == ( d = download_match( oid ) ) )
             {
-                printcon( "Invalid offer ID %"PRIx64"\n", oid );
+                printcon( PFX_CERR, "Invalid offer ID %"PRIx64"\n", oid );
                 r = -1;
                 break;
             }
@@ -700,15 +723,15 @@ static int process_stdin( int *srvfd )
             if ( 0 == download_resume( d ) )
             {
                 if ( 0 < d->offset )
-                    printcon( "Download resumed at offset %"PRIu64".\n", d->offset );
+                    printcon( PFX_IMSG, "Download resumed at offset %"PRIu64".\n", d->offset );
                 else
-                    printcon( "Download started\n" );
+                    printcon( PFX_IMSG, "Download started\n" );
             }
             else if ( 0 == download_write( d, NULL, 0 ) )
-                printcon( "Download started\n" );
+                printcon( PFX_IMSG, "Download started\n" );
             else
             {
-                printcon( "Download failed to start: %s\n", strerror( errno ) );
+                printcon( PFX_CERR, "Download failed to start: %s\n", strerror( errno ) );
                 r = -1;
                 break;
             }
@@ -722,7 +745,7 @@ static int process_stdin( int *srvfd )
     case CMD_CONNECT:   /* connect [host [port]] */
         if ( 2 > a && NULL == ( arg[1] = cfg.host ) )
         {
-            printcon( "Usage: connect [host [port]]\n" );
+            printcon( PFX_CERR, "Usage: connect [host [port]]\n" );
             r = -1;
         }
         else
@@ -748,7 +771,7 @@ static int process_stdin( int *srvfd )
             transfer_closeall();
             DLOG( "Closing connection.\n" );
             disconnect_srv( srvfd );
-            printcon( "Connection closed\n" );
+            printcon( PFX_IMSG, "Connection closed\n" );
         }
         cfg.st = CLT_INVALID;
         r = 1;
@@ -757,7 +780,7 @@ static int process_stdin( int *srvfd )
         DLOG( "Registering.\n" );
         if ( 2 > a )
         {
-            printcon( "Usage: register password\n" );
+            printcon( PFX_CERR, "Usage: register password\n" );
             r = -1;
         }
         else
@@ -774,7 +797,7 @@ static int process_stdin( int *srvfd )
         DLOG( "Logging in.\n" );
         if ( 2 > a  && NULL == ( arg[1] = cfg.username ) )
         {
-            printcon( "Usage: login [user [password]]\n" );
+            printcon( PFX_CERR, "Usage: login [user [password]]\n" );
             r = -1;
         }
         else
@@ -793,15 +816,13 @@ static int process_stdin( int *srvfd )
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, prng_random() );
         break;
     case CMD_LIST:      /* list */
-        printcon( "Transfer list start\n" );
-        transfer_list( putscon_cb );
-        printcon( "Transfer list end\n" );
+        transfer_list( tlist_cb );
         r = 1;
         break;
     case CMD_REMOVE:    /* remove "T|peer|offer" */
         if ( 2 > a )
         {
-            printcon( "Usage: remove type|remote_id|offer_id\n" );
+            printcon( PFX_CERR, "Usage: remove type|remote_id|offer_id\n" );
             r = -1;
         }
         else
@@ -809,12 +830,12 @@ static int process_stdin( int *srvfd )
             int n;
             if ( 0 < ( n = transfer_remove( arg[1] ) ) )
             {
-                printcon( "Removed %d transfer%s\n", n, 1 != n ? "s" : "" );
+                printcon( PFX_IMSG, "Removed %d transfer%s\n", n, 1 != n ? "s" : "" );
                 r = 1;
             }
             else
             {
-                printcon( "Invalid remove mask: '%s'\n", arg[1] );
+                printcon( PFX_CERR, "Invalid remove mask: '%s'\n", arg[1] );
                 r = -1;
             }
         }
@@ -830,27 +851,28 @@ static int process_stdin( int *srvfd )
             cp = aline + ( arg[1] - arg[0] );
             errno = 0;
             if ( 0 != chdir( cp ) )
-                printcon( "%s\n", strerror( errno ) );
+                printcon( PFX_CERR, "%s\n", strerror( errno ) );
         }
         /* fall- through to CMD_PWD */
     case CMD_PWD:   /* pwd */
-        printcon( "Local directory now %s\n", getcwd( line, sizeof line ) );
+        printcon( PFX_IMSG, "Local directory now %s\n", getcwd( line, sizeof line ) );
         r = 1;
         break;
     case CMD_CMD:   /* cmd prog [args] */
         if ( 2 > a )
         {
-            printcon( "Usage: cmd \"command\"\n" );
+            printcon( PFX_CERR, "Usage: cmd \"command\"\n" );
             r = -1;
         }
         else
         {
             cp = aline + ( arg[1] - arg[0] );
-            pcmd( cp, putscon_cb );
+            pcmd( cp, pcmd_cb );
             r = 1;
         }
         break;
     case CMD_SH:    /* sh */
+        if ( cfg.istty[STDIN_FILENO] && cfg.istty[STDOUT_FILENO] )
         {
             pid_t pid;
             if ( 0 == ( pid = fork() ) )
@@ -886,9 +908,11 @@ static int process_stdin( int *srvfd )
                 r = -1;
             }
         }
+        else
+            printcon( PFX_CERR, "Spawning a subshell is only supported in TTY mode.\n" );
         break;
     default:
-        printcon( "Invalid command. Enter 'help' to get a list of valid commands.\n" );
+        printcon( PFX_CERR, "Invalid command. Enter 'help' to get a list of valid commands.\n" );
         DLOG( "unknown command sequence: \"%s\"\n", aline );
         r = -1;
         break;
@@ -898,14 +922,14 @@ static int process_stdin( int *srvfd )
     {
         if ( 0 > *srvfd )
         {
-            printcon( "Not connected\n" );
+            printcon( PFX_CERR, "Not connected\n" );
             mbuf_free( &mp );
         }
         else if ( NULL != mp )
             enqueue_msg( mp );
     }
     else if ( 1 == r )
-        printcon( "" );
+        prompt( 1 );
     return r;
 }
 
@@ -940,7 +964,7 @@ static int process_srvmsg( mbuf_t **pp )
             char *s = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 s = av;
-            printcon( "Ping from %016"PRIx64"%s%s%s\n",
+            printcon( PFX_QPING, "Ping from %016"PRIx64"%s%s%s\n",
                         srcid, s?": '":"", s?s:"", s?"'":"" );
             if ( MCLASS_IS_REQ( mtype ) )
             {
@@ -977,7 +1001,7 @@ static int process_srvmsg( mbuf_t **pp )
                 status = SC_BAD_REQUEST;
                 break;
             }
-            printcon( "Offer from %016"PRIx64": %016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
+            printcon( PFX_OFFER, "Offer from %016"PRIx64": %016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
                         d->rid, d->oid, d->name, d->size );
             mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, d->oid );
@@ -1006,7 +1030,7 @@ static int process_srvmsg( mbuf_t **pp )
                 size = NTOH64( *(uint64_t *)av );
             if ( 0 == size )
             {   /* Remote side signaled 'download finished'. */
-                printcon( "Finished uploading %016"PRIx64" '%s'\n", o->oid, o->name );
+                printcon( PFX_IMSG, "Finished uploading %016"PRIx64" '%s'\n", o->oid, o->name );
                 transfer_invalidate( o );
             }
             else if ( NULL == ( data = offer_read( o, offset, &size ) ) )
@@ -1032,7 +1056,7 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             ntime_t rtt = ntime_to_us( ntime_get() - HDR_GET_TS( qmatch ) );
-            printcon( "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms\n",
+            printcon( PFX_RPING, "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms\n",
                         srcid, rtt/1000, rtt%1000 );
         }
         break;
@@ -1045,10 +1069,10 @@ static int process_srvmsg( mbuf_t **pp )
             transfer_t *o;
             if ( NULL == ( o = offer_match( oid, srcid ) ) )
             {
-                printcon( "Peer %016"PRIx64" referenced invalid offer %016"PRIx64"\n", srcid, oid );
+                printcon( PFX_SERR, "Peer %016"PRIx64" referenced invalid offer %016"PRIx64"\n", srcid, oid );
                 break;
             }
-            printcon( "Peer %016"PRIx64" received offer %016"PRIx64" '%s'\n", srcid, o->oid, o->name );
+            printcon( PFX_IMSG, "Peer %016"PRIx64" received offer %016"PRIx64" '%s'\n", srcid, o->oid, o->name );
         }
         break;
     case MSG_TYPE_GETFILE_RES:
@@ -1067,17 +1091,17 @@ static int process_srvmsg( mbuf_t **pp )
             else if ( 0 == al )
             {
                 if ( d->offset == d->size )
-                    printcon( "Finished downloading %016"PRIx64" '%s'\n", d->oid, d->name );
+                    printcon( PFX_IMSG, "Finished downloading %016"PRIx64" '%s'\n", d->oid, d->name );
                 else
-                    printcon( "Peer signaled premature EOF uploading %016"PRIx64" '%s'\n", d->oid, d->name );
+                    printcon( PFX_SERR, "Peer signaled premature EOF uploading %016"PRIx64" '%s'\n", d->oid, d->name );
                 if ( 0 <= d->fd )
                     transfer_invalidate( d );
                 if ( 0 != rename( d->partname, d->name ) )
-                    printcon( "Moving '%s' to '%s' failed: %s\n", d->partname, d->name, strerror( errno ) );
+                    printcon( PFX_LERR, "Moving '%s' to '%s' failed: %s\n", d->partname, d->name, strerror( errno ) );
             }
             else if ( 0 != download_write( d, av, al ) )
             {
-                printcon( "Writing to temporary file '%s' failed, aborted\n", d->partname );
+                printcon( PFX_LERR, "Writing to temporary file '%s' failed, aborted\n", d->partname );
             }
             else
             {
@@ -1095,16 +1119,14 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_PEERLIST_RES:
         if ( CLT_AUTH_OK == cfg.st && 0ULL == srcid )
         {
-            printcon( "Peer list start\n" );
             while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
                 && MSG_ATTR_PEERID == at
                 && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
                 && MSG_ATTR_PEERNAME == at2 )
             {
-                printcon( "%016"PRIx64"%s %s\n", NTOH64( *(uint64_t *)av ),
+                printcon( PFX_PLIST, "%016"PRIx64"%s %s\n", NTOH64( *(uint64_t *)av ),
                         (HDR_GET_DSTID(*pp)==NTOH64( *(uint64_t *)av ))?"*":"",  (char *)av2  );
             }
-            printcon( "Peer list end\n" );
         }
         break;
     case MSG_TYPE_REGISTER_RES:
@@ -1113,9 +1135,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Registered\n" );
+            printcon( PFX_IMSG, "Registered\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "%s\n", (char *)av );
+                printcon( PFX_IMSG, "%s\n", (char *)av );
         }
         break;
     case MSG_TYPE_DROP_RES:
@@ -1124,9 +1146,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Dropped.\n" );
+            printcon( PFX_IMSG, "Dropped.\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "%s\n", (char *)av );
+                printcon( PFX_IMSG, "%s\n", (char *)av );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -1135,9 +1157,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && ( MSG_ATTR_OK == at || MSG_ATTR_CHALLENGE == at ) )
         {
-            printcon( "Login Ok\n" );
+            printcon( PFX_IMSG, "Login Ok\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 ) && MSG_ATTR_NOTICE == at2 )
-                printcon( "%s\n", (char *)av2 );
+                printcon( PFX_IMSG, "%s\n", (char *)av2 );
             if ( MSG_ATTR_OK == at )
             {   /* Unregistered user. */
                 cfg.st = CLT_AUTH_OK;
@@ -1148,7 +1170,7 @@ static int process_srvmsg( mbuf_t **pp )
                 if ( 0 == strncmp( av, AUTH_KEY_PLAINTEXT, strlen( AUTH_KEY_PLAINTEXT ) ) )
                 {
                     char *key;
-                    printcon( "Authenticating\n" );
+                    printcon( PFX_IMSG, "Authenticating\n" );
                     key = strdupcat_s( AUTH_KEY_PLAINTEXT, cfg.pubkey ? cfg.pubkey : "" );
                     mbuf_compose( &mp, MSG_TYPE_AUTH_REQ, 0, 0, trfid );
                     mbuf_addattrib( &mp, MSG_ATTR_DIGEST, strlen( key ) + 1, key );
@@ -1156,7 +1178,7 @@ static int process_srvmsg( mbuf_t **pp )
                     cfg.st = CLT_LOGIN_OK;
                 }
                 else
-                    printcon( "Authentication method not supported\n" );
+                    printcon( PFX_SERR, "Authentication method not supported\n" );
             }
         }
         break;
@@ -1166,9 +1188,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Authenticated\n" );
+            printcon( PFX_IMSG, "Authenticated\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "%s\n", (char *)av );
+                printcon( PFX_IMSG, "%s\n", (char *)av );
             cfg.st = CLT_AUTH_OK;
         }
         break;
@@ -1178,9 +1200,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( "Logged out\n" );
+            printcon( PFX_IMSG, "Logged out\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( "%s\n", (char *)av );
+                printcon( PFX_IMSG, "%s\n", (char *)av );
             cfg.st = CLT_PRE_LOGIN;
         }
         break;
@@ -1199,12 +1221,12 @@ static int process_srvmsg( mbuf_t **pp )
             char *es = NULL;
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
                 es = av;
-            printcon( "%s Error %"PRIu64"%s%s.\n",
+            printcon( PFX_SERR, "%s Error %"PRIu64"%s%s.\n",
                         mtype2str( mtype ), ec, es?" ":"", es?es:"" );
         }
         else
         {
-            printcon( "Unhandled message 0x%04"PRIx16" (%s_%s)!\n",
+            printcon( PFX_LERR, "Unhandled message 0x%04"PRIx16" (%s_%s)!\n",
                         mtype, mtype2str( mtype ), mclass2str( mtype ) );
             XLOG( LOG_WARNING, "Unhandled message 0x%04"PRIx16"!\n" );
             mbuf_dump( *pp );
@@ -1320,7 +1342,7 @@ DISC:
     transfer_closeall();
     disconnect_srv( srvfd );
     cfg.st = CLT_INVALID;
-    printcon( "Connection to remote host failed\n" );
+    printcon( PFX_SERR, "Connection to remote host failed\n" );
     return nset;
 }
 
@@ -1345,7 +1367,7 @@ int main( int argc, char *argv[] )
             cfg.st = CLT_PRE_LOGIN;
     }
     DLOG( "Entering main loop.\n" );
-    printcon( "" );
+    prompt( 1 );
     while ( 1 )
     {
         int nset;

@@ -15,10 +15,6 @@ GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
 
-CLIENT: If run non-interactively, prefix every console output line with
-        some context specific, easy to parse tag to simplify frontend
-        programming.
-
 
 On hold:
 --------
@@ -29,10 +25,15 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
-2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r472
+2016-08-08  Urban Wallasch  <irrwahn35@freenet.de> SVN r473
+CLIENT: If run non-interactively, prefix every console output line with
+        some context specific, easy to parse tag to simplify frontend
+        programming.
+
+2016-08-08  Urban Wallasch  <irrwahn35@freenet.de> SVN r472
 SERVER: Command line options; Release/revision versioning
 
-2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r471
+2016-08-08  Urban Wallasch  <irrwahn35@freenet.de> SVN r471
 CLIENT: Support wildcards in transfer_remove().
 
 2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r470
