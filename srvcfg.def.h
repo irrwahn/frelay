@@ -60,8 +60,11 @@
 #define CONN_TIMEOUT_S  240
 #endif
 
+/* Configuration file */
+#define CONFIG_PATH     "/etc/frelay.conf"
+
 /* User database file */
-#define USERDB_PATH     "./user.db"
+#define USERDB_PATH     "/var/lib/frelay/user.db"
 
 /* External command to produce a welcome message. */
 #define MOTD_CMD        "echo 'Welcome!'"

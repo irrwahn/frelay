@@ -67,6 +67,7 @@
 #include "srvcfg.h"
 #include "srvuserdb.h"
 #include "util.h"
+#include "version.h"
 
 
 enum CLT_STATE {
@@ -97,13 +98,14 @@ struct CLIENT_T_STRUCT {
 
 /* Configuration singleton */
 static struct {
-    const char *interface;
-    const char *listenport;
+    char *interface;
+    char *listenport;
     int select_timeout;
     int msg_timeout;
     int conn_timeout;
     int max_clients;
-    const char *userdb_path;
+    const char *config_path;
+    char *userdb_path;
     const char *motd_cmd;
 } cfg;
 
@@ -125,10 +127,83 @@ static cfg_parse_def_t cfgdef[] = {
  *
  */
 
+static void print_usage( const char *argv0 )
+{
+    const char *p = ( NULL == ( p = strrchr( argv0, '/' ) ) ) ? argv0 : p+1;
+    fprintf( stderr,
+        "Usage: %s [OPTION]... \n"
+        "  -c <filename>  : read configuration from specified file\n"
+        "  -i <interface> : specify IP address to bind to\n"
+        "  -p <port>      : specify TCP listen port\n"
+        "  -u <filename>  : specify user database file\n"
+        "  -h             : print help text and exit\n"
+        "  -v             : print version information and exit\n"
+        , p
+    );
+}
+
+static int eval_cmdline( int argc, char *argv[] )
+{
+    int opt;
+    const char *optstr = ":c:i:p:u:hv";
+
+    opterr = 0;
+    errno = 0;
+    do
+    {
+        opt = getopt( argc, argv, optstr );
+        switch ( opt )
+        {
+        case -1:
+            break;
+        case 'c':
+            errno = 0;
+            if ( 0 != cfg_parse_file( optarg, cfgdef ) && 0 != errno )
+                XLOG( LOG_WARNING, "Reading config file '%s' failed: %s\n",
+                        optarg, strerror( errno ) );
+            break;
+        case 'i':
+            free( cfg.interface );
+            cfg.interface = strdup_s( optarg );
+            break;
+        case 'p':
+            free( cfg.listenport );
+            cfg.listenport = strdup_s( optarg );
+            break;
+        case 'u':
+            free( cfg.userdb_path );
+            cfg.userdb_path = strdup_s( optarg );
+            break;
+        case 'v':
+            fprintf( stderr, "frelay server version %s-%s\n", VERSION, SVNVER );
+            exit( EXIT_SUCCESS );
+            break;
+        case 'h':
+            print_usage( argv[0] );
+            exit( EXIT_SUCCESS );
+            break;
+        case '?':
+            print_usage( argv[0] );
+            XLOG( LOG_WARNING, "Unrecognized option '-%c'\n", optopt );
+            exit( EXIT_FAILURE );
+            break;
+        case ':':
+            print_usage( argv[0] );
+            XLOG( LOG_WARNING, "Missing argument for option '-%c'\n", optopt );
+            exit( EXIT_FAILURE );
+            break;
+        default:
+            print_usage( argv[0] );
+            exit( EXIT_FAILURE );
+            break;
+        }
+    }
+    while ( -1 != opt );
+    return 0;
+}
+
 static int init_config( int argc, char *argv[] )
 {
-    const char *cfg_filename = "./frelaysrv.conf";
-
     /* Assign build time default values. */
     cfg.interface = strdup_s( DEF_INTERFACE );
     cfg.listenport = strdup_s( DEF_PORT );
@@ -136,16 +211,21 @@ static int init_config( int argc, char *argv[] )
     cfg.msg_timeout = MSG_TIMEOUT_S;
     cfg.conn_timeout = CONN_TIMEOUT_S;
     cfg.max_clients = MAX_CLIENTS;
+    cfg.config_path = strdup_s( CONFIG_PATH );
     cfg.userdb_path = strdup_s( USERDB_PATH );
     cfg.motd_cmd = strdup_s( MOTD_CMD );
 
-    /* -c <config_file> is the only supported command line option! */
-    /* TODO: -?|h prints usage message */
-    if ( 2 < argc && 0 == strcmp( "-c", argv[1] ) )
-        cfg_filename = argv[2];
+#if 0
+    // TODO: Is this actually desirable?
+    /* Parse default configuration file. */
+    if ( 0 != cfg_parse_file( cfg.config_path, cfgdef ) && 0 != errno )
+        XLOG( LOG_WARNING, "Reading config file '%s' failed: %s\n",
+                cfg.config_path, strerror( errno ) );
+#endif
 
-    /* Parse configuration file. */
-    return cfg_parse_file( cfg_filename, cfgdef );
+    /* Parse command line options. */
+    eval_cmdline( argc, argv );
+    return 0;
 }
 
 static int init_server( client_t **clients )

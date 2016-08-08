@@ -172,12 +172,12 @@ static int eval_cmdline( int argc, char *argv[] )
         case 'c':
             errno = 0;
             if ( 0 != ( r = cfg_parse_file( optarg, cfgdef ) ) && 0 != errno )
-                fprintf( stderr, "Reading config file '%s' failed: %s\n", optarg, strerror( errno ) );
+                XLOG( LOG_WARNING, "Reading config file '%s' failed: %s\n", optarg, strerror( errno ) );
             break;
         case 'w':
             errno = 0;
             if ( 0 != ( r = cfg_write_file( optarg, cfgdef ) ) && 0 != errno )
-                fprintf( stderr, "Writing config file '%s' failed: %s\n", optarg, strerror( errno ) );
+                XLOG( LOG_WARNING, "Writing config file '%s' failed: %s\n", optarg, strerror( errno ) );
             break;
         case 'p':
             free( cfg.pubkey );
@@ -196,12 +196,12 @@ static int eval_cmdline( int argc, char *argv[] )
             break;
         case '?':
             print_usage( argv[0] );
-            fprintf( stderr, "Unrecognized option '-%c'\n", optopt );
+            XLOG( LOG_WARNING, "Unrecognized option '-%c'\n", optopt );
             exit( EXIT_FAILURE );
             break;
         case ':':
             print_usage( argv[0] );
-            fprintf( stderr, "Missing argument for option '-%c'\n", optopt );
+            XLOG( LOG_WARNING, "Missing argument for option '-%c'\n", optopt );
             exit( EXIT_FAILURE );
             break;
         case 'h':
