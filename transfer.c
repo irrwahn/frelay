@@ -36,6 +36,7 @@
 
 #define _POSIX_C_SOURCE 200809L
 
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -369,24 +370,34 @@ DONE:
 int transfer_remove( const char *s )
 {
     transfer_t *p, *lists[] = { offers, downloads };
-    int i;
-    char t;
+    const char ti[] = "OD";
+    char t, rids[17], oids[17];
     uint64_t rid, oid;
     int n = 0;
 
-    if ( 3 != sscanf( s, " %c,%"SCNx64",%"SCNx64" ", &t, &rid, &oid )
-        || ( 'D' != t && 'O' != t )
-        || ( 0 == rid && 0 == oid ) )
+    if ( 3 != sscanf( s, " %c,%16[*0-9a-fA-F],%16[*0-9a-fA-F] ", &t, rids, oids ) )
         return -1;
-    i = ( 'D' == t );
-    for ( p = lists[i]; NULL != p; p = p->next )
+    t = toupper( (unsigned char)t );
+    if ( ( '*' != t && 'O' != t && 'D' != t )
+        || ( strchr( rids, '*' ) && 1 != strlen( rids ) )
+        || ( strchr( oids, '*' ) && 1 != strlen( oids ) ) )
+        return -1;
+    oid = strtoull( oids, NULL, 16 );
+    rid = strtoull( rids, NULL, 16 );
+    for ( int i = 0; i < 2; ++i )
     {
-        if ( rid == p->rid && oid == p->oid )
-        {   /* We actually just invalidate the entry and leave the gory
-             * list mangling to transfer_upkeep(). */
-            DLOG( "%s invalidated: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
-            transfer_invalidate( p );
-            ++n;
+        if ( '*' != t && ti[i] != t )
+            continue;
+        for ( p = lists[i]; NULL != p; p = p->next )
+        {
+            if ( ( '*' == *rids || rid == p->rid )
+              && ( '*' == *oids || oid == p->oid ) )
+            {   /* We actually just invalidate the entry and leave the gory
+                 * list mangling to transfer_upkeep(). */
+                DLOG( "%s invalidated: %016"PRIx64"\n", i ? "Download" : "Offer", p->oid );
+                transfer_invalidate( p );
+                ++n;
+            }
         }
     }
     return n;

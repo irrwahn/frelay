@@ -600,7 +600,7 @@ static int process_stdin( int *srvfd )
         { "close",      CMD_DISCONNECT, "\t\t\tclose connection to server" },
         { "cmd",        CMD_CMD,        "prog [args]\t\texecute external program" },
         { "connect",    CMD_CONNECT,    " [host [port]]\tconnect to specified server" },
-        { "delete",     CMD_REMOVE,     " D|O,peer,offer\tcancel a pending offer" },
+        { "delete",     CMD_REMOVE,     " D|O,peer,offer\tcancel a pending offer; *,*,* cancels all" },
         { "disconnect", CMD_DISCONNECT, "\t\tsame as 'close'" },
         { "drop",       CMD_DROP,       "\t\t\tdrop account registration" },
         { "exit",       CMD_EXIT,       "\t\t\tterminate frelay" },
@@ -809,12 +809,12 @@ static int process_stdin( int *srvfd )
             int n;
             if ( 0 < ( n = transfer_remove( arg[1] ) ) )
             {
-                printcon( "Removed %d transfer%s\n", n, 1 < n ? "s" : "" );
+                printcon( "Removed %d transfer%s\n", n, 1 != n ? "s" : "" );
                 r = 1;
             }
             else
             {
-                printcon( "Removing %s failed\n", arg[1] );
+                printcon( "Invalid remove mask: '%s'\n", arg[1] );
                 r = -1;
             }
         }

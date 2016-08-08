@@ -17,8 +17,6 @@ GENERAL: Support hashed nonce + password authentication
 
 SERVER: Command line options; Release/revision versioning
 
-CLIENT: Support wildcards in transfer_remove().
-
 CLIENT: If run non-interactively, prefix every console output line with
         some context specific, easy to parse tag to simplify frontend
         programming.
@@ -33,6 +31,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r471
+CLIENT: Support wildcards in transfer_remove().
+
 2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r470
 CLIENT: Release/revision versioning
 LIB: Add -DWITH_SYSLOG and -DWITH_OWN_VSYSLOG to release builds
