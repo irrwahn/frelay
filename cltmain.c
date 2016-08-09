@@ -309,9 +309,15 @@ static int printcon( const char *pfx, const char *fmt, ... )
     return r;
 }
 
-static int tlist_cb( const char *s )
+static int tlist_cb( transfer_t *t )
 {
-    return printcon( PFX_TLIST, "%s", s );
+    static char buf[PATH_MAX];
+
+    if ( !cfg.istty[STDOUT_FILENO] )
+        transfer_itostr( buf, sizeof buf, "%i '%n' %o/%s %t %d %a", t );
+    else
+        transfer_itostr( buf, sizeof buf, "%i '%n' %O/%S %T %D %A", t );
+    return printcon( PFX_TLIST, "%s\n", buf );
 }
 
 static int pcmd_cb( const char *s )
@@ -688,6 +694,12 @@ static int process_stdin( int *srvfd )
         {
             const transfer_t *o;
             char *bname, *fname;
+            if ( CLT_AUTH_OK != cfg.st )
+            {   /* Avoid creating bogus entries in transfer list! */
+                printcon( PFX_CERR, "Not logged in\n" );
+                r = -1;
+                break;
+            }
             if ( NULL == ( o = offer_new( strtoull( arg[1], NULL, 16 ), arg[2] ) ) )
             {
                 printcon( PFX_CERR, "No such file: '%s'\n", arg[2] );
@@ -711,27 +723,38 @@ static int process_stdin( int *srvfd )
         }
         else
         {
-            uint64_t oid = strtoull( arg[1], NULL, 16 );
+            uint64_t rid, oid;
             transfer_t *d;
-            if ( NULL == ( d = download_match( oid ) ) )
+
+            if ( 2 > transfer_strtoi( arg[1], NULL, &rid, &oid )
+                || NULL == ( d = transfer_match( TTYPE_DOWNLOAD, rid, oid ) ) )
             {
                 printcon( PFX_CERR, "Invalid offer ID %"PRIx64"\n", oid );
                 r = -1;
                 break;
             }
-            d->act = time( NULL );
             if ( 0 == download_resume( d ) )
             {
                 if ( 0 < d->offset )
-                    printcon( PFX_IMSG, "Download resumed at offset %"PRIu64".\n", d->offset );
+                {
+                    transfer_itostr( aline, sizeof aline, "%i '%n' %O/%S", d );
+                    printcon( PFX_IMSG, "%s download resumed\n", aline );
+                }
                 else
-                    printcon( PFX_IMSG, "Download started\n" );
+                {
+                    transfer_itostr( aline, sizeof aline, "%i '%n' %S", d );
+                    printcon( PFX_IMSG, "%s download started\n", aline );
+                }
             }
             else if ( 0 == download_write( d, NULL, 0 ) )
-                printcon( PFX_IMSG, "Download started\n" );
+            {
+                transfer_itostr( aline, sizeof aline, "%i '%n' %S", d );
+                printcon( PFX_IMSG, "%s download started\n", aline );
+            }
             else
             {
-                printcon( PFX_CERR, "Download failed to start: %s\n", strerror( errno ) );
+                transfer_itostr( aline, sizeof aline, "%i '%n'", d );
+                printcon( PFX_CERR, "%s download failed: %s\n", aline, strerror( errno ) );
                 r = -1;
                 break;
             }
@@ -928,8 +951,7 @@ static int process_stdin( int *srvfd )
         else if ( NULL != mp )
             enqueue_msg( mp );
     }
-    else if ( 1 == r )
-        prompt( 1 );
+    prompt( 1 );
     return r;
 }
 
@@ -945,6 +967,7 @@ static int process_srvmsg( mbuf_t **pp )
     void *av, *av2;
     int res = 0;
     enum SC_ENUM status = SC_OK;
+    static char buf[PATH_MAX];
 
     DLOG( "Received %s_%s from %016"PRIx64".\n", mtype2str( mtype ), mclass2str( mtype ), srcid );
     if ( MCLASS_IS_RES( mtype ) && NULL == ( qmatch = match_pending_req( *pp ) ) )
@@ -1001,8 +1024,8 @@ static int process_srvmsg( mbuf_t **pp )
                 status = SC_BAD_REQUEST;
                 break;
             }
-            printcon( PFX_OFFER, "Offer from %016"PRIx64": %016"PRIx64" '%s' (%"PRIu64" Bytes)\n",
-                        d->rid, d->oid, d->name, d->size );
+            transfer_itostr( buf, sizeof buf, "%i '%n' %S", d );
+            printcon( PFX_OFFER, "%s offer received\n", buf );
             mbuf_compose( &mp, MSG_TYPE_OFFER_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, d->oid );
             mbuf_addattrib( &mp, MSG_ATTR_OK, 0, NULL );
@@ -1019,7 +1042,7 @@ static int process_srvmsg( mbuf_t **pp )
             transfer_t *o;
             void *data = NULL;
 
-            if ( NULL == ( o = offer_match( oid, srcid ) ) )
+            if ( NULL == ( o = transfer_match( TTYPE_OFFER, srcid, oid ) ) )
             {
                 status = SC_NOT_FOUND;
                 break;
@@ -1030,7 +1053,8 @@ static int process_srvmsg( mbuf_t **pp )
                 size = NTOH64( *(uint64_t *)av );
             if ( 0 == size )
             {   /* Remote side signaled 'download finished'. */
-                printcon( PFX_IMSG, "Finished uploading %016"PRIx64" '%s'\n", o->oid, o->name );
+                transfer_itostr( buf, sizeof buf, "%i '%n' %S %D", o );
+                printcon( PFX_IMSG, "%s upload finished\n", buf );
                 transfer_invalidate( o );
             }
             else if ( NULL == ( data = offer_read( o, offset, &size ) ) )
@@ -1038,7 +1062,7 @@ static int process_srvmsg( mbuf_t **pp )
                 status = SC_RANGE_NOT_SATISFIABLE;
                 break;
             }
-            o->offset = offset;
+            o->offset = offset + size;
             mbuf_compose( &mp, MSG_TYPE_GETFILE_RES, 0, srcid, trfid );
             mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
             mbuf_addattrib( &mp, MSG_ATTR_DATA, size, data );
@@ -1067,12 +1091,12 @@ static int process_srvmsg( mbuf_t **pp )
         {
             uint64_t oid = NTOH64( *(uint64_t *)av );
             transfer_t *o;
-            if ( NULL == ( o = offer_match( oid, srcid ) ) )
+            if ( NULL == ( o = transfer_match( TTYPE_OFFER, srcid, oid ) ) )
             {
-                printcon( PFX_SERR, "Peer %016"PRIx64" referenced invalid offer %016"PRIx64"\n", srcid, oid );
+                DLOG( "Peer %016"PRIx64" referenced invalid offer %016"PRIx64"\n", srcid, oid );
                 break;
             }
-            printcon( PFX_IMSG, "Peer %016"PRIx64" received offer %016"PRIx64" '%s'\n", srcid, o->oid, o->name );
+            DLOG( "Peer %016"PRIx64" received offer %016"PRIx64" '%s'\n", srcid, o->oid, o->name );
         }
         break;
     case MSG_TYPE_GETFILE_RES:
@@ -1081,38 +1105,42 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OFFERID == at )
         {
             uint64_t oid = NTOH64( *(uint64_t *)av );
-            transfer_t *d = download_match( oid );
+            transfer_t *d = transfer_match( TTYPE_DOWNLOAD, srcid, oid );
             if ( 0 != mbuf_getnextattrib( *pp, &at, &al, &av )
                 || MSG_ATTR_DATA != at
                 || NULL == d )
             {
                 DLOG( "Broken GETFILE response!\n" );
             }
-            else if ( 0 == al )
-            {
-                if ( d->offset == d->size )
-                    printcon( PFX_IMSG, "Finished downloading %016"PRIx64" '%s'\n", d->oid, d->name );
-                else
-                    printcon( PFX_SERR, "Peer signaled premature EOF uploading %016"PRIx64" '%s'\n", d->oid, d->name );
-                if ( 0 <= d->fd )
-                    transfer_invalidate( d );
-                if ( 0 != rename( d->partname, d->name ) )
-                    printcon( PFX_LERR, "Moving '%s' to '%s' failed: %s\n", d->partname, d->name, strerror( errno ) );
-            }
-            else if ( 0 != download_write( d, av, al ) )
-            {
-                printcon( PFX_LERR, "Writing to temporary file '%s' failed, aborted\n", d->partname );
-            }
             else
             {
-                d->offset += al;
-                uint64_t sz = d->size - d->offset;
-                mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
-                mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
-                mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
-                mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
-                DLOG( "Received %zu bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
-                            al, d->oid, d->name, d->offset*100/d->size, d->offset, d->size );
+                transfer_itostr( buf, sizeof buf, "%i '%n' %O/%S %D", d );
+                if ( 0 == al )
+                {
+                    if ( d->offset == d->size )
+                        printcon( PFX_IMSG, "%s download finished\n", buf );
+                    else
+                        printcon( PFX_SERR, "%s premature EOF from peer\n", buf );
+                    transfer_invalidate( d );
+                    if ( 0 != rename( d->partname, d->name ) )
+                        printcon( PFX_LERR, "Moving '%s' to '%s' failed: %s\n", d->partname, d->name, strerror( errno ) );
+                }
+                else if ( 0 != download_write( d, av, al ) )
+                {
+                    transfer_invalidate( d );
+                    printcon( PFX_LERR, "%s write failed, aborted\n", buf );
+                }
+                else
+                {
+                    d->offset += al;
+                    uint64_t sz = d->size - d->offset;
+                    mbuf_compose( &mp, MSG_TYPE_GETFILE_REQ, 0, d->rid, prng_random() );
+                    mbuf_addattrib( &mp, MSG_ATTR_OFFERID, 8, oid );
+                    mbuf_addattrib( &mp, MSG_ATTR_OFFSET, 8, d->offset );
+                    mbuf_addattrib( &mp, MSG_ATTR_SIZE, 8, sz < MAX_DATA_SIZE ? sz : MAX_DATA_SIZE );
+                    DLOG( "Received %zu bytes of %016"PRIx64" '%s' %3"PRIu64"%% (%"PRIu64"/%"PRIu64")\n",
+                                al, d->oid, d->name, d->offset*100/d->size, d->offset, d->size );
+                }
             }
         }
         break;
