@@ -906,7 +906,7 @@ int main( int argc, char *argv[] )
         "%s started with root privileges, aborting!\n", argv[0] );
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     /* TODO: gracefully handle termination signals (SIGINT, SIGQUIT, SIGTERM)? */
-    XLOG_INIT( argv[0] );
+    XLOG_INIT( argv[0], LOG_TO_SYSLOG|LOG_TO_FILE, stderr );
     init_config( argc, argv );
     udb_init( cfg.userdb_path );
     to_sav = (struct timeval){ .tv_sec = cfg.select_timeout, 0 };

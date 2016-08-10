@@ -1380,7 +1380,7 @@ int main( int argc, char *argv[] )
     struct timeval to_sav;
 
     /* Initialization. */
-    XLOG_INIT( argv[0] );
+    XLOG_INIT( argv[0], LOG_TO_FILE, stderr );
     signal( SIGPIPE, SIG_IGN );     /* Ceci n'est pas une pipe. */
     //signal( SIGINT, SIG_IGN );      /* Ctrl-C no more. */
     /* TODO: ignore or handle other signals? */
