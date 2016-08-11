@@ -924,11 +924,12 @@ int main( int argc, char *argv[] )
     while ( 1 )
     {
         static time_t last_upkeep = 0;
-        time_t now = time( NULL );
+        time_t now;
         int nset;
         fd_set rfds, wfds;
         struct timeval to;
 
+        now = time( NULL );
         if ( now - last_upkeep > to_sav.tv_sec )
         {   /* Avoid doing upkeep continuously under load. */
             last_upkeep = now;

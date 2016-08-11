@@ -242,7 +242,7 @@ static int init_config( int argc, char *argv[] )
 
     /* Parse default configuration file. */
     tmp = getenv( "HOME" );
-    cfg_filename = strdupcat2_s( tmp ? tmp : ".", CONFIG_PATH, "/.frelayclt.conf" );
+    cfg_filename = strdupcat2_s( tmp ? tmp : ".", "/", CONFIG_PATH );
     errno = 0;
     if ( 0 != ( r = cfg_parse_file( cfg_filename, cfgdef ) ) && 0 != errno )
         DLOG( "fopen(%s) failed: %m\n", cfg_filename );
@@ -266,14 +266,23 @@ static int init_config( int argc, char *argv[] )
  *
  */
 
-#define PFX_IMSG    "IMSG"  // informative message
+#define PFX_CONN    "CONN"  // connect notification
+#define PFX_DISC    "DISC"  // disconnect notification
+#define PFX_AUTH    "AUTH"  // fully logged in
+#define PFX_NAUTH   "NAUT"  // logged out
+
+#define PFX_TLIST   "TLST"  // transfer list item
+#define PFX_PLIST   "PLST"  // peer list item
 #define PFX_COUT    "COUT"  // external command output
-#define PFX_TLIST   "TLIST" // transfer list item
-#define PFX_PLIST   "PLIST" // peer list item
-#define PFX_QPING   "QPING" // received PING request
-#define PFX_RPING   "RPING" // received PING response
-#define PFX_OFFER   "OFFER" // received OFFER request
-#define PFX_RPING   "RPING" // received PING response
+
+#define PFX_IMSG    "IMSG"  // informative message
+#define PFX_SMSG    "SMSG"  // server message
+
+#define PFX_QPING   "QPNG"  // received PING request
+#define PFX_RPING   "RPNG"  // received PING response
+
+
+#define PFX_OFFER   "OFFR"  // received OFFER request
 #define PFX_CERR    "CERR"  // command error
 #define PFX_LERR    "LERR"  // local error
 #define PFX_SERR    "SERR"  // remote error
@@ -289,22 +298,25 @@ static void prompt( int on )
  */
 static int printcon( const char *pfx, const char *fmt, ... )
 {
-    int r;
+    int r = 0;
     va_list arglist;
     FILE *ofp = stdout;
 
     prompt( 0 );
     if ( !cfg.istty[STDOUT_FILENO] )
-        fprintf( ofp, "%s: ", pfx );
-    va_start( arglist, fmt );
-    r = vfprintf( ofp, fmt, arglist );
-    va_end( arglist );
-    fflush( ofp );
+        r += fprintf( ofp, "%s:%s", pfx, fmt ? "" : "\n" );
+    if ( NULL != fmt )
+    {
+        va_start( arglist, fmt );
+        r += vfprintf( ofp, fmt, arglist );
+        va_end( arglist );
+        fflush( ofp );
 #ifdef DEBUG
-    va_start( arglist, fmt );
-    XLOGV( LOG_DEBUG, fmt, arglist );
-    va_end( arglist );
+        va_start( arglist, fmt );
+        XLOGV( LOG_DEBUG, fmt, arglist );
+        va_end( arglist );
 #endif
+    }
     prompt( 1 );
     return r;
 }
@@ -416,7 +428,7 @@ static int connect_srv( int *pfd, const char *host, const char *service )
         return -1;
     }
     DLOG( "Connected to [%s:%s].\n", host, service );
-    printcon( PFX_IMSG, "Connected to %s:%s\n", host, service );
+    printcon( PFX_CONN, "Connected to %s:%s\n", host, service );
     if ( 0 != set_nonblocking( fd ) )
         DLOG( "set_nonblocking() failed: %m.\n" );
     if ( 0 != set_cloexec( fd ) )
@@ -794,7 +806,7 @@ static int process_stdin( int *srvfd )
             transfer_closeall();
             DLOG( "Closing connection.\n" );
             disconnect_srv( srvfd );
-            printcon( PFX_IMSG, "Connection closed\n" );
+            printcon( PFX_DISC, "Connection closed\n" );
         }
         cfg.st = CLT_INVALID;
         r = 1;
@@ -839,6 +851,7 @@ static int process_stdin( int *srvfd )
         mbuf_compose( &mp, MSG_TYPE_LOGOUT_REQ, 0, 0, prng_random() );
         break;
     case CMD_LIST:      /* list */
+        printcon( PFX_TLIST, NULL );
         transfer_list( tlist_cb );
         r = 1;
         break;
@@ -1080,7 +1093,7 @@ static int process_srvmsg( mbuf_t **pp )
             && MSG_ATTR_OK == at )
         {
             ntime_t rtt = ntime_to_us( ntime_get() - HDR_GET_TS( qmatch ) );
-            printcon( PFX_RPING, "Ping response from %016"PRIx64", RTT=%"PRI_ntime".%"PRI_ntime"ms\n",
+            printcon( PFX_RPING, "Ping response from %016"PRIx64": RTT=%"PRI_ntime".%03"PRI_ntime"ms\n",
                         srcid, rtt/1000, rtt%1000 );
         }
         break;
@@ -1147,13 +1160,14 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_PEERLIST_RES:
         if ( CLT_AUTH_OK == cfg.st && 0ULL == srcid )
         {
+            printcon( PFX_PLIST, NULL );
             while ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
                 && MSG_ATTR_PEERID == at
                 && 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 )
                 && MSG_ATTR_PEERNAME == at2 )
             {
                 printcon( PFX_PLIST, "%016"PRIx64"%s %s\n", NTOH64( *(uint64_t *)av ),
-                        (HDR_GET_DSTID(*pp)==NTOH64( *(uint64_t *)av ))?"*":"",  (char *)av2  );
+                        (HDR_GET_DSTID(*pp)==NTOH64( *(uint64_t *)av ))?"*":" ",  (char *)av2  );
             }
         }
         break;
@@ -1165,7 +1179,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( PFX_IMSG, "Registered\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( PFX_IMSG, "%s\n", (char *)av );
+                printcon( PFX_SMSG, "%s\n", (char *)av );
         }
         break;
     case MSG_TYPE_DROP_RES:
@@ -1176,7 +1190,7 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( PFX_IMSG, "Dropped.\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( PFX_IMSG, "%s\n", (char *)av );
+                printcon( PFX_SMSG, "%s\n", (char *)av );
         }
         break;
     case MSG_TYPE_LOGIN_RES:
@@ -1187,10 +1201,11 @@ static int process_srvmsg( mbuf_t **pp )
         {
             printcon( PFX_IMSG, "Login Ok\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at2, &al2, &av2 ) && MSG_ATTR_NOTICE == at2 )
-                printcon( PFX_IMSG, "%s\n", (char *)av2 );
+                printcon( PFX_SMSG, "%s\n", (char *)av2 );
             if ( MSG_ATTR_OK == at )
             {   /* Unregistered user. */
                 cfg.st = CLT_AUTH_OK;
+                printcon( PFX_AUTH, "No authentication required\n" );
             }
             else if ( MSG_ATTR_CHALLENGE == at )
             {   /* Registered user: authenticate. */
@@ -1216,9 +1231,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( PFX_IMSG, "Authenticated\n" );
+            printcon( PFX_AUTH, "Authenticated\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( PFX_IMSG, "%s\n", (char *)av );
+                printcon( PFX_SMSG, "%s\n", (char *)av );
             cfg.st = CLT_AUTH_OK;
         }
         break;
@@ -1228,9 +1243,9 @@ static int process_srvmsg( mbuf_t **pp )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
             && MSG_ATTR_OK == at )
         {
-            printcon( PFX_IMSG, "Logged out\n" );
+            printcon( PFX_NAUTH, "Logged out\n" );
             if ( 0 == mbuf_getnextattrib( *pp, &at, &al, &av ) && MSG_ATTR_NOTICE == at )
-                printcon( PFX_IMSG, "%s\n", (char *)av );
+                printcon( PFX_SMSG, "%s\n", (char *)av );
             cfg.st = CLT_PRE_LOGIN;
         }
         break;
@@ -1370,7 +1385,7 @@ DISC:
     transfer_closeall();
     disconnect_srv( srvfd );
     cfg.st = CLT_INVALID;
-    printcon( PFX_SERR, "Connection to remote host failed\n" );
+    printcon( PFX_DISC, "Connection to remote host failed\n" );
     return nset;
 }
 
@@ -1402,7 +1417,22 @@ int main( int argc, char *argv[] )
         int maxfd;
         fd_set rfds, wfds;
         struct timeval to;
+        static time_t last_upkeep = 0;
+        time_t now;
 
+        now = time( NULL );
+        if ( now - last_upkeep > to_sav.tv_sec )
+        {   /* Avoid doing upkeep continuously under load. */
+            last_upkeep = now;
+            if ( CLT_AUTH_OK == cfg.st )
+            {   /* Send ping to server. */
+                mbuf_t *mb = NULL;
+                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, prng_random() );
+                enqueue_msg( mb );
+            }
+            upkeep_pending();
+            transfer_upkeep( cfg.offer_timeout );
+        }
         FD_ZERO( &rfds );
         FD_ZERO( &wfds );
         FD_SET( STDIN_FILENO, &rfds );
@@ -1430,15 +1460,8 @@ int main( int argc, char *argv[] )
                 DLOG( "%d file descriptors still set!\n", nset );
         }
         else if ( 0 == nset )
-        {   /* Select timed out */
-            if ( CLT_AUTH_OK == cfg.st )
-            {   /* Send ping to server. */
-                mbuf_t *mb = NULL;
-                mbuf_compose( &mb, MSG_TYPE_PING_IND, 0ULL, 0ULL, prng_random() );
-                enqueue_msg( mb );
-            }
-            upkeep_pending();
-            transfer_upkeep( cfg.offer_timeout );
+        {
+            /* Select timed out */
         }
         else if ( EINTR == errno )
         {
