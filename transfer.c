@@ -369,7 +369,7 @@ int transfer_remove( const char *s )
     rid = strtoull( rids, NULL, 16 );
     for ( transfer_t *p = transfers; NULL != p; p = p->next )
     {
-        if ( ( '*' == t || ti[p->type] != t )
+        if ( ( '*' == t || ti[p->type] == t )
           && ( '*' == *rids || rid == p->rid )
           && ( '*' == *oids || oid == p->oid ) )
         {   /* We actually just invalidate the entry and leave the gory
