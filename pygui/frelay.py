@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from tkinter import *
-#from bwidget import *
+import os
 import sys
 import time
 from subprocess import PIPE, Popen
@@ -13,6 +13,7 @@ ON_POSIX = 'posix' in sys.builtin_module_names
 
 ###########################################
 # Configuration
+# TODO: save/load config
 #
 
 client_path = [ '../frelayclt' ]    # frelay client incantation
@@ -21,6 +22,12 @@ srvalias='*SRV*'                    # server pseudo-nick for display
 refresh_local_ms = 997     # transfer list update period
 refresh_remote_ms = 2011   # peer list update period
 
+user = os.getenv('USER', 'user123')
+password = ''
+
+server = 'localhost'
+port = '64740'
+
 
 ###########################################
 # Global state
@@ -28,6 +35,94 @@ refresh_remote_ms = 2011   # peer list update period
 
 is_connected = False
 is_authed = False
+
+
+###########################################
+# Dialogs
+# TODO: These should really be refactored into proper classes!
+#
+
+def dlg_make_entry(parent, caption, width=None, text=None, **options):
+    Label(parent, text=caption).pack(side=TOP)
+    entry = Entry(parent, **options)
+    if width:
+        entry.config(width=width)
+        entry.pack(side=TOP, fill=BOTH)
+    if text:
+        entry.insert(0,text)
+    return entry
+
+# Connect dialog
+def connectdlg():
+    res=False
+    def destroy():
+        dlg.grab_release()
+        dlg.destroy()
+    def kenter(event=None):
+        ybtn.invoke()
+    def kescape(event=None):
+        nbtn.invoke()
+    def savesrv():
+        global server
+        global port
+        nonlocal res
+        server = srv.get()
+        port = prt.get()
+        res=True
+        destroy()
+    dlg = Toplevel(root)
+    dlg.transient( root )
+    dlg.grab_set()
+    dlg.title('Connect')
+    frame = Frame(dlg, padx=10, pady=10)
+    frame.pack(fill=BOTH, expand=YES)
+    srv = dlg_make_entry(frame, "Server:", 32, server)
+    prt = dlg_make_entry(frame, "Password:", 16, port)
+    cbtn = Button(dlg, text="Connect", padx=10, pady=10, command=savesrv)
+    cbtn.pack(side=LEFT)
+    qbtn = Button(dlg, text="Cancel", padx=10, pady=10, command=destroy)
+    qbtn.pack(side=RIGHT)
+    srv.focus_set()
+    dlg.bind('<Return>', kenter)
+    dlg.bind('<Escape>', kescape)
+    root.wait_window(dlg)
+    return res
+
+# Login dialog
+def logindlg():
+    res=False
+    def destroy():
+        dlg.grab_release()
+        dlg.destroy()
+    def savecreds():
+        global user
+        global password
+        nonlocal res
+        user = usr.get()
+        password = pwd.get()
+        res=True
+        destroy()
+    def kenter(event=None):
+        lbtn.invoke()
+    def kescape(event=None):
+        qbtn.invoke()
+    dlg = Toplevel(root)
+    dlg.transient( root )
+    dlg.grab_set()
+    dlg.title('Login')
+    frame = Frame(dlg, padx=10, pady=10)
+    frame.pack(fill=BOTH, expand=YES)
+    usr = dlg_make_entry(frame, "User name:", 16, user)
+    pwd = dlg_make_entry(frame, "Password:", 16, password, show="*")
+    lbtn = Button(dlg, text="Login", padx=10, pady=10, command=savecreds)
+    lbtn.pack(side=LEFT)
+    qbtn = Button(dlg, text="Cancel", padx=10, pady=10, command=destroy)
+    qbtn.pack(side=RIGHT)
+    usr.focus_set()
+    dlg.bind('<Return>', kenter)
+    dlg.bind('<Escape>', kescape)
+    root.wait_window(dlg)
+    return res
 
 
 ###########################################
@@ -55,16 +150,16 @@ consframe.pack(fill=BOTH, expand=YES)
 def do_connect(event=None):
     if is_connected:
         clt_write('disconnect')
-    else:
-        clt_write('connect')
+    elif connectdlg():
+        clt_write('connect ' + server + ' ' + port )
 connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=do_connect)
 connbtn.pack(side=LEFT)
 # Login button
 def do_login(event=None):
     if is_authed:
         clt_write('logout')
-    else:
-        clt_write('login')
+    elif logindlg():
+        clt_write('login ' + user + ' ' + password )
 loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=do_login)
 loginbtn.pack(side=LEFT)
 
@@ -131,6 +226,11 @@ def id2name(peerid):
 def logadd(line):
     log.config(state=NORMAL)
     log.insert(END, time.strftime('%H:%M:%S ') + line.expandtabs(8) + "\n")
+    log.config(state=DISABLED)
+
+def logclear():
+    log.config(state=NORMAL)
+    log.delete(1.0, END)
     log.config(state=DISABLED)
 
 
@@ -272,7 +372,8 @@ def subrefresh_remote():
 # Determine and lock root window's minimum size
 root.update()
 root.minsize(root.winfo_width(), root.winfo_height())
-#root.after(100, do_connect)
+clt_write('disconnect') # Hack around client autoconnecting
+#root.after(150, logclear)
 root.after(0, subrefresh_local)
 root.after(0, subrefresh_remote)
 root.mainloop()
