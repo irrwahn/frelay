@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from tkinter import *
+#from bwidget import *
 import sys
 import time
 from subprocess import PIPE, Popen
@@ -25,59 +26,90 @@ refresh_remote_ms = 2011   # peer list update period
 # Global state
 #
 
-connected = False
-authed = False
+is_connected = False
+is_authed = False
 
 
 ###########################################
 # GUI initialization
 #
 
-# Root window
+# Root window and frames
 root = Tk()
 root.wm_title("Frelay")
 
+btnframe = Frame(root)
+btnframe.pack(fill=X)
+
+listframe = Frame(root)
+listframe.pack(fill=BOTH, expand=YES)
+listframe.columnconfigure(0, weight=1)
+listframe.columnconfigure(1, weight=3)
+listframe.rowconfigure(1, weight=1)
+
+consframe = Frame(root)
+consframe.pack(fill=BOTH, expand=YES)
+
+# Buttons
+# Connect button
+def do_connect(event=None):
+    if is_connected:
+        clt_write('disconnect')
+    else:
+        clt_write('connect')
+connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=do_connect)
+connbtn.pack(side=LEFT)
+# Login button
+def do_login(event=None):
+    if is_authed:
+        clt_write('logout')
+    else:
+        clt_write('login')
+loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=do_login)
+loginbtn.pack(side=LEFT)
+
+# Lists
 # Peerlist
-Label(root, text="Peers").grid(row=0, column=0)
-peerlist = Listbox(root, width=30, height=15)
-peerlist.grid(row=1, column=0, sticky=NW+SE)
-
+Label(listframe, text="Peers").grid(row=0, column=0)
+peerlist = Listbox(listframe)
+peerlist.grid(row=1, column=0, sticky=W+E+N+S)
 # Transferlist
-Label(root, text="Transfers").grid(row=0, column=1)
-translist = Listbox(root, width=80, height=15)
-translist.grid(row=1, column=1, sticky=NE+SW)
+Label(listframe, text="Transfers").grid(row=0, column=1)
+translist = Listbox(listframe)
+translist.grid(row=1, column=1, sticky=W+E+N+S)
 
+# Log, command and status line
 # Log display
 ft_courier=('courier', 10,)
-log = Text(root, width=126, height=25, font=ft_courier, state=DISABLED)
-log.grid(row=2, columnspan=2, sticky=NE+SW)
-
+log = Text(consframe, width=50, height=4, font=ft_courier, state=DISABLED)
+log.pack(side=TOP, fill=BOTH, expand=YES)
 # Command input
-Command = Entry(root, width=112, font=ft_courier)
-Command.grid(row=3, columnspan=2, sticky=W)
+Command = Entry(consframe, font=ft_courier)
+Command.pack(side=TOP, fill=X)
 Command.focus_set()
-
-def send_cmd(event=None):
-    clt_write(Command.get())
-    Command.selection_range(0, END)
-
-sendbtn = Button(root, text='Send', command=send_cmd)
-sendbtn.grid(row=3, column=1, sticky=E)
-root.bind('<Return>', send_cmd)
-
 # Status line
 scol_neut = "#ddd"
 scol_conn = "#ccf"
 scol_disc = "#fcc"
 scol_auth = "#cfc"
-Status = Label(root, text="---", bg=scol_neut, fg="#000")
-Status.grid(row=4, columnspan=2, sticky=NW+SE)
+status = Label(consframe, text="---", bg=scol_neut, fg="#000")
+status.pack(side=BOTTOM, fill=X)
+
+
+###########################################
+# Bindings
+#
 
 # Triggered to process client data
 def proc_clt(event=None):
     root.after(0, subproc_clt) # Not called directly to avoid flickering!
-
 root.bind('<<cltdata>>', proc_clt)
+
+# Triggered by hitting ENTER key
+def send_cmd(event=None):
+    clt_write(Command.get())
+    Command.selection_range(0, END)
+root.bind('<Return>', send_cmd)
 
 
 ###########################################
@@ -130,8 +162,8 @@ def clt_write(cmd):
 # Called via root.after() from proc_clt(), which in turn
 # is bound to the <<cltdata>> virtual event. Sigh.
 def subproc_clt():
-    global connected
-    global authed
+    global is_connected
+    global is_authed
     try:  b = readq.get_nowait()
     except Empty:
         return
@@ -146,22 +178,28 @@ def subproc_clt():
     # Triage lines based on prefix
     # Connection and login status
         if pfx == 'CONN':
-            authed = False
-            connected = True
-            Status.config(bg=scol_conn, text=line)
+            is_authed = False
+            is_connected = True
+            status.config(bg=scol_conn, text=line)
+            connbtn.config(text='Disconnect')
+            loginbtn.config(state=NORMAL)
             logadd(line)
         elif pfx == 'DISC':
-            authed = False
-            connected = False
-            Status.config(bg=scol_disc, text=line)
+            is_authed = False
+            is_connected = False
+            status.config(bg=scol_disc, text=line)
+            connbtn.config(text='Connect')
+            loginbtn.config(state=DISABLED, text='Login')
             logadd(line)
         elif pfx == 'AUTH':
-            authed = True
-            Status.config(bg=scol_auth, text=line)
+            is_authed = True
+            status.config(bg=scol_auth, text=line)
+            loginbtn.config(text='Logout')
             logadd(line)
         elif pfx == 'NAUT':
-            authed = False
-            Status.config(bg=scol_conn, text=line)
+            is_authed = False
+            status.config(bg=scol_conn, text=line)
+            loginbtn.config(text='Login')
             logadd(line)
     # Pings
         elif pfx == 'QPNG':
@@ -217,20 +255,24 @@ def subproc_clt():
 
 # Scheduled list refreshing
 def subrefresh_local():
-    if authed:
+    if is_authed:
         clt_write("list");
     else:
         translist.delete(0,END)
     root.after(refresh_local_ms, subrefresh_local)
 
 def subrefresh_remote():
-    if authed:
+    if is_authed:
         clt_write("peerlist");
     else:
         peerlist.delete(0, END)
     root.after(refresh_remote_ms, subrefresh_remote)
 
 # Main loop
+# Determine and lock root window's minimum size
+root.update()
+root.minsize(root.winfo_width(), root.winfo_height())
+#root.after(100, do_connect)
 root.after(0, subrefresh_local)
 root.after(0, subrefresh_remote)
 root.mainloop()
