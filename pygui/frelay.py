@@ -324,6 +324,10 @@ def clt_write(line):
             do_quit()
         elif cmd == 'offer' and tok[1][0] == '@':
             line = 'offer ' + name2id(tok[1][1:]) + ' ' + tok[2]
+        elif cmd == 'ping' and tok[1][0] == '@':
+            line = cmd + ' ' + name2id(tok[1][1:])
+            if len(tok) > 2:
+                line = line + ' ' + tok[2]
         b = bytes(line + "\n", "utf-8")
         proc.stdin.write(b)
         proc.stdin.flush()
