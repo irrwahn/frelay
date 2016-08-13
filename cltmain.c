@@ -96,6 +96,7 @@ static struct {
     char *pubkey;
     char *privkey;
     int no_clobber;
+    int autoconnect;
     enum CLT_STATE st;
     bool istty[3];
 } cfg;
@@ -125,6 +126,7 @@ static void print_usage( const char *argv0 )
     const char *p = ( NULL == ( p = strrchr( argv0, '/' ) ) ) ? argv0 : p+1;
     fprintf( stderr,
         "Usage: %s [OPTION]... [hostname [port]] [OPTION]... \n"
+        "  -a            : connect automatically on startup\n"
         "  -c <filename> : read configuration from specified file\n"
         "  -w <filename> : write configuration to specified file\n"
         "  -p <string>   : set password\n"
@@ -139,7 +141,7 @@ static void print_usage( const char *argv0 )
 static int eval_cmdline( int argc, char *argv[] )
 {
     int opt, nonopt = 0, r;
-    const char *optstr = ":c:p:u:w:hnv";
+    const char *optstr = ":c:p:u:w:ahnv";
 
     opterr = 0;
     errno = 0;
@@ -189,6 +191,9 @@ static int eval_cmdline( int argc, char *argv[] )
             free( cfg.username );
             cfg.username = strdup_s( optarg );
             break;
+        case 'a':
+            cfg.autoconnect = 1;
+            break;
         case 'n':
             cfg.no_clobber = 1;
             break;
@@ -235,6 +240,7 @@ static int init_config( int argc, char *argv[] )
     cfg.username = strdup( DEF_USER );
     cfg.pubkey = strdup( DEF_PUBKEY );
     cfg.privkey = strdup( DEF_PRIVKEY );
+    cfg.autoconnect = 0;
     cfg.no_clobber = 0;
     cfg.st = CLT_INVALID;
     for ( int i = 0; i < 3; ++i )
@@ -1403,7 +1409,7 @@ int main( int argc, char *argv[] )
     init_config( argc, argv );
     to_sav = (struct timeval){ .tv_sec = cfg.select_timeout, 0 };
 
-    if ( NULL != cfg.host && '\0' != *cfg.host )
+    if ( cfg.autoconnect && NULL != cfg.host && '\0' != *cfg.host )
     {
         connect_srv( &srvfd, cfg.host, cfg.port );
         if ( 0 <= srvfd )

@@ -406,8 +406,6 @@ def subrefresh_remote():
 # Determine and lock root window's minimum size
 root.update()
 root.minsize(root.winfo_width(), root.winfo_height())
-clt_write('disconnect') # Hack around client autoconnecting
-#root.after(150, logclear)
 root.after(0, subrefresh_local)
 root.after(0, subrefresh_remote)
 root.mainloop()
