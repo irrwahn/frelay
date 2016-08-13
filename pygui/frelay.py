@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 
 from tkinter import *
+from tkinter import messagebox
 import os
 import sys
 import time
+import random
 from subprocess import PIPE, Popen
-from threading  import Thread, Lock, Condition
+from threading  import Thread, Lock #, Condition
 from queue import Queue, Empty
 
 ON_POSIX = 'posix' in sys.builtin_module_names
@@ -16,17 +18,26 @@ ON_POSIX = 'posix' in sys.builtin_module_names
 # TODO: save/load config
 #
 
-client_path = [ '../frelayclt' ]    # frelay client incantation
-srvalias='*SRV*'                    # server pseudo-nick for display
+# server pseudo-nick for display
+srvalias='*SRV*'
 
-refresh_local_ms = 997     # transfer list update period
-refresh_remote_ms = 2011   # peer list update period
+# transfer list update period
+refresh_local_ms = 997
+# peer list update period
+refresh_remote_ms = 2011
 
-user = os.getenv('USER', 'user123')
-password = ''
-
+# connection info
+user = os.getenv('USER', "user%d"%(random.randint(100, 999)))
+password = '********'
 server = 'localhost'
 port = '64740'
+
+# frelay client incantation
+client_path = [ '../frelayclt',
+                '-c', './frelayclt.conf',
+                '-u', user, '-p', password,
+                server, port,
+                '-w', './frelayclt.conf' ]
 
 
 ###########################################
@@ -59,9 +70,9 @@ def connectdlg():
         dlg.grab_release()
         dlg.destroy()
     def kenter(event=None):
-        ybtn.invoke()
+        cbtn.invoke()
     def kescape(event=None):
-        nbtn.invoke()
+        qbtn.invoke()
     def savesrv():
         global server
         global port
@@ -74,6 +85,7 @@ def connectdlg():
     dlg.transient( root )
     dlg.grab_set()
     dlg.title('Connect')
+    dlg.geometry("+%d+%d" % (root.winfo_pointerx(), root.winfo_pointery()))
     frame = Frame(dlg, padx=10, pady=10)
     frame.pack(fill=BOTH, expand=YES)
     srv = dlg_make_entry(frame, "Server:", 32, server)
@@ -102,14 +114,19 @@ def logindlg():
         password = pwd.get()
         res=True
         destroy()
-    def kenter(event=None):
+    def ukenter(event=None):
+        pwd.focus_set()
+        pwd.selection_range(0, END)
+    def pkenter(event=None):
         lbtn.invoke()
     def kescape(event=None):
         qbtn.invoke()
     dlg = Toplevel(root)
-    dlg.transient( root )
+    dlg.transient(root)
     dlg.grab_set()
     dlg.title('Login')
+    dlg.geometry("+%d+%d" % (root.winfo_pointerx(), root.winfo_pointery()))
+    dlg.geometry=('+' + str(root.winfo_pointerx()) + '+' + str(root.winfo_pointery()))
     frame = Frame(dlg, padx=10, pady=10)
     frame.pack(fill=BOTH, expand=YES)
     usr = dlg_make_entry(frame, "User name:", 16, user)
@@ -119,7 +136,8 @@ def logindlg():
     qbtn = Button(dlg, text="Cancel", padx=10, pady=10, command=destroy)
     qbtn.pack(side=RIGHT)
     usr.focus_set()
-    dlg.bind('<Return>', kenter)
+    usr.bind('<Return>', ukenter)
+    pwd.bind('<Return>', pkenter)
     dlg.bind('<Escape>', kescape)
     root.wait_window(dlg)
     return res
@@ -136,7 +154,7 @@ root.wm_title("Frelay")
 btnframe = Frame(root)
 btnframe.pack(fill=X)
 
-listframe = Frame(root)
+listframe = Frame(root, height=10)
 listframe.pack(fill=BOTH, expand=YES)
 listframe.columnconfigure(0, weight=1)
 listframe.columnconfigure(1, weight=3)
@@ -162,6 +180,14 @@ def do_login(event=None):
         clt_write('login ' + user + ' ' + password )
 loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=do_login)
 loginbtn.pack(side=LEFT)
+# Quit button
+def do_quit(event=None):
+    root.destroy()
+def ask_quit():
+    if messagebox.askokcancel("Quit", "Quit frelay?"):
+        do_quit()
+quitbtn = Button(btnframe, text='Quit', width=12, command=ask_quit)
+quitbtn.pack(side=RIGHT)
 
 # Lists
 # Peerlist
@@ -179,9 +205,9 @@ ft_courier=('courier', 10,)
 log = Text(consframe, width=50, height=4, font=ft_courier, state=DISABLED)
 log.pack(side=TOP, fill=BOTH, expand=YES)
 # Command input
-Command = Entry(consframe, font=ft_courier)
-Command.pack(side=TOP, fill=X)
-Command.focus_set()
+cmdinput = Entry(consframe, font=ft_courier)
+cmdinput.pack(side=TOP, fill=X)
+cmdinput.focus_set()
 # Status line
 scol_neut = "#ddd"
 scol_conn = "#ccf"
@@ -202,9 +228,17 @@ root.bind('<<cltdata>>', proc_clt)
 
 # Triggered by hitting ENTER key
 def send_cmd(event=None):
-    clt_write(Command.get())
-    Command.selection_range(0, END)
+    clt_write(cmdinput.get())
+    cmdinput.selection_range(0, END)
 root.bind('<Return>', send_cmd)
+
+# Control key assignments
+root.bind('<Control-c>', do_connect)
+root.bind('<Control-l>', do_login)
+
+# Quit program with [X] or Alt-F4
+root.bind('<Control-q>', do_quit)
+root.protocol("WM_DELETE_WINDOW", ask_quit)
 
 
 ###########################################
