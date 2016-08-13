@@ -15,6 +15,10 @@ GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
 
+CLIENT: Make auto-connect on startup not the default, add -a switch for that.
+
+PYGUI: Named pipe for command injection
+
 
 On hold:
 --------

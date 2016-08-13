@@ -232,9 +232,9 @@ def send_cmd(event=None):
     cmdinput.selection_range(0, END)
 root.bind('<Return>', send_cmd)
 
-# Control key assignments
-root.bind('<Control-c>', do_connect)
-root.bind('<Control-l>', do_login)
+# Key assignments
+root.bind('<Alt-c>', do_connect)
+root.bind('<Alt-l>', do_login)
 
 # Quit program with [X] or Alt-F4
 root.bind('<Control-q>', do_quit)
@@ -392,7 +392,7 @@ def subrefresh_local():
     if is_authed:
         clt_write("list");
     else:
-        translist.delete(0,END)
+        translist.delete(0, END)
     root.after(refresh_local_ms, subrefresh_local)
 
 def subrefresh_remote():

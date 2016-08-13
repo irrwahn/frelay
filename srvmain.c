@@ -337,6 +337,7 @@ static int close_client( client_t *cp, fd_set *m_rfds, fd_set *m_wfds )
     }
     memset( cp, 0, sizeof *cp );
     cp->fd = -1;
+    cp->st = CLT_INVALID;
     return 0;
 }
 
@@ -430,6 +431,7 @@ static int upkeep( client_t *c, int *maxfd, fd_set *m_rfds, fd_set *m_wfds )
             {
                 c[j] = c[i];
                 c[i].fd = -1;
+                c[i].st = CLT_INVALID;
             }
             ++j;
         }
@@ -640,7 +642,7 @@ static int process_server_msg( client_t *c, int i_src, fd_set *m_rfds, fd_set *m
         mbuf_to_response( &c[i_src].rbuf );
         for ( int i = 0; i < cfg.max_clients; ++i )
         {
-            if ( CLT_AUTH_OK == c[i].st )
+            if ( 0 <= c[i].fd && CLT_AUTH_OK == c[i].st )
             {
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_PEERID, 8, c[i].id );
                 mbuf_addattrib( &c[i_src].rbuf, MSG_ATTR_PEERNAME,
