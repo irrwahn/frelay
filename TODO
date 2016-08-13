@@ -15,8 +15,6 @@ GENERAL: Complete TheFineManual
 
 GENERAL: Support hashed nonce + password authentication
 
-PYGUI: Enhance named pipe functionality (peer name resolution, divert 'quit' to GUI, ...)
-
 
 On hold:
 --------
@@ -27,6 +25,10 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-13  Urban Wallasch  <irrwahn35@freenet.de> SVN r486
+PYGUI: Enhance named pipe functionality (peer name resolution,
+       divert 'quit' to GUI, ...)
+
 2016-08-13  Urban Wallasch  <irrwahn35@freenet.de> SVN r485
 PYGUI: Named pipe for command injection
 

@@ -39,6 +39,9 @@ client_path = [ '../frelayclt',
                 server, port,
                 '-w', './frelayclt.conf' ]
 
+# default working directory for frelay client
+cwd = '.'
+
 # name of FIFO to additionally read commands from
 pipe_name = '/tmp/frelayctl'
 
@@ -157,14 +160,15 @@ root.wm_title("Frelay")
 btnframe = Frame(root)
 btnframe.pack(fill=X)
 
-listframe = Frame(root, height=10)
+listframe = Frame(root, height=8)
 listframe.pack(fill=BOTH, expand=YES)
 listframe.columnconfigure(0, weight=1)
-listframe.columnconfigure(1, weight=3)
+listframe.columnconfigure(1, weight=4)
 listframe.rowconfigure(1, weight=1)
 
-consframe = Frame(root)
+consframe = Frame(root, height=15)
 consframe.pack(fill=BOTH, expand=YES)
+consframe.rowconfigure(0, weight=1)
 
 # Buttons
 # Connect button
@@ -205,7 +209,7 @@ translist.grid(row=1, column=1, sticky=W+E+N+S)
 # Log, command and status line
 # Log display
 ft_courier=('courier', 10,)
-log = Text(consframe, width=50, height=4, font=ft_courier, state=DISABLED)
+log = Text(consframe, width=100, height=12, font=ft_courier, state=DISABLED)
 log.pack(side=TOP, fill=BOTH, expand=YES)
 # Command input
 cmdinput = Entry(consframe, font=ft_courier)
@@ -440,6 +444,7 @@ root.update()
 root.minsize(root.winfo_width(), root.winfo_height())
 root.after(0, subrefresh_local)
 root.after(0, subrefresh_remote)
+clt_write( 'cd ' + cwd )
 root.mainloop()
 
 
