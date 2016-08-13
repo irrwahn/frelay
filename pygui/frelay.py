@@ -39,6 +39,9 @@ client_path = [ '../frelayclt',
                 server, port,
                 '-w', './frelayclt.conf' ]
 
+# name of FIFO to additionally read commands from
+pipe_name = '/tmp/frelayctl'
+
 
 ###########################################
 # Global state
@@ -283,6 +286,20 @@ readq = Queue()
 readthread = Thread(target=clt_read, args=(proc.stdout, readq, root))
 readthread.daemon = True
 readthread.start()
+
+# Create a named pipe and a thread to read from it
+if not os.path.exists(pipe_name):
+    os.mkfifo(pipe_name)
+
+def pipe_read():
+    # need to first open fd as rw to avoid EOF on read
+    pipein = os.fdopen(os.open(pipe_name, os.O_RDWR), 'r')
+    for line in iter(pipein.readline, b''):
+        clt_write(line.strip())
+
+pipethread = Thread(target=pipe_read)
+pipethread.daemon = True
+pipethread.start()
 
 # Send a command to the client
 clt_write_lock = Lock()
