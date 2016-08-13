@@ -260,6 +260,16 @@ def id2name(peerid):
             return item[sidx:].lstrip(' ')
     return peerid
 
+def name2id(peername):
+    peername = peername.strip()
+    items = peerlist.get(0,END)
+    for item in items:
+        sidx = item.find(' ')
+        curname = item[sidx:].lstrip(' ')
+        if curname == peername:
+            return item[:sidx].rstrip('* ')
+    return 'ffffffffffffffff'
+
 def logadd(line):
     log.config(state=NORMAL)
     log.insert(END, time.strftime('%H:%M:%S ') + line.expandtabs(8) + "\n")
@@ -291,8 +301,7 @@ readthread.start()
 if not os.path.exists(pipe_name):
     os.mkfifo(pipe_name)
 
-def pipe_read():
-    # need to first open fd as rw to avoid EOF on read
+def pipe_read(): # need to first open fd as rw to avoid EOF on read
     pipein = os.fdopen(os.open(pipe_name, os.O_RDWR), 'r')
     for line in iter(pipein.readline, b''):
         clt_write(line.strip())
@@ -301,11 +310,17 @@ pipethread = Thread(target=pipe_read)
 pipethread.daemon = True
 pipethread.start()
 
-# Send a command to the client
+# Send a command to the client, after some preparation
 clt_write_lock = Lock()
-def clt_write(cmd):
+def clt_write(line):
     with clt_write_lock:
-        b = bytes(cmd + "\n", "utf-8")
+        tok = line.split(' ', 2)
+        cmd = tok[0].lower()
+        if cmd == 'quit':
+            do_quit()
+        elif cmd == 'offer' and tok[1][0] == '@':
+            line = 'offer ' + name2id(tok[1][1:]) + ' ' + tok[2]
+        b = bytes(line + "\n", "utf-8")
         proc.stdin.write(b)
         proc.stdin.flush()
 
