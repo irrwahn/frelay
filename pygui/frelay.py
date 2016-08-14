@@ -6,7 +6,7 @@ import os
 import sys
 import time
 import random
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, call
 from threading  import Thread, Lock #, Condition
 from queue import Queue, Empty
 
@@ -45,6 +45,20 @@ cwd = '.'
 # name of FIFO to additionally read commands from
 pipe_name = '/tmp/frelayctl'
 
+# External tool to invoke for offer notification.
+# This can also be used to call an auto-accept script.
+# The following placeholders are substituted:
+#   %o  full offer ID
+#   %p  peer name
+#   %n  file name
+#   %s  file size
+#   %%  literal '%' character
+# Example:
+#   notifier = [ 'notify-send', 'New offer', '%o\n %p: %n (%s)' ]
+notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
+
+# Disable internal accept dialog?
+disable_internal = True
 
 ###########################################
 # Global state
@@ -242,8 +256,9 @@ connstat.pack(side=LEFT, fill=X)
 pingstat = Label(statframe, padx=10, text="", bg=scol_neut, fg="#000")
 pingstat.pack(side=LEFT, fill=X)
 
+
 ###########################################
-# Bindings
+# Global bindings
 #
 
 # Triggered to process client data
@@ -319,7 +334,7 @@ peerlist.bind('<<ListboxSelect>>', peerlist_select)
 
 
 ###########################################
-# Helper
+# Log operations
 #
 
 def logadd(line):
@@ -380,6 +395,15 @@ def clt_write(line):
         b = bytes(line + "\n", "utf-8")
         proc.stdin.write(b)
         proc.stdin.flush()
+
+# External offer notification
+def notify(offerid, peername, filename, filesize):
+    if not notifier:
+        return
+    cmd = [w.replace('%o', offerid).replace('%p', peername)
+            .replace('%n', filename).replace('%s', filesize)
+            .replace('%%', '%') for w in notifier]
+    call(cmd)
 
 # Process queued client output
 # Called via root.after() from proc_clt(), which in turn
@@ -463,11 +487,14 @@ def subproc_clt():
     # Offer received
         elif pfx == 'OFFR':
             tok = line.split()
-            offer = tok[0]
-            peername = id2name(offer.split(',')[1])
-            res = messagebox.askyesno('Accept?', peername + ' offered file ' + tok[1] + ' (' + tok[2] + ')')
-            if res:
-                clt_write( 'accept ' + offer )
+            offerid = tok[0]
+            peername = id2name(offerid.split(',')[1])
+            filename = tok[1]
+            filesize = tok[2]
+            notify(offerid, peername, filename, filesize)
+            if not disable_internal and messagebox.askyesno('Accept?',
+                    peername + ' offered file ' + filename + ' (' + filesize + ')'):
+                clt_write( 'accept ' + offerid )
         elif pfx == 'DSTA' or pfx == 'DFIN' or pfx == 'DERR' or pfx == 'UFIN':
             tok = line.split(None,1)
             peername = id2name(tok[0].split(',')[1])
