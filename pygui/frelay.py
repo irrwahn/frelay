@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from tkinter import *
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 import os
 import sys
 import time
@@ -163,12 +163,20 @@ btnframe.pack(fill=X)
 listframe = Frame(root, height=8)
 listframe.pack(fill=BOTH, expand=YES)
 listframe.columnconfigure(0, weight=1)
-listframe.columnconfigure(1, weight=4)
+listframe.columnconfigure(2, weight=4)
 listframe.rowconfigure(1, weight=1)
 
-consframe = Frame(root, height=15)
+logframe = Frame(root, height=15)
+logframe.pack(fill=BOTH, expand=YES)
+logframe.rowconfigure(0, weight=1)
+
+consframe = Frame(root)
 consframe.pack(fill=BOTH, expand=YES)
 consframe.rowconfigure(0, weight=1)
+
+statframe = Frame(root)
+statframe.pack(fill=BOTH, expand=YES)
+statframe.rowconfigure(0, weight=1)
 
 # Buttons
 # Connect button
@@ -199,28 +207,40 @@ quitbtn.pack(side=RIGHT)
 # Lists
 # Peerlist
 Label(listframe, text="Peers").grid(row=0, column=0)
-peerlist = Listbox(listframe)
+plscrollbar = Scrollbar(listframe, orient=VERTICAL, width=10)
+peerlist = Listbox(listframe, yscrollcommand=plscrollbar.set)
 peerlist.grid(row=1, column=0, sticky=W+E+N+S)
-# Transferlist
-Label(listframe, text="Transfers").grid(row=0, column=1)
-translist = Listbox(listframe)
-translist.grid(row=1, column=1, sticky=W+E+N+S)
+plscrollbar.grid(row=1, column=1, sticky=N+S)
+plscrollbar.config(command=peerlist.yview)
 
-# Log, command and status line
+# Transferlist
+Label(listframe, text="Transfers").grid(row=0, column=2)
+tlscrollbar = Scrollbar(listframe, orient=VERTICAL, width=10)
+translist = Listbox(listframe, yscrollcommand=tlscrollbar.set)
+translist.grid(row=1, column=2, sticky=W+E+N+S)
+tlscrollbar.grid(row=1, column=3, sticky=N+S)
+tlscrollbar.config(command=translist.yview)
+
 # Log display
 ft_courier=('courier', 10,)
-log = Text(consframe, width=100, height=12, font=ft_courier, state=DISABLED)
-log.pack(side=TOP, fill=BOTH, expand=YES)
+logscrollbar = Scrollbar(logframe, orient=VERTICAL, width=10)
+log = Text(logframe, width=100, height=12, font=ft_courier, state=DISABLED,
+            yscrollcommand=logscrollbar.set)
+log.pack(side=LEFT, fill=BOTH, expand=YES)
+logscrollbar.pack(side=RIGHT, fill=Y)
+logscrollbar.config(command=log.yview)
+
 # Command input
 cmdinput = Entry(consframe, font=ft_courier)
 cmdinput.pack(side=TOP, fill=X)
 cmdinput.focus_set()
+
 # Status line
 scol_neut = "#ddd"
 scol_conn = "#ccf"
 scol_disc = "#fcc"
 scol_auth = "#cfc"
-status = Label(consframe, text="---", bg=scol_neut, fg="#000")
+status = Label(statframe, text="---", bg=scol_neut, fg="#000")
 status.pack(side=BOTTOM, fill=X)
 
 
@@ -249,30 +269,60 @@ root.protocol("WM_DELETE_WINDOW", ask_quit)
 
 
 ###########################################
-# Helper
+# Peerlist operations
 #
+
+peerlist_lock = Lock()
 
 def id2name(peerid):
     peerid = peerid.lstrip('0')
     if not peerid:
         return srvalias
-    items = peerlist.get(0,END)
-    for item in items:
-        sidx = item.find(' ')
-        curid = item[:sidx].rstrip('* ')
-        if curid == peerid:
-            return item[sidx:].lstrip(' ')
-    return peerid
+    with peerlist_lock:
+        items = peerlist.get(0,END)
+        for item in items:
+            tok = item.split(None, 2)
+            if tok[0].rstrip('*') == peerid:
+                return tok[1]
+        return peerid
 
 def name2id(peername):
     peername = peername.strip()
-    items = peerlist.get(0,END)
-    for item in items:
-        sidx = item.find(' ')
-        curname = item[sidx:].lstrip(' ')
-        if curname == peername:
-            return item[:sidx].rstrip('* ')
-    return 'ffffffffffffffff'
+    with peerlist_lock:
+        items = peerlist.get(0,END)
+        for item in items:
+            tok = item.split(None, 2)
+            if tok[1] == peername:
+                return tok[0].rstrip('*')
+        return 'ffffffffffffffff'
+
+def peerlist_update(line):
+    if peerlist_lock.acquire(False):
+        line = line.lstrip('0')
+        if not line:
+            peerlist.delete(0, END)
+        else:
+            peerlist.insert(END, line)
+        peerlist_lock.release()
+
+def peerlist_select(event=None):
+    with peerlist_lock:
+        item = peerlist.get(int(peerlist.curselection()[0]))
+        tok = item.split(None, 2)
+        if tok[0].endswith('*'):
+            return
+        filename = filedialog.askopenfilename(parent=root,
+                        initialdir=cwd,
+                        title='Choose a file to offer @' + tok[1] + ':')
+        if filename:
+            clt_write('offer ' + tok[0] + ' ' + filename)
+
+peerlist.bind('<<ListboxSelect>>', peerlist_select)
+
+
+###########################################
+# Helper
+#
 
 def logadd(line):
     log.config(state=NORMAL)
@@ -318,7 +368,8 @@ pipethread.start()
 clt_write_lock = Lock()
 def clt_write(line):
     with clt_write_lock:
-        tok = line.split(' ', 2)
+        line = line.strip()
+        tok = line.split(None, 2)
         cmd = tok[0].lower()
         if cmd == 'quit':
             do_quit()
@@ -392,16 +443,17 @@ def subproc_clt():
     # Informational messages
         elif pfx == 'IMSG':
             logadd(line)
+    # Current directory info
+        elif pfx == 'WDIR':
+            global cwd
+            cwd = line
+            logadd('CWD is: ' + cwd)
     # External command output
         elif pfx == 'COUT':
             logadd(line)
     # Peer list item
         elif pfx == 'PLST':
-            line = line.lstrip('0')
-            if not line:
-                peerlist.delete(0, END)
-            else:
-                peerlist.insert(END, line)
+            peerlist_update(line)
             logscrl = False
     # Transfer list item
         elif pfx == 'TLST':

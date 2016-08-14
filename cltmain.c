@@ -280,6 +280,7 @@ static int init_config( int argc, char *argv[] )
 #define PFX_TLIST   "TLST"  // transfer list item
 #define PFX_PLIST   "PLST"  // peer list item
 #define PFX_COUT    "COUT"  // external command output
+#define PFX_WDIR    "WDIR"  // current directory info
 
 #define PFX_IMSG    "IMSG"  // informative message
 #define PFX_SMSG    "SMSG"  // server message
@@ -897,7 +898,10 @@ static int process_stdin( int *srvfd )
         }
         /* fall- through to CMD_PWD */
     case CMD_PWD:   /* pwd */
-        printcon( PFX_IMSG, "Local directory now %s\n", getcwd( line, sizeof line ) );
+        if ( !cfg.istty[STDOUT_FILENO] )
+            printcon( PFX_WDIR, "%s\n", getcwd( line, sizeof line ) );
+        else
+            printcon( PFX_WDIR, "Local directory now %s\n", getcwd( line, sizeof line ) );
         r = 1;
         break;
     case CMD_CMD:   /* cmd prog [args] */
