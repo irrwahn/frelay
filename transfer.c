@@ -122,7 +122,7 @@ static char *human_size( uint64_t sz )
     static char buf[30];
     static char *pfx[] = { "", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei" };
 
-    while ( 10.0 <= f )
+    while ( 1024.0 < f )
         f /= 1024.0, ++m;
     snprintf( buf, sizeof buf, "%.2f%sB", f, pfx[m] );
     return buf;

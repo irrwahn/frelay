@@ -460,14 +460,25 @@ def subproc_clt():
             else:
                 translist.insert(END, line)
             logscrl = False
+    # Offer received
         elif pfx == 'OFFR':
-            logadd("ToDo offr: " + line)
+            tok = line.split()
+            offer = tok[0]
+            peername = id2name(offer.split(',')[1])
+            res = messagebox.askyesno('Accept?', peername + ' offered file ' + tok[1] + ' (' + tok[2] + ')')
+            if res:
+                clt_write( 'accept ' + offer )
+        elif pfx == 'DSTA' or pfx == 'DFIN' or pfx == 'DERR' or pfx == 'UFIN':
+            tok = line.split(None,1)
+            peername = id2name(tok[0].split(',')[1])
+            logadd('<' + peername + '>: ' + tok[1])
+    # General errors
         elif pfx == 'CERR':
-            logadd("ToDo cerr: " + line)
+            logadd("Command error: " + line)
         elif pfx == 'LERR':
-            logadd("ToDo lerr: " + line)
+            logadd("Local error: " + line)
         elif pfx == 'SERR':
-            logadd("ToDo serr: " + line)
+            logadd("Server error: " + line)
     # Unhandled
         else:
             if not pfx: # MotD hack!
