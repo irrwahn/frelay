@@ -55,11 +55,11 @@ pipe_name = '/tmp/frelayctl'
 #   %%  literal '%' character
 # Examples:
 #   notifier = [ 'notify-send', 'New offer', '%o\n %p: %n (%s)' ]
-notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
-#notifier = []
+#   notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
+notifier = []
 
 # Enable internal accept dialog?
-notify_internal = False
+notify_internal = True
 
 
 ###########################################
