@@ -55,11 +55,11 @@ pipe_name = '/tmp/frelayctl'
 #   %%  literal '%' character
 # Examples:
 #   notifier = [ 'notify-send', 'New offer', '%o\n %p: %n (%s)' ]
-#   notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
-notifier = []
+notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
+#notifier = []
 
 # Enable internal accept dialog?
-notify_internal = True
+notify_internal = False
 
 
 ###########################################
@@ -404,10 +404,13 @@ def notify(offerid, peername, filename, filesize):
         call([w.replace('%o', offerid).replace('%p', peername)
                 .replace('%n', filename).replace('%s', filesize)
                 .replace('%%', '%') for w in notifier])
-    if notify_internal and messagebox.askyesno('Offer received',
-            peername + ' offered file ' + filename + ' (' + filesize
-             + ')\n Accept offer?'):
-        clt_write( 'accept ' + offerid )
+    if notify_internal:
+        if messagebox.askyesno('Offer received', peername
+            + ' offered file ' + filename + ' (' + filesize
+            + ')\nAccept offer? (No will remove it!)'):
+            clt_write( 'accept ' + offerid )
+        else:
+            clt_write( 'remove ' + offerid )
 
 # Process queued client output
 # Called via root.after() from proc_clt(), which in turn
