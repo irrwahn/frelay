@@ -53,12 +53,14 @@ pipe_name = '/tmp/frelayctl'
 #   %n  file name
 #   %s  file size
 #   %%  literal '%' character
-# Example:
+# Examples:
 #   notifier = [ 'notify-send', 'New offer', '%o\n %p: %n (%s)' ]
-notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
+#   notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
+notifier = []
 
-# Disable internal accept dialog?
-disable_internal = True
+# Enable internal accept dialog?
+notify_internal = True
+
 
 ###########################################
 # Global state
@@ -398,12 +400,14 @@ def clt_write(line):
 
 # External offer notification
 def notify(offerid, peername, filename, filesize):
-    if not notifier:
-        return
-    cmd = [w.replace('%o', offerid).replace('%p', peername)
-            .replace('%n', filename).replace('%s', filesize)
-            .replace('%%', '%') for w in notifier]
-    call(cmd)
+    if notifier:
+        call([w.replace('%o', offerid).replace('%p', peername)
+                .replace('%n', filename).replace('%s', filesize)
+                .replace('%%', '%') for w in notifier])
+    if notify_internal and messagebox.askyesno('Offer received',
+            peername + ' offered file ' + filename + ' (' + filesize
+             + ')\n Accept offer?'):
+        clt_write( 'accept ' + offerid )
 
 # Process queued client output
 # Called via root.after() from proc_clt(), which in turn
@@ -492,9 +496,6 @@ def subproc_clt():
             filename = tok[1]
             filesize = tok[2]
             notify(offerid, peername, filename, filesize)
-            if not disable_internal and messagebox.askyesno('Accept?',
-                    peername + ' offered file ' + filename + ' (' + filesize + ')'):
-                clt_write( 'accept ' + offerid )
         elif pfx == 'DSTA' or pfx == 'DFIN' or pfx == 'DERR' or pfx == 'UFIN':
             tok = line.split(None,1)
             peername = id2name(tok[0].split(',')[1])
