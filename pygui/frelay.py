@@ -168,15 +168,12 @@ listframe.rowconfigure(1, weight=1)
 
 logframe = Frame(root, height=15)
 logframe.pack(fill=BOTH, expand=YES)
-logframe.rowconfigure(0, weight=1)
 
 consframe = Frame(root)
-consframe.pack(fill=BOTH, expand=YES)
-consframe.rowconfigure(0, weight=1)
+consframe.pack(fill=X)
 
 statframe = Frame(root)
-statframe.pack(fill=BOTH, expand=YES)
-statframe.rowconfigure(0, weight=1)
+statframe.pack(fill=X)
 
 # Buttons
 # Connect button
@@ -232,7 +229,7 @@ logscrollbar.config(command=log.yview)
 
 # Command input
 cmdinput = Entry(consframe, font=ft_courier)
-cmdinput.pack(side=TOP, fill=X)
+cmdinput.pack(side=LEFT, fill=X, expand=YES)
 cmdinput.focus_set()
 
 # Status line
@@ -240,9 +237,10 @@ scol_neut = "#ddd"
 scol_conn = "#ccf"
 scol_disc = "#fcc"
 scol_auth = "#cfc"
-status = Label(statframe, text="---", bg=scol_neut, fg="#000")
-status.pack(side=BOTTOM, fill=X)
-
+connstat = Label(statframe, padx=10, text="Not connected", bg=scol_disc, fg="#000")
+connstat.pack(side=LEFT, fill=X)
+pingstat = Label(statframe, padx=10, text="", bg=scol_neut, fg="#000")
+pingstat.pack(side=LEFT, fill=X)
 
 ###########################################
 # Bindings
@@ -405,25 +403,25 @@ def subproc_clt():
         if pfx == 'CONN':
             is_authed = False
             is_connected = True
-            status.config(bg=scol_conn, text=line)
+            connstat.config(bg=scol_conn, text=line)
             connbtn.config(text='Disconnect')
             loginbtn.config(state=NORMAL)
             logadd(line)
         elif pfx == 'DISC':
             is_authed = False
             is_connected = False
-            status.config(bg=scol_disc, text=line)
+            connstat.config(bg=scol_disc, text=line)
             connbtn.config(text='Connect')
             loginbtn.config(state=DISABLED, text='Login')
             logadd(line)
         elif pfx == 'AUTH':
             is_authed = True
-            status.config(bg=scol_auth, text=line)
+            connstat.config(bg=scol_auth, text=line)
             loginbtn.config(text='Logout')
             logadd(line)
         elif pfx == 'NAUT':
             is_authed = False
-            status.config(bg=scol_conn, text=line)
+            connstat.config(bg=scol_conn, text=line)
             loginbtn.config(text='Login')
             logadd(line)
     # Pings
@@ -436,7 +434,7 @@ def subproc_clt():
             cidx = line.find(':')
             if cidx != -1:
                 peername=id2name(line[:cidx][-16:])
-                logadd("<" + peername + "> " + line[cidx+2:])
+                pingstat.config(text='<' + peername + '> ' + line[cidx+2:])
     # Server messages
         elif pfx == 'SMSG':
             logadd('[' + srvalias + '] ' + line)
@@ -489,6 +487,7 @@ def subrefresh_local():
 
 def subrefresh_remote():
     if is_authed:
+        clt_write("ping 0");
         clt_write("peerlist");
     else:
         peerlist.delete(0, END)
