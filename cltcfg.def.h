@@ -61,7 +61,7 @@
 #define DEF_PRIVKEY         ""
 
 /* Config file location, relative to users home directory. */
-#define CONFIG_PATH         ".config/frelayclt.conf"
+#define CONFIG_PATH         ".config/frelay/frelayclt.conf"
 
 /* Name of program to execute for an interactive shell,
  * should the one from $SHELL fail. */
