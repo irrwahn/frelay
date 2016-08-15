@@ -88,6 +88,26 @@ if 'control' in cfg_config.sections():
     if noti:
         notifier = list(filter(None, (x.strip() for x in noti.splitlines())))
 
+# Write config file
+def cfg_write_file(event=None):
+    global cfg_config
+    cfg_config['connection'] = {
+                'server' : server,
+                'port' : port }
+    cfg_config['client'] = {
+                'user' : user,
+                'password' : password,
+                'auto_login' : str(auto_login),
+                'client_path' : client_cmd[0],
+                'work_dir' : work_dir }
+    cfg_config['control'] = {
+                'cmd_pipe' : cmd_pipe,
+                'notify_internal' : str(notify_internal),
+                'notifier' : '\n' + '\n'.join(notifier)}
+    with open(cfg_filename, 'w') as cfg_file:
+        cfg_config.write(cfg_file)
+
+
 
 ###########################################
 # Internal configuration
@@ -170,9 +190,11 @@ def logindlg():
     def savecreds():
         global user
         global password
+        global auto_login
         nonlocal res
         user = usr.get()
         password = pwd.get()
+        auto_login = alog.get()
         res=True
         destroy()
     def ukenter(event=None):
@@ -191,6 +213,10 @@ def logindlg():
     frame.pack(fill=BOTH, expand=YES)
     usr = dlg_make_entry(frame, "User name:", 16, user)
     pwd = dlg_make_entry(frame, "Password:", 16, password, show="*")
+    alog = BooleanVar()
+    Checkbutton(frame, text="Auto-login on startup", variable=alog,
+                onvalue = True, offvalue = False).pack(side=TOP, fill=BOTH)
+    alog.set(auto_login)
     lbtn = Button(dlg, text="Login", padx=10, pady=10, command=savecreds)
     lbtn.pack(side=LEFT)
     qbtn = Button(dlg, text="Cancel", padx=10, pady=10, command=destroy)
@@ -250,6 +276,16 @@ def loginbtn_cb(event=None):
         do_login()
 loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=loginbtn_cb)
 loginbtn.pack(side=LEFT)
+# Cwd button
+def cwdbtn_cb(event=None):
+    global work_dir
+    new_dir = filedialog.askdirectory(parent=root, initialdir=work_dir,
+                        title='Choose a new working directory')
+    if new_dir:
+        work_dir = new_dir
+        clt_write('cd ' + work_dir)
+cwdbtn = Button(btnframe, text='Change Dir', width=12, state=NORMAL, command=cwdbtn_cb)
+cwdbtn.pack(side=LEFT)
 # Quit button
 def do_quit(event=None):
     root.destroy()
@@ -299,6 +335,8 @@ connstat = Label(statframe, padx=10, text="Not connected", bg=scol_disc, fg="#00
 connstat.pack(side=LEFT, fill=X)
 pingstat = Label(statframe, padx=10, text="", bg=scol_neut, fg="#000")
 pingstat.pack(side=LEFT, fill=X)
+cwdstat = Label(statframe, padx=10, text="", bg=scol_neut, fg="#000")
+cwdstat.pack(side=RIGHT, fill=X)
 
 
 ###########################################
@@ -317,13 +355,13 @@ def send_cmd(event=None):
 root.bind('<Return>', send_cmd)
 
 # Key assignments
-root.bind('<Alt-c>', do_connect)
-root.bind('<Alt-l>', do_login)
+root.bind('<Alt-c>', connectbtn_cb)
+root.bind('<Alt-l>', loginbtn_cb)
+root.bind('<Control-s>', cfg_write_file) # testing only!
 
 # Quit program with [X] or Alt-F4
 root.bind('<Control-q>', do_quit)
 root.protocol("WM_DELETE_WINDOW", ask_quit)
-
 
 ###########################################
 # Peerlist operations
@@ -472,6 +510,7 @@ last_pfx = ''
 def subproc_clt():
     global is_connected
     global is_authed
+    global work_dir
     global last_pfx
     try:  b = readq.get_nowait()
     except Empty:
@@ -534,7 +573,8 @@ def subproc_clt():
         elif pfx == 'WDIR':
             global work_dir
             work_dir = line
-            logadd('CWD is: ' + work_dir)
+            cwdstat.config(text=work_dir)
+            logadd('CWD: ' + work_dir)
     # External command output
         elif pfx == 'COUT':
             logadd(line)
@@ -591,6 +631,7 @@ def subrefresh_remote():
         clt_write("peerlist");
     else:
         peerlist.delete(0, END)
+        pingstat.config(text='')
     root.after(refresh_remote_ms, subrefresh_remote)
 
 # Main loop
