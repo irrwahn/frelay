@@ -558,25 +558,31 @@ static int process_stdin( int *srvfd )
     mbuf_t *mp = NULL;
     int r;
     int a;
+    size_t lpos = 0;
     char *cp;
     const char *arg[MAX_ARG] = { NULL };
     static char line[MAX_CMDLINE];
     static char aline[MAX_CMDLINE];
 
-    r = read( STDIN_FILENO, line, sizeof line - 1 );
-    if ( 0 > r )
+    while ( lpos < sizeof line - 1 )
     {
-        if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
-            XLOG( LOG_ERR, "read() failed miserably: %m.\n" );
-        else
-            DLOG( "read() failed: %m.\n" );
-        return -1;
+        r = read( STDIN_FILENO, line + lpos, 1 );
+        if ( 0 > r )
+        {
+            if ( EAGAIN != errno && EWOULDBLOCK != errno && EINTR != errno )
+                XLOG( LOG_ERR, "read() failed miserably: %m.\n" );
+            else
+                DLOG( "read() failed: %m.\n" );
+            return -1;
+        }
+        else if ( 0 == r )
+        {   /* EOF on stdin. */
+            return -2;
+        }
+        if ( '\n' == line[lpos++] )
+            break;
     }
-    else if ( 0 == r )
-    {   /* EOF on stdin. */
-        return -2;
-    }
-    line[r] = '\0';
+    line[lpos] = '\0';
     strcpy( aline, line ); /* backup copy of command line */
 
     /* Ye lousy tokeniz0r. */
