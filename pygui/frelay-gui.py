@@ -1,7 +1,5 @@
 #!/usr/bin/python3
 
-from tkinter import *
-from tkinter import messagebox, filedialog
 import os
 import sys
 import time
@@ -9,42 +7,40 @@ import random
 from subprocess import PIPE, Popen, call
 from threading  import Thread, Lock #, Condition
 from queue import Queue, Empty
+from configparser import *
+from tkinter import *
+from tkinter import messagebox, filedialog
 
 ON_POSIX = 'posix' in sys.builtin_module_names
 
 
 ###########################################
 # Configuration
-# TODO: save/load config
 #
 
-# server pseudo-nick for display
-srvalias='*SRV*'
-
-# transfer list update period
-refresh_local_ms = 997
-# peer list update period
-refresh_remote_ms = 2011
-
-# connection info
-user = os.getenv('USER', "user%d"%(random.randint(100, 999)))
-password = '********'
+# Connection configuration
 server = 'localhost'
 port = '64740'
 
-# frelay client incantation
-client_path = [ '../frelayclt',
-                '-c', './frelayclt.conf',
-                '-u', user, '-p', password,
-                server, port,
-                '-w', './frelayclt.conf' ]
+# Client configuration
+user = os.getenv('USER', "user%d"%(random.randint(100, 999)))
+password = 'dummy'
+auto_login = True
+# Frelay client incantation
+#client_cmd = [ '../frelayclt',
+#                '-c', './frelayclt.conf',
+#                '-u', user, '-p', password,
+#                server, port,
+#                '-w', './frelayclt.conf' ]
+client_cmd = [ 'frelayclt', '-u', user, '-p', password, server, port ]
+# Default working directory for frelay client
+work_dir = '.'
 
-# default working directory for frelay client
-cwd = '.'
-
-# name of FIFO to additionally read commands from
-pipe_name = '/tmp/frelayctl'
-
+# Control configuration
+# Path of FIFO to additionally read commands from
+cmd_pipe = '/tmp/frelayctl'
+# Enable internal accept dialog?
+notify_internal = True
 # External tool to invoke for offer notification.
 # This can also be used to call an auto-accept script.
 # The following placeholders are substituted:
@@ -58,8 +54,51 @@ pipe_name = '/tmp/frelayctl'
 #   notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
 notifier = []
 
-# Enable internal accept dialog?
-notify_internal = True
+
+# Read config file
+class ListConfigParser(RawConfigParser):
+    def getlist(self, section, option):
+        value = self.get(section, option)
+        return list(filter(None, (x.strip() for x in value.splitlines())))
+    def getlistint(self, section, option):
+        return [int(x) for x in self.getlist(section, option)]
+
+home = os.getenv('HOME', '.')
+cfg_basename = 'frelay-gui.conf'
+cfg_filename = home + '/.config/frelay/' + cfg_basename
+if not os.path.isfile(cfg_filename):
+    cfg_filename = home + '/.' + cfg_basename
+cfg_config = ListConfigParser()
+cfg_config.read(cfg_filename)
+if 'connection' in cfg_config.sections():
+    server = cfg_config['connection'].get('server', server)
+    port = cfg_config['connection'].get('port', port)
+if 'client' in cfg_config.sections():
+    user = cfg_config['client'].get('user', user)
+    password = cfg_config['client'].get('password', password)
+    auto_login = cfg_config['client'].getboolean('auto_login', auto_login )
+    client_path = cfg_config['client'].get('client_path', '')
+    if client_path:
+        client_cmd[0] = client_path
+    work_dir = cfg_config['client'].get('work_dir', work_dir )
+if 'control' in cfg_config.sections():
+    cmd_pipe = cfg_config['control'].get('cmd_pipe', cmd_pipe)
+    notify_internal = cfg_config['control'].getboolean('notify_internal', notify_internal)
+    noti = cfg_config['control'].get('notifier')
+    if noti:
+        notifier = list(filter(None, (x.strip() for x in noti.splitlines())))
+
+
+###########################################
+# Internal configuration
+#
+
+# Server pseudo-nick for display
+srv_alias='*SRV*'
+# Transfer list update period
+refresh_local_ms = 997
+# Peer list update period
+refresh_remote_ms = 2011
 
 
 ###########################################
@@ -148,7 +187,6 @@ def logindlg():
     dlg.grab_set()
     dlg.title('Login')
     dlg.geometry("+%d+%d" % (root.winfo_pointerx(), root.winfo_pointery()))
-    dlg.geometry=('+' + str(root.winfo_pointerx()) + '+' + str(root.winfo_pointery()))
     frame = Frame(dlg, padx=10, pady=10)
     frame.pack(fill=BOTH, expand=YES)
     usr = dlg_make_entry(frame, "User name:", 16, user)
@@ -194,19 +232,23 @@ statframe.pack(fill=X)
 # Buttons
 # Connect button
 def do_connect(event=None):
+    clt_write('connect ' + server + ' ' + port )
+def connectbtn_cb(event=None):
     if is_connected:
         clt_write('disconnect')
     elif connectdlg():
-        clt_write('connect ' + server + ' ' + port )
-connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=do_connect)
+        do_connect()
+connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=connectbtn_cb)
 connbtn.pack(side=LEFT)
 # Login button
 def do_login(event=None):
+    clt_write('login ' + user + ' ' + password )
+def loginbtn_cb(event=None):
     if is_authed:
         clt_write('logout')
     elif logindlg():
-        clt_write('login ' + user + ' ' + password )
-loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=do_login)
+        do_login()
+loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=loginbtn_cb)
 loginbtn.pack(side=LEFT)
 # Quit button
 def do_quit(event=None):
@@ -292,7 +334,7 @@ peerlist_lock = Lock()
 def id2name(peerid):
     peerid = peerid.lstrip('0')
     if not peerid:
-        return srvalias
+        return srv_alias
     with peerlist_lock:
         items = peerlist.get(0,END)
         for item in items:
@@ -327,7 +369,7 @@ def peerlist_select(event=None):
         if tok[0].endswith('*'):
             return
         filename = filedialog.askopenfilename(parent=root,
-                        initialdir=cwd,
+                        initialdir=work_dir,
                         title='Choose a file to offer @' + tok[1] + ':')
         if filename:
             clt_write('offer ' + tok[0] + ' ' + filename)
@@ -360,18 +402,18 @@ def clt_read(out, queue, root):
         queue.put(line)
         root.event_generate('<<cltdata>>') # trigger GUI processing
 
-proc = Popen(client_path, stdin=PIPE, stdout=PIPE, bufsize=1, close_fds=ON_POSIX)
+proc = Popen(client_cmd, stdin=PIPE, stdout=PIPE, bufsize=1, close_fds=ON_POSIX)
 readq = Queue()
 readthread = Thread(target=clt_read, args=(proc.stdout, readq, root))
 readthread.daemon = True
 readthread.start()
 
 # Create a named pipe and a thread to read from it
-if not os.path.exists(pipe_name):
-    os.mkfifo(pipe_name)
+if not os.path.exists(cmd_pipe):
+    os.mkfifo(cmd_pipe)
 
 def pipe_read(): # need to first open fd as rw to avoid EOF on read
-    pipein = os.fdopen(os.open(pipe_name, os.O_RDWR), 'r')
+    pipein = os.fdopen(os.open(cmd_pipe, os.O_RDWR), 'r')
     for line in iter(pipein.readline, b''):
         clt_write(line.strip())
 
@@ -379,7 +421,12 @@ pipethread = Thread(target=pipe_read)
 pipethread.daemon = True
 pipethread.start()
 
-# Send a command to the client, after some preparation
+# Write one single line (command) to the client
+def clt_write_raw(line):
+    proc.stdin.write(bytes(line + "\n", "utf-8"))
+    proc.stdin.flush()
+
+# Send a command to the client, after some preprocessing
 clt_write_lock = Lock()
 def clt_write(line):
     with clt_write_lock:
@@ -388,15 +435,21 @@ def clt_write(line):
         cmd = tok[0].lower()
         if cmd == 'quit':
             do_quit()
-        elif cmd == 'offer' and tok[1][0] == '@':
+        elif cmd == 'offer' and len(tok) > 2 and tok[1][0] == '@':
             line = 'offer ' + name2id(tok[1][1:]) + ' ' + tok[2]
-        elif cmd == 'ping' and tok[1][0] == '@':
-            line = cmd + ' ' + name2id(tok[1][1:])
+        elif cmd == 'ping' and len(tok) > 1:
+            if tok[1].startswith('@'):
+                tok[1] = name2id(tok[1][1:])
             if len(tok) > 2:
-                line = line + ' ' + tok[2]
-        b = bytes(line + "\n", "utf-8")
-        proc.stdin.write(b)
-        proc.stdin.flush()
+                lines = tok[2].splitlines()
+                for l in lines: # split multi-line PINGs
+                    clt_write_raw(cmd + ' ' + tok[1] + ' "' + l + '"')
+                return
+            else:
+                line = tok[0] + ' ' + tok[1]
+        # Eliminate all line breaks.
+        line = ''.join(line.splitlines())
+        clt_write_raw(line)
 
 # External offer notification
 def notify(offerid, peername, filename, filesize):
@@ -406,8 +459,8 @@ def notify(offerid, peername, filename, filesize):
                 .replace('%%', '%') for w in notifier])
     if notify_internal:
         if messagebox.askyesno('Offer received', peername
-            + ' offered file ' + filename + ' (' + filesize
-            + ')\nAccept offer? (No will remove it!)'):
+                        + ' offered file ' + filename + ' (' + filesize
+                        + ')\nAccept offer? (No will remove it!)'):
             clt_write( 'accept ' + offerid )
         else:
             clt_write( 'remove ' + offerid )
@@ -415,9 +468,11 @@ def notify(offerid, peername, filename, filesize):
 # Process queued client output
 # Called via root.after() from proc_clt(), which in turn
 # is bound to the <<cltdata>> virtual event. Sigh.
+last_pfx = ''
 def subproc_clt():
     global is_connected
     global is_authed
+    global last_pfx
     try:  b = readq.get_nowait()
     except Empty:
         return
@@ -460,23 +515,26 @@ def subproc_clt():
             cidx = line.find(':')
             if cidx != -1:
                 peername=id2name(line[:cidx][-16:])
-                logadd("[" + peername + "] " + line[cidx+2:].strip("'"))
+                last_pfx = '[' + peername + '] '
+                logadd(last_pfx + line[cidx+2:].strip("'"))
         elif pfx == 'RPNG':
             cidx = line.find(':')
             if cidx != -1:
                 peername=id2name(line[:cidx][-16:])
                 pingstat.config(text='<' + peername + '> ' + line[cidx+2:])
+                logscrl = False
     # Server messages
         elif pfx == 'SMSG':
-            logadd('[' + srvalias + '] ' + line)
+            last_pfx = '[' + srv_alias + '] '
+            logadd( last_pfx + line)
     # Informational messages
         elif pfx == 'IMSG':
             logadd(line)
     # Current directory info
         elif pfx == 'WDIR':
-            global cwd
-            cwd = line
-            logadd('CWD is: ' + cwd)
+            global work_dir
+            work_dir = line
+            logadd('CWD is: ' + work_dir)
     # External command output
         elif pfx == 'COUT':
             logadd(line)
@@ -510,12 +568,12 @@ def subproc_clt():
             logadd("Local error: " + line)
         elif pfx == 'SERR':
             logadd("Server error: " + line)
+    # Continuation
+        elif not pfx:
+            logadd(last_pfx + line)
     # Unhandled
         else:
-            if not pfx: # MotD hack!
-                logadd('[' + srvalias + '] ' + line)
-            else:
-                logadd(pfx + ':' + line)
+            logadd(pfx + ':' + line)
         if logscrl:
             log.see("end")
 
@@ -539,9 +597,15 @@ def subrefresh_remote():
 # Determine and lock root window's minimum size
 root.update()
 root.minsize(root.winfo_width(), root.winfo_height())
-root.after(0, subrefresh_local)
-root.after(0, subrefresh_remote)
-clt_write( 'cd ' + cwd )
+# Change working directory
+clt_write( 'cd ' + work_dir )
+# Initialize periodic refreshes
+root.after(3000, subrefresh_local)
+root.after(1500, subrefresh_remote)
+# Perform auto login
+if auto_login:
+    root.after(500, do_connect)
+    root.after(1000, do_login)
 root.mainloop()
 
 
