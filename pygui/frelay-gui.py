@@ -1,13 +1,55 @@
 #!/usr/bin/python3
 
+#
+# frelay-gui.py
+#
+# Copyright 2016 Urban Wallasch <irrwahn35@freenet.de>
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# * Redistributions of source code must retain the above copyright
+#   notice, this list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above copyright
+#   notice, this list of conditions and the following disclaimer
+#   in the documentation and/or other materials provided with the
+#   distribution.
+# * Neither the name of the copyright holder nor the names of its
+#   contributors may be used to endorse or promote products derived
+#   from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#
+
+
+###########################################
+# Module imports
+#
+
 import os
 import sys
 import time
 import random
 from subprocess import PIPE, Popen, call
-from threading  import Thread, Lock #, Condition
+from threading  import Thread, Lock
 from queue import Queue, Empty
-from configparser import *
+from configparser import RawConfigParser
 from tkinter import *
 from tkinter import messagebox, filedialog
 
@@ -107,6 +149,88 @@ def cfg_write_file(event=None):
     with open(cfg_filename, 'w') as cfg_file:
         cfg_config.write(cfg_file)
 
+# Config dialog
+
+def dlg_mkentry(parent, caption, width=None, text=None, **options):
+    l = Label(parent, text=caption)
+    l.grid(sticky=W)
+    entry = Entry(parent, **options)
+    if width:
+        entry.config(width=width)
+    entry.grid(row=l.grid_info()['row'], column=1, sticky=W)
+    if text:
+        entry.insert(0, text)
+    return entry
+
+def configdlg(parent):
+    res=False
+    def destroy():
+        dlg.grab_release()
+        dlg.destroy()
+    def cfgsave():
+        global server
+        global port
+        global user
+        global password
+        global auto_login
+        global client_cmd
+        global work_dir
+        global cmd_pipe
+        global notify_internal
+        global notifier
+        nonlocal res
+        server = srv.get()
+        port = prt.get()
+        user = usr.get()
+        password = pwd.get()
+        auto_login = alog.get()
+        client_cmd[0] = clp.get()
+        work_dir = wdr.get()
+        cmd_pipe = pip.get()
+        notifier = ntf.get().strip("'").split("', '")
+        notify_internal = nint.get()
+        cfg_write_file()
+        res=True
+        destroy()
+    def kenter(event=None):
+        sbtn.invoke()
+    def kescape(event=None):
+        cbtn.invoke()
+    #
+    dlg = Toplevel(parent)
+    dlg.transient(parent)
+    dlg.grab_set()
+    dlg.title('Login')
+    geom = parent.winfo_geometry().split('+')
+    dlg.geometry("+%d+%d" % (int(geom[1]) + 50, int(geom[2])))
+    dlg.bind('<Return>', kenter)
+    dlg.bind('<Escape>', kescape)
+    frame = Frame(dlg, padx=10, pady=10)
+    frame.pack(fill=BOTH, expand=YES)
+    #
+    srv = dlg_mkentry(frame, 'Server:', 40, server)
+    prt = dlg_mkentry(frame, 'Port:', 16, port)
+    usr = dlg_mkentry(frame, 'User:', 16, user)
+    pwd = dlg_mkentry(frame, 'Password:', 16, password, show='*')
+    alog = BooleanVar()
+    Checkbutton(frame, text='Auto-login on startup', variable=alog,
+                onvalue = True, offvalue = False).grid(column=1, sticky=W)
+    alog.set(auto_login)
+    Label(frame, text=' ').grid()
+    clp = dlg_mkentry(frame, 'Client Path:', 40, client_cmd[0] )
+    wdr = dlg_mkentry(frame, 'Working dir:', 40, work_dir )
+    pip = dlg_mkentry(frame, 'Commandd pipe:', 40, cmd_pipe )
+    ntf = dlg_mkentry(frame, 'External Notifier:', 40,
+                        "'" + "', '".join(notifier) + "'" )
+    nint = BooleanVar()
+    Checkbutton(frame, text='Internal notifier enabled', variable=nint,
+                onvalue = True, offvalue = False).grid(column=1, sticky=W)
+    nint.set(notify_internal)
+    #
+    sbtn = Button(dlg, text='Apply & Save', padx=10, pady=10, command=cfgsave)
+    sbtn.pack(side=LEFT)
+    cbtn = Button(dlg, text='Cancel', padx=10, pady=10, command=destroy)
+    cbtn.pack(side=RIGHT)
 
 
 ###########################################
@@ -130,112 +254,12 @@ is_authed = False
 
 
 ###########################################
-# Dialogs
-# TODO: These should really be refactored into proper classes!
-#
-
-def dlg_make_entry(parent, caption, width=None, text=None, **options):
-    Label(parent, text=caption).pack(side=TOP)
-    entry = Entry(parent, **options)
-    if width:
-        entry.config(width=width)
-        entry.pack(side=TOP, fill=BOTH)
-    if text:
-        entry.insert(0,text)
-    return entry
-
-# Connect dialog
-def connectdlg():
-    res=False
-    def destroy():
-        dlg.grab_release()
-        dlg.destroy()
-    def kenter(event=None):
-        cbtn.invoke()
-    def kescape(event=None):
-        qbtn.invoke()
-    def savesrv():
-        global server
-        global port
-        nonlocal res
-        server = srv.get()
-        port = prt.get()
-        res=True
-        destroy()
-    dlg = Toplevel(root)
-    dlg.transient( root )
-    dlg.grab_set()
-    dlg.title('Connect')
-    dlg.geometry("+%d+%d" % (root.winfo_pointerx(), root.winfo_pointery()))
-    frame = Frame(dlg, padx=10, pady=10)
-    frame.pack(fill=BOTH, expand=YES)
-    srv = dlg_make_entry(frame, "Server:", 32, server)
-    prt = dlg_make_entry(frame, "Password:", 16, port)
-    cbtn = Button(dlg, text="Connect", padx=10, pady=10, command=savesrv)
-    cbtn.pack(side=LEFT)
-    qbtn = Button(dlg, text="Cancel", padx=10, pady=10, command=destroy)
-    qbtn.pack(side=RIGHT)
-    srv.focus_set()
-    dlg.bind('<Return>', kenter)
-    dlg.bind('<Escape>', kescape)
-    root.wait_window(dlg)
-    return res
-
-# Login dialog
-def logindlg():
-    res=False
-    def destroy():
-        dlg.grab_release()
-        dlg.destroy()
-    def savecreds():
-        global user
-        global password
-        global auto_login
-        nonlocal res
-        user = usr.get()
-        password = pwd.get()
-        auto_login = alog.get()
-        res=True
-        destroy()
-    def ukenter(event=None):
-        pwd.focus_set()
-        pwd.selection_range(0, END)
-    def pkenter(event=None):
-        lbtn.invoke()
-    def kescape(event=None):
-        qbtn.invoke()
-    dlg = Toplevel(root)
-    dlg.transient(root)
-    dlg.grab_set()
-    dlg.title('Login')
-    dlg.geometry("+%d+%d" % (root.winfo_pointerx(), root.winfo_pointery()))
-    frame = Frame(dlg, padx=10, pady=10)
-    frame.pack(fill=BOTH, expand=YES)
-    usr = dlg_make_entry(frame, "User name:", 16, user)
-    pwd = dlg_make_entry(frame, "Password:", 16, password, show="*")
-    alog = BooleanVar()
-    Checkbutton(frame, text="Auto-login on startup", variable=alog,
-                onvalue = True, offvalue = False).pack(side=TOP, fill=BOTH)
-    alog.set(auto_login)
-    lbtn = Button(dlg, text="Login", padx=10, pady=10, command=savecreds)
-    lbtn.pack(side=LEFT)
-    qbtn = Button(dlg, text="Cancel", padx=10, pady=10, command=destroy)
-    qbtn.pack(side=RIGHT)
-    usr.focus_set()
-    usr.bind('<Return>', ukenter)
-    pwd.bind('<Return>', pkenter)
-    dlg.bind('<Escape>', kescape)
-    root.wait_window(dlg)
-    return res
-
-
-###########################################
 # GUI initialization
 #
 
 # Root window and frames
 root = Tk()
-root.wm_title("Frelay")
+root.wm_title('Frelay')
 
 btnframe = Frame(root)
 btnframe.pack(fill=X)
@@ -262,7 +286,7 @@ def do_connect(event=None):
 def connectbtn_cb(event=None):
     if is_connected:
         clt_write('disconnect')
-    elif connectdlg():
+    else:
         do_connect()
 connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=connectbtn_cb)
 connbtn.pack(side=LEFT)
@@ -272,7 +296,7 @@ def do_login(event=None):
 def loginbtn_cb(event=None):
     if is_authed:
         clt_write('logout')
-    elif logindlg():
+    else:
         do_login()
 loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=loginbtn_cb)
 loginbtn.pack(side=LEFT)
@@ -290,14 +314,19 @@ cwdbtn.pack(side=LEFT)
 def do_quit(event=None):
     root.destroy()
 def ask_quit():
-    if messagebox.askokcancel("Quit", "Quit frelay?"):
+    if messagebox.askokcancel('Quit', 'Quit frelay?'):
         do_quit()
 quitbtn = Button(btnframe, text='Quit', width=12, command=ask_quit)
 quitbtn.pack(side=RIGHT)
+# Config button
+def confbtn_cb(event=None):
+    configdlg(root)
+confbtn = Button(btnframe, text='Config', width=12, command=confbtn_cb)
+confbtn.pack(side=RIGHT)
 
 # Lists
 # Peerlist
-Label(listframe, text="Peers").grid(row=0, column=0)
+Label(listframe, text='Peers').grid(row=0, column=0)
 plscrollbar = Scrollbar(listframe, orient=VERTICAL, width=10)
 peerlist = Listbox(listframe, yscrollcommand=plscrollbar.set)
 peerlist.grid(row=1, column=0, sticky=W+E+N+S)
@@ -305,7 +334,7 @@ plscrollbar.grid(row=1, column=1, sticky=N+S)
 plscrollbar.config(command=peerlist.yview)
 
 # Transferlist
-Label(listframe, text="Transfers").grid(row=0, column=2)
+Label(listframe, text='Transfers').grid(row=0, column=2)
 tlscrollbar = Scrollbar(listframe, orient=VERTICAL, width=10)
 translist = Listbox(listframe, yscrollcommand=tlscrollbar.set)
 translist.grid(row=1, column=2, sticky=W+E+N+S)
@@ -327,15 +356,15 @@ cmdinput.pack(side=LEFT, fill=X, expand=YES)
 cmdinput.focus_set()
 
 # Status line
-scol_neut = "#ddd"
-scol_conn = "#ccf"
-scol_disc = "#fcc"
-scol_auth = "#cfc"
-connstat = Label(statframe, padx=10, text="Not connected", bg=scol_disc, fg="#000")
+scol_neut = '#ddd'
+scol_conn = '#ccf'
+scol_disc = '#fcc'
+scol_auth = '#cfc'
+connstat = Label(statframe, padx=10, text='Not connected', bg=scol_disc, fg='#000')
 connstat.pack(side=LEFT, fill=X)
-pingstat = Label(statframe, padx=10, text="", bg=scol_neut, fg="#000")
+pingstat = Label(statframe, padx=10, text='', bg=scol_neut, fg='#000')
 pingstat.pack(side=LEFT, fill=X)
-cwdstat = Label(statframe, padx=10, text="", bg=scol_neut, fg="#000")
+cwdstat = Label(statframe, padx=10, text='', bg=scol_neut, fg='#000')
 cwdstat.pack(side=RIGHT, fill=X)
 
 
@@ -361,7 +390,7 @@ root.bind('<Control-s>', cfg_write_file) # testing only!
 
 # Quit program with [X] or Alt-F4
 root.bind('<Control-q>', do_quit)
-root.protocol("WM_DELETE_WINDOW", ask_quit)
+root.protocol('WM_DELETE_WINDOW', ask_quit)
 
 ###########################################
 # Peerlist operations
@@ -421,7 +450,7 @@ peerlist.bind('<<ListboxSelect>>', peerlist_select)
 
 def logadd(line):
     log.config(state=NORMAL)
-    log.insert(END, time.strftime('%H:%M:%S ') + line.expandtabs(8) + "\n")
+    log.insert(END, time.strftime('%H:%M:%S ') + line.expandtabs(8) + '\n')
     log.config(state=DISABLED)
 
 def logclear():
@@ -447,21 +476,22 @@ readthread.daemon = True
 readthread.start()
 
 # Create a named pipe and a thread to read from it
-if not os.path.exists(cmd_pipe):
-    os.mkfifo(cmd_pipe)
-
 def pipe_read(): # need to first open fd as rw to avoid EOF on read
     pipein = os.fdopen(os.open(cmd_pipe, os.O_RDWR), 'r')
     for line in iter(pipein.readline, b''):
         clt_write(line.strip())
-
-pipethread = Thread(target=pipe_read)
-pipethread.daemon = True
-pipethread.start()
+try:
+    os.mkfifo(cmd_pipe)
+except Exception as e:
+    logadd('mkfifo(' + cmd_pipe + '): ' + str(e))
+else:
+    pipethread = Thread(target=pipe_read)
+    pipethread.daemon = True
+    pipethread.start()
 
 # Write one single line (command) to the client
 def clt_write_raw(line):
-    proc.stdin.write(bytes(line + "\n", "utf-8"))
+    proc.stdin.write(bytes(line + '\n', 'utf-8'))
     proc.stdin.flush()
 
 # Send a command to the client, after some preprocessing
@@ -512,12 +542,15 @@ def subproc_clt():
     global is_authed
     global work_dir
     global last_pfx
-    try:  b = readq.get_nowait()
+    try:
+        b = readq.get_nowait()
     except Empty:
         return
     else:
         logscrl = True
         line = b.decode(encoding='utf-8').strip()
+    # Note: We are vulnerable to a 'Notice of Death' attack, but there
+    # is no clean solution, apart from crippling the frelayclt code.
         if len(line) > 4 and line[4] == ':' and line[:4].isupper():
             pfx = line[:4]
             line = line[5:]
@@ -603,11 +636,11 @@ def subproc_clt():
             logadd('<' + peername + '>: ' + tok[1])
     # General errors
         elif pfx == 'CERR':
-            logadd("Command error: " + line)
+            logadd('Command error: ' + line)
         elif pfx == 'LERR':
-            logadd("Local error: " + line)
+            logadd('Local error: ' + line)
         elif pfx == 'SERR':
-            logadd("Server error: " + line)
+            logadd('Server error: ' + line)
     # Continuation
         elif not pfx:
             logadd(last_pfx + line)
@@ -615,20 +648,20 @@ def subproc_clt():
         else:
             logadd(pfx + ':' + line)
         if logscrl:
-            log.see("end")
+            log.see('end')
 
 # Scheduled list refreshing
 def subrefresh_local():
     if is_authed:
-        clt_write("list");
+        clt_write('list');
     else:
         translist.delete(0, END)
     root.after(refresh_local_ms, subrefresh_local)
 
 def subrefresh_remote():
     if is_authed:
-        clt_write("ping 0");
-        clt_write("peerlist");
+        clt_write('ping 0');
+        clt_write('peerlist');
     else:
         peerlist.delete(0, END)
         pingstat.config(text='')
