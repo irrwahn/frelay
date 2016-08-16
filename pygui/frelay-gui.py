@@ -357,7 +357,7 @@ plscrollbar.config(command=peerlist.yview)
 # Transferlist
 Label(listframe, text='Transfers').grid(row=0, column=2)
 tlscrollbar = Scrollbar(listframe, orient=VERTICAL, width=10)
-translist = Listbox(listframe, yscrollcommand=tlscrollbar.set)
+translist = Listbox(listframe, width=100, yscrollcommand=tlscrollbar.set)
 translist.grid(row=1, column=2, sticky=W+E+N+S)
 tlscrollbar.grid(row=1, column=3, sticky=N+S)
 tlscrollbar.config(command=translist.yview)
@@ -468,9 +468,22 @@ peerlist.bind('<<ListboxSelect>>', peerlist_select)
 
 translist_lock = Lock()
 
+def translist_update(line):
+    if translist_lock.acquire(False):
+        if not line:
+            translist.delete(0, END)
+        else:
+            if 'D' == line[0]:
+                tdir = '[from '
+            else:
+                tdir = '[to '
+            line = tdir + id2name(line.split(',',2)[1]) + '] ' + line
+            translist.insert(END, line)
+        translist_lock.release()
+
 def translist_select(event=None):
     with translist_lock:
-        item = translist.get(int(translist.curselection()[0]))
+        item = translist.get(int(translist.curselection()[0])).split('] ',1)[1]
         tok = item.split(" '", 1)
         offerid = tok[0]
         offertype = offerid[0]
@@ -680,10 +693,7 @@ def subproc_clt():
             logscrl = False
     # Transfer list item
         elif pfx == 'TLST':
-            if not line:
-                translist.delete(0, END)
-            else:
-                translist.insert(END, line)
+            translist_update(line)
             logscrl = False
     # Offer received
         elif pfx == 'OFFR':
