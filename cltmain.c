@@ -335,10 +335,11 @@ static int printcon( const char *pfx, const char *fmt, ... )
 static int tlist_cb( transfer_t *t )
 {
     static char buf[PATH_MAX];
-
+#if 0
     if ( !cfg.istty[STDOUT_FILENO] )
         transfer_itostr( buf, sizeof buf, "%i '%n' %o/%s %t %d %a", t );
     else
+#endif
         transfer_itostr( buf, sizeof buf, "%i '%n' %O/%S %T %D %A", t );
     return printcon( PFX_TLST, "%s\n", buf );
 }

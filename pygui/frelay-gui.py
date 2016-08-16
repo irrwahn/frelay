@@ -44,6 +44,7 @@
 
 import os
 import sys
+import getopt
 import time
 import random
 from subprocess import PIPE, Popen, call
@@ -96,20 +97,32 @@ notify_internal = True
 #   notifier = [ './autoaccept.sh', '%o', '%p', '%n', '%s' ]
 notifier = []
 
+# Evaluate command line
+cfg_filename = None
+try:
+  opts, args = getopt.getopt(sys.argv,"c:",[])
+except getopt.GetoptError:
+  print('frelay-gui -c <config_file>\n')
+  sys.exit(2)
+for opt, arg in opts:
+  if opt == '-c':
+     cfg_filename = arg
 
 # Read config file
+if not cfg_filename or not os.path.isfile(cfg_filename):
+    home = os.getenv('HOME', '.')
+    cfg_basename = 'frelay-gui.conf'
+    cfg_filename = home + '/.config/frelay/' + cfg_basename
+    if not os.path.isfile(cfg_filename):
+        cfg_filename = home + '/.' + cfg_basename
+
 class ListConfigParser(RawConfigParser):
     def getlist(self, section, option):
         value = self.get(section, option)
         return list(filter(None, (x.strip() for x in value.splitlines())))
-    def getlistint(self, section, option):
-        return [int(x) for x in self.getlist(section, option)]
+#    def getlistint(self, section, option):
+#        return [int(x) for x in self.getlist(section, option)]
 
-home = os.getenv('HOME', '.')
-cfg_basename = 'frelay-gui.conf'
-cfg_filename = home + '/.config/frelay/' + cfg_basename
-if not os.path.isfile(cfg_filename):
-    cfg_filename = home + '/.' + cfg_basename
 cfg_config = ListConfigParser()
 cfg_config.read(cfg_filename)
 if 'connection' in cfg_config.sections():
@@ -150,14 +163,13 @@ def cfg_write_file(event=None):
         cfg_config.write(cfg_file)
 
 # Config dialog
-
 def dlg_mkentry(parent, caption, width=None, text=None, **options):
     l = Label(parent, text=caption)
     l.grid(sticky=W)
     entry = Entry(parent, **options)
     if width:
         entry.config(width=width)
-    entry.grid(row=l.grid_info()['row'], column=1, sticky=W)
+    entry.grid(row=l.grid_info()['row'], column=1, padx=6, sticky=W+E)
     if text:
         entry.insert(0, text)
     return entry
@@ -207,11 +219,12 @@ def configdlg(parent):
     dlg.bind('<Escape>', kescape)
     frame = Frame(dlg, padx=10, pady=10)
     frame.pack(fill=BOTH, expand=YES)
+    frame.columnconfigure(1, weight=1)
     #
     srv = dlg_mkentry(frame, 'Server:', 40, server)
-    prt = dlg_mkentry(frame, 'Port:', 16, port)
-    usr = dlg_mkentry(frame, 'User:', 16, user)
-    pwd = dlg_mkentry(frame, 'Password:', 16, password, show='*')
+    prt = dlg_mkentry(frame, 'Port:', 12, port)
+    usr = dlg_mkentry(frame, 'User:', 12, user)
+    pwd = dlg_mkentry(frame, 'Password:', 12, password, show='*')
     alog = BooleanVar()
     Checkbutton(frame, text='Auto-login on startup', variable=alog,
                 onvalue = True, offvalue = False).grid(column=1, sticky=W)
@@ -231,6 +244,8 @@ def configdlg(parent):
     sbtn.pack(side=LEFT)
     cbtn = Button(dlg, text='Cancel', padx=10, pady=10, command=destroy)
     cbtn.pack(side=RIGHT)
+    dlg.update()
+    dlg.minsize(dlg.winfo_width(), dlg.winfo_height())
 
 
 ###########################################
@@ -267,7 +282,7 @@ btnframe.pack(fill=X)
 listframe = Frame(root, height=8)
 listframe.pack(fill=BOTH, expand=YES)
 listframe.columnconfigure(0, weight=1)
-listframe.columnconfigure(2, weight=4)
+listframe.columnconfigure(2, weight=10)
 listframe.rowconfigure(1, weight=1)
 
 logframe = Frame(root, height=15)
@@ -290,6 +305,7 @@ def connectbtn_cb(event=None):
         do_connect()
 connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=connectbtn_cb)
 connbtn.pack(side=LEFT)
+
 # Login button
 def do_login(event=None):
     clt_write('login ' + user + ' ' + password )
@@ -300,6 +316,7 @@ def loginbtn_cb(event=None):
         do_login()
 loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=loginbtn_cb)
 loginbtn.pack(side=LEFT)
+
 # Cwd button
 def cwdbtn_cb(event=None):
     global work_dir
@@ -310,19 +327,23 @@ def cwdbtn_cb(event=None):
         clt_write('cd ' + work_dir)
 cwdbtn = Button(btnframe, text='Change Dir', width=12, state=NORMAL, command=cwdbtn_cb)
 cwdbtn.pack(side=LEFT)
+
 # Quit button
 def do_quit(event=None):
+    os.remove(cmd_pipe)
     root.destroy()
 def ask_quit():
     if messagebox.askokcancel('Quit', 'Quit frelay?'):
         do_quit()
 quitbtn = Button(btnframe, text='Quit', width=12, command=ask_quit)
 quitbtn.pack(side=RIGHT)
+
 # Config button
 def confbtn_cb(event=None):
     configdlg(root)
 confbtn = Button(btnframe, text='Config', width=12, command=confbtn_cb)
 confbtn.pack(side=RIGHT)
+
 
 # Lists
 # Peerlist
@@ -392,8 +413,9 @@ root.bind('<Control-s>', cfg_write_file) # testing only!
 root.bind('<Control-q>', do_quit)
 root.protocol('WM_DELETE_WINDOW', ask_quit)
 
+
 ###########################################
-# Peerlist operations
+# Listbox operations
 #
 
 peerlist_lock = Lock()
@@ -444,6 +466,36 @@ def peerlist_select(event=None):
 peerlist.bind('<<ListboxSelect>>', peerlist_select)
 
 
+translist_lock = Lock()
+
+def translist_select(event=None):
+    with translist_lock:
+        item = translist.get(int(translist.curselection()[0]))
+        tok = item.split(" '", 1)
+        offerid = tok[0]
+        offertype = offerid[0]
+        peername = id2name(offerid.split(',')[1])
+        tok = tok[1].split("' ", 1)
+        filename = tok[0]
+        tok = tok[1].split()
+        filesize = tok[0].split('/')[1]
+        if offertype == 'D':
+            r = messagebox.askyesnocancel('Download', peername
+                        + ' offered file ' + filename + ' (' + filesize
+                        + ')\nStart download? (No will remove it!)')
+            if r == True:
+                clt_write( 'accept ' + offerid )
+            elif r == False:
+                clt_write( 'remove ' + offerid )
+        elif offertype == 'O':
+            if messagebox.askyesno('Upload', filename + ' ('
+                        + filesize + ') for ' + peername
+                        + '.\nRemove upload? (No will keep it.)'):
+                clt_write( 'remove ' + offerid )
+
+translist.bind('<<ListboxSelect>>', translist_select)
+
+
 ###########################################
 # Log operations
 #
@@ -469,30 +521,40 @@ def clt_read(out, queue, root):
         queue.put(line)
         root.event_generate('<<cltdata>>') # trigger GUI processing
 
-proc = Popen(client_cmd, stdin=PIPE, stdout=PIPE, bufsize=1, close_fds=ON_POSIX)
-readq = Queue()
-readthread = Thread(target=clt_read, args=(proc.stdout, readq, root))
-readthread.daemon = True
-readthread.start()
+proc = None
+try:
+    proc = Popen(client_cmd, stdin=PIPE, stdout=PIPE, bufsize=1, close_fds=ON_POSIX)
+except Exception as e:
+    logadd('Unable to start client process: Popen(' + client_cmd[0] + '): ' + str(e))
+else:
+    readq = Queue()
+    readthread = Thread(target=clt_read, args=(proc.stdout, readq, root))
+    readthread.daemon = True
+    readthread.start()
 
 # Create a named pipe and a thread to read from it
-def pipe_read(): # need to first open fd as rw to avoid EOF on read
-    pipein = os.fdopen(os.open(cmd_pipe, os.O_RDWR), 'r')
-    for line in iter(pipein.readline, b''):
-        clt_write(line.strip())
+def pipe_read():
+    # need to first open fd as rw to avoid EOF on read
+    try:
+        pipein = os.fdopen(os.open(cmd_pipe, os.O_RDWR), 'r')
+    except Exception as e:
+        logadd('Warning: cannot open command pipe: fdopen(' + cmd_pipe + '): ' + str(e))
+    else:
+        for line in iter(pipein.readline, b''):
+            clt_write(line.strip())
 try:
     os.mkfifo(cmd_pipe)
 except Exception as e:
-    logadd('mkfifo(' + cmd_pipe + '): ' + str(e))
-else:
-    pipethread = Thread(target=pipe_read)
-    pipethread.daemon = True
-    pipethread.start()
+    logadd('Warning: unable to create command pipe: mkfifo(' + cmd_pipe + '): ' + str(e))
+pipethread = Thread(target=pipe_read)
+pipethread.daemon = True
+pipethread.start()
 
 # Write one single line (command) to the client
 def clt_write_raw(line):
-    proc.stdin.write(bytes(line + '\n', 'utf-8'))
-    proc.stdin.flush()
+    if proc:
+        proc.stdin.write(bytes(line + '\n', 'utf-8'))
+        proc.stdin.flush()
 
 # Send a command to the client, after some preprocessing
 clt_write_lock = Lock()
@@ -526,11 +588,12 @@ def notify(offerid, peername, filename, filesize):
                 .replace('%n', filename).replace('%s', filesize)
                 .replace('%%', '%') for w in notifier])
     if notify_internal:
-        if messagebox.askyesno('Offer received', peername
+        r = messagebox.askyesnocancel('Offer received', peername
                         + ' offered file ' + filename + ' (' + filesize
-                        + ')\nAccept offer? (No will remove it!)'):
+                        + ')\nStart Download? (No will remove it!)')
+        if r == True:
             clt_write( 'accept ' + offerid )
-        else:
+        elif r == False:
             clt_write( 'remove ' + offerid )
 
 # Process queued client output
