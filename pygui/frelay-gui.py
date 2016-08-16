@@ -242,6 +242,7 @@ def configdlg(parent):
     #
     sbtn = Button(dlg, text='Apply & Save', padx=10, pady=10, command=cfgsave)
     sbtn.pack(side=LEFT)
+    sbtn.focus_set()
     cbtn = Button(dlg, text='Cancel', padx=10, pady=10, command=destroy)
     cbtn.pack(side=RIGHT)
     dlg.update()
@@ -252,13 +253,12 @@ def configdlg(parent):
 # Internal configuration
 #
 
-# Server pseudo-nick for display
-srv_alias='*SRV*'
 # Transfer list update period
 refresh_local_ms = 997
 # Peer list update period
 refresh_remote_ms = 2011
-
+# Number of backscroll lines for log display
+log_backscroll = 500
 
 ###########################################
 # Global state
@@ -295,6 +295,12 @@ statframe = Frame(root)
 statframe.pack(fill=X)
 
 # Buttons
+# Connect button
+def helpbtn_cb(event=None):
+    print('TODO: Help dialog\n')
+helpbtn = Button(btnframe, text='?', state=NORMAL, command=helpbtn_cb)
+helpbtn.pack(side=LEFT)
+
 # Connect button
 def do_connect(event=None):
     clt_write('connect ' + server + ' ' + port )
@@ -405,13 +411,24 @@ def send_cmd(event=None):
 root.bind('<Return>', send_cmd)
 
 # Key assignments
+root.bind('<Alt-h>', helpbtn_cb)
+root.bind('<F1>', helpbtn_cb)
+
 root.bind('<Alt-c>', connectbtn_cb)
+root.bind('<F2>', connectbtn_cb)
+
 root.bind('<Alt-l>', loginbtn_cb)
-root.bind('<Control-s>', cfg_write_file) # testing only!
+root.bind('<F3>', loginbtn_cb)
+
+root.bind('<Alt-d>', cwdbtn_cb)
+root.bind('<F4>', cwdbtn_cb)
+
+root.bind('<Alt-f>', confbtn_cb)
+root.bind('<F5>', confbtn_cb)
+root.bind('<Control-q>', do_quit)
 
 # Quit program with [X] or Alt-F4
-root.bind('<Control-q>', do_quit)
-root.protocol('WM_DELETE_WINDOW', ask_quit)
+root.protocol('WM_DELETE_WINDOW', do_quit)
 
 
 ###########################################
@@ -423,7 +440,7 @@ peerlist_lock = Lock()
 def id2name(peerid):
     peerid = peerid.lstrip('0')
     if not peerid:
-        return srv_alias
+        return server
     with peerlist_lock:
         items = peerlist.get(0,END)
         for item in items:
@@ -461,7 +478,7 @@ def peerlist_select(event=None):
                         initialdir=work_dir,
                         title='Choose a file to offer @' + tok[1] + ':')
         if filename:
-            clt_write('offer ' + tok[0] + ' ' + filename)
+            clt_write('offer ' + tok[0] + ' "' + filename + '"')
 
 peerlist.bind('<<ListboxSelect>>', peerlist_select)
 
@@ -477,8 +494,14 @@ def translist_update(line):
                 tdir = '[from '
             else:
                 tdir = '[to '
+            progress = int(line.split("' ", 1)[1].split('.',1)[0])
+            if progress == 0:
+                col = '#ffc'
+            else:
+                col = '#cfc'
             line = tdir + id2name(line.split(',',2)[1]) + '] ' + line
             translist.insert(END, line)
+            translist.itemconfig(END, bg=col)
         translist_lock.release()
 
 def translist_select(event=None):
@@ -515,6 +538,9 @@ translist.bind('<<ListboxSelect>>', translist_select)
 
 def logadd(line):
     log.config(state=NORMAL)
+    nlines = int(log.index('end-1c').split('.')[0])
+    if nlines > log_backscroll:
+        log.delete('0.0', '10.0')
     log.insert(END, time.strftime('%H:%M:%S ') + line.expandtabs(8) + '\n')
     log.config(state=DISABLED)
 
@@ -673,7 +699,7 @@ def subproc_clt():
                 logscrl = False
     # Server messages
         elif pfx == 'SMSG':
-            last_pfx = '[' + srv_alias + '] '
+            last_pfx = '[' + server + '] '
             logadd( last_pfx + line)
     # Informational messages
         elif pfx == 'IMSG':
