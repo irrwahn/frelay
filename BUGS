@@ -1,6 +1,6 @@
 Outstanding:
 ------------
-
+GUI: Starting a second instance using the same / default config causes both instances some grief. Possibly cmd_pipe could be used as a poor man's lock file?
 
 On hold:
 --------
