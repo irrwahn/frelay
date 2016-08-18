@@ -374,7 +374,7 @@ int transfer_remove( const char *s )
           && ( '*' == *oids || oid == p->oid ) )
         {   /* We actually just invalidate the entry and leave the gory
              * list mangling to transfer_upkeep(). */
-            DLOG( "%s invalidated: %c,%016"PRIx64",%016"PRIx64"\n", ti[p->type], p->rid, p->oid );
+            DLOG( "%s invalidated: %c,%016"PRIx64",%016"PRIx64"\n", s, ti[p->type], p->rid, p->oid );
             transfer_invalidate( p );
             ++n;
         }
