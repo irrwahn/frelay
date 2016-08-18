@@ -321,13 +321,14 @@ static int printcon( const char *pfx, const char *fmt, ... )
         va_start( arglist, fmt );
         r += vfprintf( ofp, fmt, arglist );
         va_end( arglist );
-        fflush( ofp );
 #ifdef DEBUG
         va_start( arglist, fmt );
         XLOGV( LOG_DEBUG, fmt, arglist );
         va_end( arglist );
 #endif
     }
+    if (r)
+        fflush( ofp );
     prompt( 1 );
     return r;
 }
