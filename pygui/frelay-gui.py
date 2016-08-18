@@ -169,7 +169,7 @@ def dlg_mkentry(parent, caption, width=None, text=None, **options):
     entry = Entry(parent, **options)
     if width:
         entry.config(width=width)
-    entry.grid(row=l.grid_info()['row'], column=1, padx=6, sticky=W+E)
+    entry.grid(row=l.grid_info()['row'], column=1, padx=6, pady=6, sticky=W+E)
     if text:
         entry.insert(0, text)
     return entry
@@ -212,7 +212,7 @@ def configdlg(parent):
     dlg = Toplevel(parent)
     dlg.transient(parent)
     dlg.grab_set()
-    dlg.title('Login')
+    dlg.title('Configuration')
     geom = parent.winfo_geometry().split('+')
     dlg.geometry("+%d+%d" % (int(geom[1]) + 50, int(geom[2])))
     dlg.bind('<Return>', kenter)
@@ -423,8 +423,9 @@ root.bind('<F3>', loginbtn_cb)
 root.bind('<Alt-d>', cwdbtn_cb)
 root.bind('<F4>', cwdbtn_cb)
 
-root.bind('<Alt-f>', confbtn_cb)
+root.bind('<Alt-g>', confbtn_cb)
 root.bind('<F5>', confbtn_cb)
+
 root.bind('<Control-q>', do_quit)
 
 # Quit program with [X] or Alt-F4
