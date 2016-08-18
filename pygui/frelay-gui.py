@@ -470,15 +470,16 @@ def peerlist_update(line):
 
 def peerlist_select(event=None):
     with peerlist_lock:
-        item = peerlist.get(int(peerlist.curselection()[0]))
-        tok = item.split(None, 2)
-        if tok[0].endswith('*'):
-            return
-        filename = filedialog.askopenfilename(parent=root,
-                        initialdir=work_dir,
-                        title='Choose a file to offer @' + tok[1] + ':')
-        if filename:
-            clt_write('offer ' + tok[0] + ' "' + filename + '"')
+        if peerlist.size() > 0:
+            item = peerlist.get(int(peerlist.curselection()[0]))
+            tok = item.split(None, 2)
+            if tok[0].endswith('*'):
+                return
+            filename = filedialog.askopenfilename(parent=root,
+                            initialdir=work_dir,
+                            title='Choose a file to offer @' + tok[1] + ':')
+            if filename:
+                clt_write('offer ' + tok[0] + ' "' + filename + '"')
 
 peerlist.bind('<<ListboxSelect>>', peerlist_select)
 
@@ -506,28 +507,29 @@ def translist_update(line):
 
 def translist_select(event=None):
     with translist_lock:
-        item = translist.get(int(translist.curselection()[0])).split('] ',1)[1]
-        tok = item.split(" '", 1)
-        offerid = tok[0]
-        offertype = offerid[0]
-        peername = id2name(offerid.split(',')[1])
-        tok = tok[1].split("' ", 1)
-        filename = tok[0]
-        tok = tok[1].split()
-        filesize = tok[0].split('/')[1]
-        if offertype == 'D':
-            r = messagebox.askyesnocancel('Download', peername
-                        + ' offered file ' + filename + ' (' + filesize
-                        + ')\nStart download? (No will remove it!)')
-            if r == True:
-                clt_write( 'accept ' + offerid )
-            elif r == False:
-                clt_write( 'remove ' + offerid )
-        elif offertype == 'O':
-            if messagebox.askyesno('Upload', filename + ' ('
-                        + filesize + ') for ' + peername
-                        + '.\nRemove upload? (No will keep it.)'):
-                clt_write( 'remove ' + offerid )
+        if translist.size() > 0:
+            item = translist.get(int(translist.curselection()[0])).split('] ',1)[1]
+            tok = item.split(" '", 1)
+            offerid = tok[0]
+            offertype = offerid[0]
+            peername = id2name(offerid.split(',')[1])
+            tok = tok[1].split("' ", 1)
+            filename = tok[0]
+            tok = tok[1].split()
+            filesize = tok[0].split('/')[1]
+            if offertype == 'D':
+                r = messagebox.askyesnocancel('Download', peername
+                            + ' offered file ' + filename + ' (' + filesize
+                            + ')\nStart download? (No will remove it!)')
+                if r == True:
+                    clt_write( 'accept ' + offerid )
+                elif r == False:
+                    clt_write( 'remove ' + offerid )
+            elif offertype == 'O':
+                if messagebox.askyesno('Upload', filename + ' ('
+                            + filesize + ') for ' + peername
+                            + '.\nRemove upload? (No will keep it.)'):
+                    clt_write( 'remove ' + offerid )
 
 translist.bind('<<ListboxSelect>>', translist_select)
 
