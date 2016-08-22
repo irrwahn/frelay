@@ -567,7 +567,7 @@ proc = None
 try:
     proc = Popen(client_cmd, stdin=PIPE, stdout=PIPE, bufsize=1, close_fds=ON_POSIX)
 except Exception as e:
-    logadd('Unable to start client process: Popen(' + client_cmd[0] + '): ' + str(e))
+    logadd('[GUI] Unable to start client process: Popen(' + client_cmd[0] + '): ' + str(e))
 else:
     readq = Queue()
     readthread = Thread(target=clt_read, args=(proc.stdout, readq, root))
@@ -580,17 +580,22 @@ def pipe_read():
     try:
         pipein = os.fdopen(os.open(cmd_pipe, os.O_RDWR), 'r')
     except Exception as e:
-        logadd('Warning: cannot open command pipe: fdopen(' + cmd_pipe + '): ' + str(e))
+        logadd('[GUI] Warning: cannot open command pipe: fdopen(' + cmd_pipe + '): ' + str(e))
     else:
         for line in iter(pipein.readline, b''):
             clt_write(line.strip())
-try:
-    os.mkfifo(cmd_pipe)
-except Exception as e:
-    logadd('Warning: unable to create command pipe: mkfifo(' + cmd_pipe + '): ' + str(e))
-pipethread = Thread(target=pipe_read)
-pipethread.daemon = True
-pipethread.start()
+
+if not os.path.exists(cmd_pipe):
+    try:
+        os.mkfifo(cmd_pipe)
+    except Exception as e:
+        logadd('[GUI] Warning: unable to create command pipe: mkfifo(' + cmd_pipe + '): ' + str(e))
+    pipethread = Thread(target=pipe_read)
+    pipethread.daemon = True
+    pipethread.start()
+else:
+    logadd("[GUI] Warning: Will not open command pipe, path '" + cmd_pipe + "' already exists!")
+    logadd("[GUI] Warning: Is there another instance running?")
 
 # Write one single line (command) to the client
 def clt_write_raw(line):
