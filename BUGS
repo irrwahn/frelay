@@ -1,5 +1,10 @@
 Outstanding:
 ------------
+GUI: Starting a second instance using the same / default config causes both
+     instances some grief. Possibly cmd_pipe could be used as a poor man's lock file?
+
+     NOTE: Actually not fixed. But, should we really completely refuse
+           to startup if pipe exists? - UW 2016-08-22 11:59:07 +0200
 
 
 On hold:
@@ -12,10 +17,6 @@ CLIENT: Needs to be built with large file support on 32-bit hosts (_FILE_OFFSET_
 
 Resolved:
 ---------
-2016-08-22  Urban Wallasch  <irrwahn35@freenet.de> SVN r510
-GUI: Starting a second instance using the same / default config causes both
-     instances some grief. Possibly cmd_pipe could be used as a poor man's lock file?
-
 2016-08-07  Urban Wallasch  <irrwahn35@freenet.de> SVN r468
 CLIENT: Non-option arguments (host, port) are evaluated before config file is read.
 
