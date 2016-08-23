@@ -45,6 +45,7 @@
 import os
 import sys
 import getopt
+import signal
 import time
 import random
 from subprocess import PIPE, Popen, call
@@ -260,12 +261,28 @@ refresh_remote_ms = 2011
 # Number of backscroll lines for log display
 log_backscroll = 500
 
+
 ###########################################
 # Global state
 #
 
 is_connected = False
 is_authed = False
+
+
+###########################################
+# Signal handlers
+#
+
+def sigint_handler(signum, frame):
+    print('frelay-gui [%d] caught signal %d, exiting.\n' % (os.getpid(), signum))
+    do_quit()
+    exit(1)
+signal.signal(signal.SIGHUP, sigint_handler)
+signal.signal(signal.SIGINT, sigint_handler)
+signal.signal(signal.SIGQUIT, sigint_handler)
+signal.signal(signal.SIGTERM, sigint_handler)
+signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
 
 ###########################################
@@ -336,7 +353,8 @@ cwdbtn.pack(side=LEFT)
 
 # Quit button
 def do_quit(event=None):
-    os.remove(cmd_pipe)
+    if pipein:
+        os.remove(cmd_pipe)
     root.destroy()
 def ask_quit():
     if messagebox.askokcancel('Quit', 'Quit frelay?'):
@@ -575,27 +593,37 @@ else:
     readthread.start()
 
 # Create a named pipe and a thread to read from it
-def pipe_read():
-    # need to first open fd as rw to avoid EOF on read
+if os.path.exists(cmd_pipe):
+    emsg = "Warning: Command pipe '" + cmd_pipe + "' already exists!"
+    logadd('[GUI] ' + emsg)
+    logadd("[GUI] Is there another instance running?")
+    #root.withdraw()
+    if messagebox.askyesno('Warning', emsg + "\n\nClick 'Yes' to remove it and continue, or 'No' to quit frelay"):
+        os.remove(cmd_pipe)
+        logadd("[GUI] Removed '" + cmd_pipe + "'")
+    else:
+        root.destroy()
+        exit(1)
+
+def pipe_read(pipe):
+    for line in iter(pipein.readline, b''):
+        clt_write(line.strip())
+
+try:
+    os.mkfifo(cmd_pipe)
+except Exception as e:
+    logadd('[GUI] Warning: unable to create command pipe: mkfifo(' + cmd_pipe + '): ' + str(e))
+else:
     try:
+        # need to first open fd as rw to avoid EOF on read
         pipein = os.fdopen(os.open(cmd_pipe, os.O_RDWR), 'r')
     except Exception as e:
         logadd('[GUI] Warning: cannot open command pipe: fdopen(' + cmd_pipe + '): ' + str(e))
     else:
-        for line in iter(pipein.readline, b''):
-            clt_write(line.strip())
+        pipethread = Thread(target=pipe_read, args=(pipein))
+        pipethread.daemon = True
+        pipethread.start()
 
-if not os.path.exists(cmd_pipe):
-    try:
-        os.mkfifo(cmd_pipe)
-    except Exception as e:
-        logadd('[GUI] Warning: unable to create command pipe: mkfifo(' + cmd_pipe + '): ' + str(e))
-    pipethread = Thread(target=pipe_read)
-    pipethread.daemon = True
-    pipethread.start()
-else:
-    logadd("[GUI] Warning: Will not open command pipe, path '" + cmd_pipe + "' already exists!")
-    logadd("[GUI] Warning: Is there another instance running?")
 
 # Write one single line (command) to the client
 def clt_write_raw(line):
