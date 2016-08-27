@@ -606,7 +606,7 @@ if os.path.exists(cmd_pipe):
         exit(1)
 
 def pipe_read(pipe):
-    for line in iter(pipein.readline, b''):
+    for line in iter(pipe.readline, b''):
         clt_write(line.strip())
 
 try:
@@ -620,7 +620,7 @@ else:
     except Exception as e:
         logadd('[GUI] Warning: cannot open command pipe: fdopen(' + cmd_pipe + '): ' + str(e))
     else:
-        pipethread = Thread(target=pipe_read, args=(pipein))
+        pipethread = Thread(target=pipe_read, kwargs={"pipe":pipein})
         pipethread.daemon = True
         pipethread.start()
 
