@@ -597,7 +597,6 @@ if os.path.exists(cmd_pipe):
     emsg = "Warning: Command pipe '" + cmd_pipe + "' already exists!"
     logadd('[GUI] ' + emsg)
     logadd("[GUI] Is there another instance running?")
-    #root.withdraw()
     if messagebox.askyesno('Warning', emsg + "\n\nClick 'Yes' to remove it and continue, or 'No' to quit frelay"):
         os.remove(cmd_pipe)
         logadd("[GUI] Removed '" + cmd_pipe + "'")
@@ -623,6 +622,7 @@ else:
         pipethread = Thread(target=pipe_read, kwargs={"pipe":pipein})
         pipethread.daemon = True
         pipethread.start()
+        logadd('[GUI] Command pipe created: ' + cmd_pipe)
 
 
 # Write one single line (command) to the client
