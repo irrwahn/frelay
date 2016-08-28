@@ -35,17 +35,15 @@
 
 PROJECT := frelay
 
-export CC      ?= cc
+SELF    := $(lastword $(MAKEFILE_LIST))
+USRCFG  := config.mk
+
 export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -I./lib -MMD -MP
-
-LD      := $(CC)
-LIBDIR  := ./lib
-LIBS    := -lfrutil -lrt
-LDFLAGS := -L$(LIBDIR)
-
-STRIP   := strip
-RM      := rm -f
-CP      := cp
+export CRFLAGS := -O2 -DNDEBUG
+export CDFLAGS := -O0 -DDEBUG -g3 -pg
+export LIBDIR  := ./lib
+export LIBS    := -lfrutil -lrt
+export LDFLAGS := -L$(LIBDIR)
 
 COMSRC  := auth.c cfgparse.c message.c statcodes.c util.c
 
@@ -59,34 +57,24 @@ CLTSRC  := $(COMSRC) cltmain.c transfer.c
 CLTOBJ  := $(CLTSRC:%.c=%.o)
 CLTDEP  := $(CLTOBJ:%.o=%.d)
 
-SELF    := $(lastword $(MAKEFILE_LIST))
-
-VERGEN	= sh version.sh
-VER_IN	= version.in
-VER_H	= version.h
-
-
-.PHONY: all release debug gen lib clean distclean
 
 all: release
 
-release: CFLAGS += -O2 -DNDEBUG
+release: CFLAGS += $(CRFLAGS)
 release: TAG = -rls
-release: gen lib $(SRVBIN) $(CLTBIN)
+release: version lib $(SRVBIN) $(CLTBIN)
 	$(STRIP) $(SRVBIN)
 	$(STRIP) $(CLTBIN)
 
-debug: CFLAGS  += -O0 -DDEBUG -g3 -pg
+debug: CFLAGS += $(CDFLAGS)
 debug: TAG = -dbg
-debug: gen lib $(SRVBIN) $(CLTBIN)
+debug: version lib $(SRVBIN) $(CLTBIN)
 
-gen:
-	-@$(CP) $(VER_IN) $(VER_H) 2> /dev/null
-	-$(VERGEN) $(VER_IN) $(VER_H) $(TAG)
-
+# Server binary:
 $(SRVBIN): $(SRVOBJ) $(SELF)
 	$(LD) $(LDFLAGS) $(SRVOBJ) $(LIBS) -o $(SRVBIN)
 
+# Client binary:
 $(CLTBIN): $(CLTOBJ) $(SELF)
 	$(LD) $(LDFLAGS) $(CLTOBJ) $(LIBS) -o $(CLTBIN)
 
@@ -108,13 +96,30 @@ cltcfg.h: cltcfg.def.h
 
 clean:
 	$(MAKE) -C $(LIBDIR) $@
-	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) $(VER_H) *.d
+	$(RM) $(SRVBIN) $(CLTBIN) $(SRVOBJ) $(CLTOBJ) *.d
 
 distclean: clean
 	$(MAKE) -C $(LIBDIR) $@
-	$(RM) srvcfg.h cltcfg.h
+	$(RM) srvcfg.h cltcfg.h version.h $(USRCFG)
 
+dist: version
+	$(eval $@_NAME := $(PROJECT)-$(VERSION))
+	$(TAR) --transform "s,^,$($@_NAME)/,S" -cvzf "$($@_NAME).tar.gz" -T dist.lst
+
+# Generate user editable config file from template:
+$(USRCFG) config: config.def.mk
+	@grep -v '^!!!' $< > $@ && echo "Generated $(USRCFG)"
+
+# generate version file and version header:
+version:
+	$(eval VERSION := $(shell $(SH) version.sh version.in version.h $(TAG)))
+	@echo "Version $(VERSION)"
+
+# Include generated files:
 -include $(SRVDEP)
 -include $(CLTDEP)
+-include $(USRCFG)
+
+.PHONY: all release debug config version lib dist clean distclean
 
 ## EOF

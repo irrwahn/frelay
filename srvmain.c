@@ -175,7 +175,7 @@ static int eval_cmdline( int argc, char *argv[] )
             cfg.userdb_path = strdup_s( optarg );
             break;
         case 'v':
-            fprintf( stderr, "frelay server version %s-%s\n", VERSION, SVNVER );
+            fprintf( stderr, "frelay server version %s\n", VERSION );
             exit( EXIT_SUCCESS );
             break;
         case 'h':

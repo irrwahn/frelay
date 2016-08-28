@@ -38,9 +38,9 @@ PROJECT := libfrutil.a
 CC      ?= cc
 CFLAGS  += -I.
 
-AR      := ar -rs
-STRIP   := strip
-RM      := rm -f
+AR      ?= ar -rs
+STRIP   ?= strip
+RM      ?= rm -f
 
 LIB     := $(PROJECT)
 SRC     := $(wildcard *.c)
@@ -49,9 +49,7 @@ DEP     := $(OBJ:%.o=%.d)
 SELF    := $(lastword $(MAKEFILE_LIST))
 
 
-.PHONY: all release debug clean distclean
-
-all: release
+all lib: release
 
 release: CFLAGS += -DWITH_SYSLOG -DWITH_OWN_VSYSLOG
 release: $(LIB)
@@ -70,5 +68,7 @@ clean:
 distclean: clean
 
 -include $(DEP)
+
+.PHONY: all lib release debug clean distclean
 
 ## EOF

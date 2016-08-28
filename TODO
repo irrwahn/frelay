@@ -1,8 +1,6 @@
 Outstanding TODOs in no particular order
 ----------------------------------------
 
-GENERAL: Provide means to create a distribution tarball (WIP)
-
 GENERAL: Provide install target
 
 GENERAL: Implement some kind of protocol version / capabilities in option
@@ -11,11 +9,14 @@ GENERAL: Implement some kind of protocol version / capabilities in option
 GENERAL: Support for broadcast / multicast transfers
          (Requires server side caching.)
 
-GENERAL: Complete TheFineManual
+GENERAL: Complete TheFineManual; provide README, LICENSE, COPYRIGHT
 
 GENERAL: Support hashed nonce + password authentication
 
 GUI: Help dialog.
+
+CLIENT: Do not require mandatory quoting in 'OFFER' command (~ line 734).
+
 
 
 On hold:
@@ -27,6 +28,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-28  Urban Wallasch  <irrwahn35@freenet.de> SVN r515
+GENERAL: Provide means to create a distribution tarball
+
 2016-08-13  Urban Wallasch  <irrwahn35@freenet.de> SVN r486
 PYGUI: Enhance named pipe functionality (peer name resolution,
        divert 'quit' to GUI, ...)

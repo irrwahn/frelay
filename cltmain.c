@@ -198,7 +198,7 @@ static int eval_cmdline( int argc, char *argv[] )
             cfg.no_clobber = 1;
             break;
         case 'v':
-            fprintf( stderr, "frelay client version %s-%s\n", VERSION, SVNVER );
+            fprintf( stderr, "frelay client version %s\n", VERSION );
             exit( EXIT_SUCCESS );
             break;
         case '?':
