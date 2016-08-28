@@ -13,11 +13,16 @@ export AR      := ar -rs
 # Generic tool shorts:
 export SH      := sh
 export CP      := cp -dR
+export CPV     := cp -afv
 export MV      := mv -f
-export RM      := rm -f
+export RM      := rm -rf
+export RMV     := rm -rfv
 export MKDIR   := mkdir -p
 export TOUCH   := touch
-export LN      := ln -s -f
+export LN      := ln -sf
 export TAR     := tar
+
+# Default install prefix:
+export PREFIX  ?= /usr/local
 
 # EOF

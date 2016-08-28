@@ -49,7 +49,7 @@ DEP     := $(OBJ:%.o=%.d)
 SELF    := $(lastword $(MAKEFILE_LIST))
 
 
-all lib: release
+all lib install: release
 
 release: CFLAGS += -DWITH_SYSLOG -DWITH_OWN_VSYSLOG
 release: $(LIB)

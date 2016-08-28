@@ -104,6 +104,7 @@ static struct {
     int msg_timeout;
     int conn_timeout;
     int max_clients;
+    int have_config;
     const char *config_path;
     char *userdb_path;
     const char *motd_cmd;
@@ -161,6 +162,8 @@ static int eval_cmdline( int argc, char *argv[] )
             if ( 0 != cfg_parse_file( optarg, cfgdef ) && 0 != errno )
                 XLOG( LOG_WARNING, "Reading config file '%s' failed: %s\n",
                         optarg, strerror( errno ) );
+            else
+                cfg.have_config = 1;
             break;
         case 'i':
             free( cfg.interface );
@@ -211,20 +214,22 @@ static int init_config( int argc, char *argv[] )
     cfg.msg_timeout = MSG_TIMEOUT_S;
     cfg.conn_timeout = CONN_TIMEOUT_S;
     cfg.max_clients = MAX_CLIENTS;
+    cfg.have_config = 0;
     cfg.config_path = strdup_s( CONFIG_PATH );
     cfg.userdb_path = strdup_s( USERDB_PATH );
     cfg.motd_cmd = strdup_s( MOTD_CMD );
 
-#if 0
-    // TODO: Is this actually desirable?
-    /* Parse default configuration file. */
-    if ( 0 != cfg_parse_file( cfg.config_path, cfgdef ) && 0 != errno )
-        XLOG( LOG_WARNING, "Reading config file '%s' failed: %s\n",
-                cfg.config_path, strerror( errno ) );
-#endif
-
     /* Parse command line options. */
     eval_cmdline( argc, argv );
+
+    if ( !cfg.have_config )
+    {   /* Parse default configuration file. */
+        if ( 0 != cfg_parse_file( cfg.config_path, cfgdef ) && 0 != errno )
+            XLOG( LOG_WARNING, "Reading config file '%s' failed: %s\n",
+                    cfg.config_path, strerror( errno ) );
+        else
+            cfg.have_config = 1;
+    }
     return 0;
 }
 

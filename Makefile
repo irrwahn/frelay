@@ -57,6 +57,9 @@ CLTSRC  := $(COMSRC) cltmain.c transfer.c
 CLTOBJ  := $(CLTSRC:%.c=%.o)
 CLTDEP  := $(CLTOBJ:%.o=%.d)
 
+BINDIR = $(PREFIX)/bin
+DOCDIR = $(PREFIX)/share/doc/frelay
+EXAMPLEDIR = $(DOCDIR)/examples
 
 all: release
 
@@ -106,6 +109,23 @@ dist: version
 	$(eval $@_NAME := $(PROJECT)-$(VERSION))
 	$(TAR) --transform "s,^,$($@_NAME)/,S" -cvzf "$($@_NAME).tar.gz" -T dist.lst
 
+install: release
+	@echo Installing to $(PREFIX) ...
+	@$(MKDIR) $(BINDIR)
+	@$(CPV) frelayclt frelaysrv $(BINDIR)
+	@$(CPV) pygui/frelay-gui.py $(BINDIR)/frelay-gui
+	@$(MKDIR) $(DOCDIR)
+	@$(CPV) CREDITS $(DOCDIR)
+	@#TODO: README, man, ...
+	@$(MKDIR) $(EXAMPLEDIR)
+	@$(CPV) frelayclt.sample.conf frelaysrv.sample.conf $(EXAMPLEDIR)
+	@$(CPV) pygui/frelay-gui.sample.conf pygui/autoaccept.sh pygui/offer.sh $(EXAMPLEDIR)
+
+uninstall:
+	@echo Uninstalling from $(PREFIX) ...
+	@$(RMV) $(BINDIR)/frelayclt $(BINDIR)/frelaysrv $(BINDIR)/frelay-gui
+	@$(RMV) $(DOCDIR)
+
 # Generate user editable config file from template:
 $(USRCFG) config: config.def.mk
 	@grep -v '^!!!' $< > $@ && echo "Generated $(USRCFG)"
@@ -120,6 +140,6 @@ version:
 -include $(CLTDEP)
 -include $(USRCFG)
 
-.PHONY: all release debug config version lib dist clean distclean
+.PHONY: all release debug config version lib dist clean distclean install uninstall
 
 ## EOF
