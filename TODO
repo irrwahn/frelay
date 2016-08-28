@@ -1,8 +1,6 @@
 Outstanding TODOs in no particular order
 ----------------------------------------
 
-GENERAL: Provide install target
-
 GENERAL: Implement some kind of protocol version / capabilities in option
          flags
 
@@ -28,6 +26,9 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+2016-08-28  Urban Wallasch  <irrwahn35@freenet.de> SVN r516
+GENERAL: Provide install target
+
 2016-08-28  Urban Wallasch  <irrwahn35@freenet.de> SVN r515
 GENERAL: Provide means to create a distribution tarball
 
