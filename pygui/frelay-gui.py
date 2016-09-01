@@ -312,9 +312,7 @@ statframe = Frame(root)
 statframe.pack(fill=X)
 
 
-# Buttons
-
-# Button images
+# Icon images
 connect_png = '''
 iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
 AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAEeSURB
@@ -349,6 +347,21 @@ AAa4CV4W8IBbfGIbm2a3MAzeH7Xdwj12cR3C/fD9p9hDqvWM/YTfOsJCqsz+xCt8L5jtYfQLOEQy
 PnfVMgkAAAAASUVORK5CYII=
 '''
 folder_img = PhotoImage(master=root, data=folder_png)
+
+frelay_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAHdSURB
+VDiNfZM9a1RBFIafd+7VDcGoqEncmxATsFAbkTSCWFilUxAUsQqIAUsLwUZc2a1iYSEY2cpOkBT5
+C9r51YpfBA1kr5sPNegGs5k7x8Jk2exePOUznGcO854ROeUryQWZO9bJHWFOd2of2lmcJ4j87pdZ
+tDkDFNt5JvcR2CFweYIQb14BDncdWLDuqTrHLw9fM+M+oDz3fwW+nJwHuw6kgO9qFzY+ZbtyBc3K
+0GlJE6AUqHVI0iDNzzYuJUsFRkYnrWe7Lwaw8pGxTJsngil1MswE2NalsE7vxNXVp6cKaiQen9AX
+Mzppi1+e6E9spaQX83vxLlUcCCZaEtn3hu25ebz+7pxgzIzURVb05tmWxCrV1q00mEYuJvOOlgR+
+Lfj+x2dXXt9ANm5GKgnLhIvAmyf0xRsOQKX6EsGnkayGd+m9tbsHvrqhB2eW31QMN4VZgigalkgU
+yZSIuLB4kG87orLS4ACu0D+y9GkuEDfATm49/08IKVINIxV61SNX/fxQG11Z2zOi4Rf+PXC0I8N/
+EtzzZli9tfxo4HfXHgDoMhm5S2T7IaoXmu72dnMrxpzqEgi9dZkuzle11s5z/4Ly13h2YUY/OmHu
+BIamZexrZ0FYMmWHalWttPO/2h/Je8hcLi8AAAAASUVORK5CYII=
+'''
+frelay_img = PhotoImage(master=root, data=frelay_png)
 
 help_png = '''
 iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
@@ -398,6 +411,10 @@ QmCC
 '''
 settings_img = PhotoImage(master=root, data=settings_png)
 
+# Set application Icon
+root.tk.call('wm', 'iconphoto', root._w, frelay_img)
+
+# Buttons
 # Connect button
 def do_connect(event=None):
     clt_write('connect ' + server + ' ' + port )

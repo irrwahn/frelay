@@ -58,6 +58,7 @@ CLTOBJ  := $(CLTSRC:%.c=%.o)
 CLTDEP  := $(CLTOBJ:%.o=%.d)
 
 BINDIR = $(PREFIX)/bin
+ICONDIR = $(PREFIX)/share/icons/hicolor/scalable/apps
 DOCDIR = $(PREFIX)/share/doc/frelay
 EXAMPLEDIR = $(DOCDIR)/examples
 
@@ -114,6 +115,8 @@ install: release
 	@$(MKDIR) $(BINDIR)
 	@$(CPV) frelayclt frelaysrv $(BINDIR)
 	@$(CPV) pygui/frelay-gui.py $(BINDIR)/frelay-gui
+	@$(MKDIR) $(ICONDIR)
+	@$(CPV) pygui/icon_src/frelay.svg $(ICONDIR)
 	@$(MKDIR) $(DOCDIR)
 	@$(CPV) CREDITS $(DOCDIR)
 	@#TODO: README, man, ...
