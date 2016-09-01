@@ -311,12 +311,92 @@ consframe.pack(fill=X)
 statframe = Frame(root)
 statframe.pack(fill=X)
 
+
 # Buttons
-# Connect button
-def helpbtn_cb(event=None):
-    print('TODO: Help dialog\n')
-helpbtn = Button(btnframe, text='?', state=NORMAL, command=helpbtn_cb)
-helpbtn.pack(side=LEFT)
+
+# Button images
+connect_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAEeSURB
+VDiNldI5L4RRGAXgZywhJmKIZUIsiWQKVBpTyNAgkYhKRUxhaVUaS9QU/oCoRSiIQkQ1sVZ+gVal
+0NMovjvJl8lMfE5z7zl5T941pTayOMd34HXowXhMq4kUrpCPaYfY/stYxhb2YnwNJ0nNI7hHfeBz
+uEFDEnMTShgKfBSPaEua/Rgr4d+H1/BWohs5omGVMYsilpEOmUv4wgD60Rhic/jARNnciRdkAm/G
+LlYxjeHQXgo7ovWm4yVdohDj7ZjCWExrwRn2Kyq3jjcc4RYPuA7aQYgZDO0sVpmHGWyIjqY1aFk8
+hbILeBZtJDEuMIlN0U101QqsdhwL+MSSaJjz+EmaOYN30UaKieuN4VS03/xfgdXQgTv0/sf0CyjW
+Ks8nYBSEAAAAAElFTkSuQmCC
+'''
+connect_img = PhotoImage(master=root, data=connect_png)
+
+disconnect_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAEQSURB
+VDiNldK/K0ZhFAfwj/teingHhdWPZFJSjAY/NouRQRaLUmLwFygzpcyUQZFVBhZ/AKsfSb0jSllQ
+hufSfW/vvd73u5znOec533O+5zzUjxhNDbz/wyQO8IRxDGC63uR97GEIEwnJUXL+F/PYSt0jXGtA
+xhk6M75dQUYVax7KeM34jrGERRzmddONdVQwlolFeMYqurKJETZwiQUM4yrzMMJpWkacCm7jBVP4
+TnybOBGm/yls4wKP2erNSbU89KNXDc1xyn4UEDzkBUqJ/cJcQlRBB3rQjvcC4qqW2rCGUWEGb2hF
+H1ZwW0RUhBns5AXjGr4WDGIEs8KHWs4j+JVQFtZVEuZxhxuc476ovR9w2is8i0gwrAAAAABJRU5E
+rkJggg==
+'''
+disconnect_img = PhotoImage(master=root, data=disconnect_png)
+
+folder_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADkSURB
+VDiNldO9SgNBFMXx324WRLTVF9DGwsYHkBQW6WxtBS218SVsU4liaSd5A7HJC6QT7K20EvwAMVpk
+lqw4O7M5cFmYc8+fuTOzBfZC1XrDOb50UIlDTHAXqo+1LmGo8IMxnsLaAS7x0SE/qgFFY/EUy5hm
+whs4riLGe6icXpmPUEQa1rHaaH6JUVKAIVawhEecxABlAlDiCGfxCeZNKS93kNkdTBN+K2ALF9hp
+AAa4CV4W8IBbfGIbm2a3MAzeH7Xdwj12cR3C/fD9p9hDqvWM/YTfOsJCqsz+xCt8L5jtYfQLOEQy
+PnfVMgkAAAAASUVORK5CYII=
+'''
+folder_img = PhotoImage(master=root, data=folder_png)
+
+help_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAFqSURB
+VDiNddM/SJZRFAbw3/f6fYFIIemnRBSZUzW4VFCDUwQhOSS0BC2CYwXSWg0Wrm3NQQQ1RH82Jaiw
+cFJToRqURKXBVTAobXjPhy+39z3L5Zx7nuc+z73n1vwfDVzGFZyI2gam8Ba/i81tCXgIr9GPj3iD
+GWxjBI/wC0slBxvHN5yP/Bxu4T6GkeEU5vAwBV/DMroif4IdfAklu3gXJB2YxVgL3I41nCkQ3sCR
+Qn4be7gQ+XFsoruO6/gUClrxLFG4GmsW6xpe4CY8DwtV0YMf+IB6oT4ofxmzOF0BPohFzKM72Wti
+pR6sfyoIJnAYA9hK9v6iLQs/JysIzsrvJwVDH9az8HG1gmAh5JfFEN6Te9vE0ZKmY+gtqR/Cuv1R
+dwfTOJA0fserpJbhpZjG1rs+xk/5Z2kWmj/jayHvDHAD91JZNdwNO5O4GGRd8n/xIGRPKHzCWom/
+XozikvymG/JJnMZT+1MJ/gFoVkari7LiSgAAAABJRU5ErkJggg==
+'''
+help_img = PhotoImage(master=root, data=help_png)
+
+login_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAADTSURB
+VDiN7dE/S4IBEMfxT/lEpLmUiw1h4NaUvYHIpZfQoPgOfAvS0tIbcJS2pmhsaAjaGoWGwAjtjw1t
+FYHg09BBk/S8AA+OG47f9+5+xzwWoq7iELt4xSkeswByKOMCfZzhCyd4wUOWDXro4g5TfKCA24Ck
+M7Qpugk28YwjLKGDd9SwjSKS6KWRy/jGcYLF8OANeazEhP2oDayhggHWUcIn2glGAbjEBE8B6sRZ
+5xiGYAv3AdrDNWzgBi1UUccVDv4zkL83FtHEDsZ+jR1kAcyDH2gSLApd4LaJAAAAAElFTkSuQmCC
+'''
+login_img = PhotoImage(master=root, data=login_png)
+
+quit_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAEJSURB
+VDiNpdK/K8VRGMfx19evgYHEoqQUE8MdLCZGm1LqRumOBhOrMig2m5TCZFH8DZRIVimJgRRlUZIU
+Boe+Hd/vvVeeeobz6XPez+c5HcpXEUvlDDUVAM1o+Q/gA8lfAAmmsRPO7ynPSuimPECCdZSwkJFg
+Ea04kForDZhBH4ZwlgF4xBT2sRWv0ogH9EZ6CRuRVo/zMOgnwQhOcRGZsx7xDauYTAP6cRLHygHA
+EQppQANeM4xPeMnQn32trS4I1xjMMO6FjqsbN2mhC/ff1CpqE7OxuI3lKi4PhGG/vngbrjAn//sW
+cIvRPHonjnGICfSgA8NYC5PHKkWsxTh2cYm7AJxHe2z+BL9JMLrQscz2AAAAAElFTkSuQmCC
+'''
+quit_img = PhotoImage(master=root, data=quit_png)
+
+settings_png = '''
+iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlz
+AAADdgAAA3YBfdWCzAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAGBSURB
+VDiNhdJPaA9wGAbwD9tPmTaRRjlKW6QxWymJVrJpKJxc7CQTSVt2sNtOUootJ1k5+VO0jSb/kgzJ
+wRwcWLlIIpwoY+bwfX/r229/vLf36X2f93nf5y0zdyxBBwp4P1PB/JJ8DVZneScm0POfQWA9RnAf
+hwN7inl4iIWBFbC02FSeEXzEd+zG3WhchgpUYRznUY9J7MDPfIXP+IIj6MafKPqLe3iDd9iWkU9F
+BWpRjVGUxaTTOBV4NeowgPa8+SQe4xLG0IKtuINN2BW3qUQv9pUe7zKOYUF2nOtYkdUcwkHswQsM
+YWfxiO04ittYhbWSvZMZwUTsPSw5U0AfFpWquYjtaMIgNqAZT6SnOodHuIDXaMxtvIoPeCs58iNk
+f8P+WGkdWkPpcfwuNh/AGen6N/Ace0N2HU5gOW4G2bTYiFd4hjbU4BY2B3YWXZITD2YigJUxkWRV
+Bxqk7yuXnOnHy1A6Z9SGgivYkuHN0ltPxWxMX7EYn3Atw8fwKy/8Bz2FTYrg9f4XAAAAAElFTkSu
+QmCC
+'''
+settings_img = PhotoImage(master=root, data=settings_png)
 
 # Connect button
 def do_connect(event=None):
@@ -326,7 +406,8 @@ def connectbtn_cb(event=None):
         clt_write('disconnect')
     else:
         do_connect()
-connbtn = Button(btnframe, text='Connect', width=12, state=NORMAL, command=connectbtn_cb)
+connbtn = Button(btnframe, compound='left', image=connect_img,
+                text='Connect', state=NORMAL, command=connectbtn_cb)
 connbtn.pack(side=LEFT)
 
 # Login button
@@ -337,7 +418,8 @@ def loginbtn_cb(event=None):
         clt_write('logout')
     else:
         do_login()
-loginbtn = Button(btnframe, text='Login', width=12, state=DISABLED, command=loginbtn_cb)
+loginbtn = Button(btnframe, compound='left', image=login_img,
+                text='Login', state=DISABLED, command=loginbtn_cb)
 loginbtn.pack(side=LEFT)
 
 # Cwd button
@@ -348,7 +430,8 @@ def cwdbtn_cb(event=None):
     if new_dir:
         work_dir = new_dir
         clt_write('cd ' + work_dir)
-cwdbtn = Button(btnframe, text='Change Dir', width=12, state=NORMAL, command=cwdbtn_cb)
+cwdbtn = Button(btnframe, compound='left', image=folder_img,
+                text='Change Dir', state=NORMAL, command=cwdbtn_cb)
 cwdbtn.pack(side=LEFT)
 
 # Quit button
@@ -359,13 +442,22 @@ def do_quit(event=None):
 def ask_quit():
     if messagebox.askokcancel('Quit', 'Quit frelay?'):
         do_quit()
-quitbtn = Button(btnframe, text='Quit', width=12, command=ask_quit)
+quitbtn = Button(btnframe, compound='left', image=quit_img,
+                text='Quit', command=ask_quit)
 quitbtn.pack(side=RIGHT)
+
+# Help button
+def helpbtn_cb(event=None):
+    print('TODO: Help dialog\n')
+helpbtn = Button(btnframe, compound='left', image=help_img,
+                text='Help', state=NORMAL, command=helpbtn_cb)
+helpbtn.pack(side=RIGHT)
 
 # Config button
 def confbtn_cb(event=None):
     configdlg(root)
-confbtn = Button(btnframe, text='Config', width=12, command=confbtn_cb)
+confbtn = Button(btnframe, compound='left', image=settings_img,
+                text='Config', command=confbtn_cb)
 confbtn.pack(side=RIGHT)
 
 
@@ -700,14 +792,14 @@ def subproc_clt():
             is_authed = False
             is_connected = True
             connstat.config(bg=scol_conn, text=line)
-            connbtn.config(text='Disconnect')
+            connbtn.config(image=disconnect_img, text='Disconnect')
             loginbtn.config(state=NORMAL)
             logadd(line)
         elif pfx == 'DISC':
             is_authed = False
             is_connected = False
             connstat.config(bg=scol_disc, text=line)
-            connbtn.config(text='Connect')
+            connbtn.config(image=connect_img, text='Connect')
             loginbtn.config(state=DISABLED, text='Login')
             logadd(line)
         elif pfx == 'AUTH':
