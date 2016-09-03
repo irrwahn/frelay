@@ -38,9 +38,6 @@ PROJECT := frelay
 SELF    := $(lastword $(MAKEFILE_LIST))
 USRCFG  := config.mk
 
-export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -I./lib -MMD -MP
-export CRFLAGS := -O2 -DNDEBUG
-export CDFLAGS := -O0 -DDEBUG -g3 -pg
 export LIBDIR  := ./lib
 export LIBS    := -lfrutil -lrt
 export LDFLAGS := -L$(LIBDIR)

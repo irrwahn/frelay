@@ -10,9 +10,14 @@ export LD      := $(CC)
 export STRIP   := strip
 export AR      := ar -rs
 
+# Only edit these flags, if you really know what you're doing!
+export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -I./lib -MMD -MP
+export CRFLAGS := -O2 -DNDEBUG
+export CDFLAGS := -O0 -DDEBUG -g3 -pg -ggdb
+
 # Generic tool shorts:
 export SH      := sh
-export CP      := cp -dR
+export CP      := cp -R
 export CPV     := cp -afv
 export MV      := mv -f
 export RM      := rm -rf
