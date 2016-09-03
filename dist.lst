@@ -41,3 +41,12 @@ pygui/autoaccept.sh
 pygui/frelay-gui.py
 pygui/frelay-gui.sample.conf
 pygui/offer.sh
+pygui/icon_src/connect.svg
+pygui/icon_src/disconnect.svg
+pygui/icon_src/folder.svg
+pygui/icon_src/frelay.svg
+pygui/icon_src/help.svg
+pygui/icon_src/login.svg
+pygui/icon_src/quit.svg
+pygui/icon_src/settings.svg
+pygui/icon_src/svg2py.sh
