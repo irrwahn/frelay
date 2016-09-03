@@ -1,50 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"
    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
    xmlns:svg="http://www.w3.org/2000/svg"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="64"
-   height="64"
-   id="svg7052"
-   version="1.1"
-   inkscape:version="0.91 r13725"
    viewBox="0 0 64 64"
-   sodipodi:docname="folder.svg"
-   inkscape:export-filename="/media/DATEN/Projects/share/frelay/trunk/pygui/icons/cabinet.svg.png"
-   inkscape:export-xdpi="90"
-   inkscape:export-ydpi="90">
+   version="1.1"
+   id="svg7052"
+   height="64"
+   width="64">
   <defs
      id="defs7054" />
-  <sodipodi:namedview
-     id="base"
-     pagecolor="#ffffff"
-     bordercolor="#666666"
-     borderopacity="1.0"
-     inkscape:pageopacity="0.0"
-     inkscape:pageshadow="2"
-     inkscape:zoom="3.8890873"
-     inkscape:cx="0.60264615"
-     inkscape:cy="18.392603"
-     inkscape:current-layer="layer1"
-     showgrid="false"
-     inkscape:document-units="px"
-     inkscape:grid-bbox="true"
-     inkscape:window-width="1157"
-     inkscape:window-height="863"
-     inkscape:window-x="86"
-     inkscape:window-y="52"
-     inkscape:window-maximized="0"
-     inkscape:snap-global="false">
-    <inkscape:grid
-       type="xygrid"
-       id="grid8651" />
-  </sodipodi:namedview>
   <metadata
      id="metadata7057">
     <rdf:RDF>
@@ -53,25 +20,19 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
   <g
-     id="layer1"
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer">
+     id="layer1">
     <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:3;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none"
-       d="m 60.909091,61.818182 -57.8181819,-10e-7 -0.1818182,-58.3636355 16.0000001,0 0,7.4545455 42,-0.181818 z"
        id="path8643"
-       inkscape:connector-curvature="0"
-       sodipodi:nodetypes="ccccccc" />
+       d="m 60.909091,61.818182 -57.8181819,-10e-7 -0.1818182,-58.3636355 16.0000001,0 0,7.4545455 42,-0.181818 z"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:3;stroke-linecap:round;stroke-linejoin:bevel;stroke-opacity:1;stroke-miterlimit:4;stroke-dasharray:none" />
     <path
-       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:3;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
-       d="m 26.890817,25.038764 -0.136364,17.954545 -4.90909,0.04546 9.954545,7.272722 10.136363,-7.409091 -5.090908,-0.04545 -0.04545,-17.772727 z"
        id="path8649"
-       inkscape:connector-curvature="0"
-       sodipodi:nodetypes="cccccccc" />
+       d="m 26.890817,25.038764 -0.136364,17.954545 -4.90909,0.04546 9.954545,7.272722 10.136363,-7.409091 -5.090908,-0.04545 -0.04545,-17.772727 z"
+       style="fill:none;fill-opacity:1;fill-rule:evenodd;stroke:#000000;stroke-width:3;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
   </g>
 </svg>
