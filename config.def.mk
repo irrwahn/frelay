@@ -17,7 +17,7 @@ export CDFLAGS := -O0 -DDEBUG -g3 -pg -ggdb
 
 # Generic tool shorts:
 export SH      := sh
-export CP      := cp -R
+export CP      := cp -af
 export CPV     := cp -afv
 export MV      := mv -f
 export RM      := rm -rf
@@ -25,7 +25,12 @@ export RMV     := rm -rfv
 export MKDIR   := mkdir -p
 export TOUCH   := touch
 export LN      := ln -sf
-export TAR     := tar
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),FreeBSD)
+    export TAR := gtar
+else
+    export TAR := tar
+endif
 
 # Default install prefix:
 export PREFIX  ?= /usr/local
