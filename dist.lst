@@ -1,6 +1,8 @@
 BUGS
 CREDITS
+LICENSE
 Makefile
+README.md
 TODO
 auth.c
 auth.h

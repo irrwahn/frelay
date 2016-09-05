@@ -7,7 +7,7 @@ GENERAL: Implement some kind of protocol version / capabilities in option
 GENERAL: Support for broadcast / multicast transfers
          (Requires server side caching.)
 
-GENERAL: Complete TheFineManual; provide README, LICENSE, COPYRIGHT
+GENERAL: Add missing documentation.
 
 GENERAL: Support hashed nonce + password authentication
 
@@ -26,6 +26,10 @@ GENERAL: Implement encrypted authentication incl. nonce generation, etc.
 
 Implemented:
 ------------
+
+2016-09-05  Urban Wallasch  <irrwahn35@freenet.de> SVN r524
+GENERAL: Provide README, LICENSE
+
 2016-08-28  Urban Wallasch  <irrwahn35@freenet.de> SVN r516
 GENERAL: Provide install target
 
