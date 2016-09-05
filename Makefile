@@ -36,7 +36,7 @@
 PROJECT := frelay
 
 SELF    := $(lastword $(MAKEFILE_LIST))
-USRCFG  := config.mk
+BLDCFG  := config.mk
 
 export LIBDIR  := ./lib
 export LIBS    := -lfrutil -lrt
@@ -90,10 +90,10 @@ lib:
 	$(CC) -c $(CFLAGS) -o $*.o $*.c
 
 srvcfg.h: srvcfg.def.h
-	$(CP) $< $@
+	@grep -v '^!!!' $< > $@ && echo "Generated $@"
 
 cltcfg.h: cltcfg.def.h
-	$(CP) $< $@
+	@grep -v '^!!!' $< > $@ && echo "Generated $@"
 
 clean:
 	$(MAKE) -C $(LIBDIR) $@
@@ -101,7 +101,7 @@ clean:
 
 distclean: clean
 	$(MAKE) -C $(LIBDIR) $@
-	$(RM) srvcfg.h cltcfg.h version.h $(USRCFG)
+	$(RM) srvcfg.h cltcfg.h version.h $(BLDCFG)
 
 dist: version
 	$(eval $@_NAME := $(PROJECT)-$(VERSION))
@@ -126,11 +126,13 @@ uninstall:
 	@$(RMV) $(BINDIR)/frelayclt $(BINDIR)/frelaysrv $(BINDIR)/frelay-gui
 	@$(RMV) $(DOCDIR)
 
-# Generate user editable config file from template:
-$(USRCFG) config: config.def.mk
-	@grep -v '^!!!' $< > $@ && echo "Generated $(USRCFG)"
+# Generate user editable config files from template:
+config: $(BLDCFG) srvcfg.h cltcfg.h
 
-# generate version file and version header:
+$(BLDCFG): config.def.mk
+	@grep -v '^!!!' $< > $(BLDCFG) && echo "Generated $(BLDCFG)"
+
+# Generate version header:
 version:
 	$(eval VERSION := $(shell $(SH) version.sh version.in version.h $(TAG)))
 	@echo "Version $(VERSION)"
@@ -138,7 +140,7 @@ version:
 # Include generated files:
 -include $(SRVDEP)
 -include $(CLTDEP)
--include $(USRCFG)
+-include $(BLDCFG)
 
 .PHONY: all release debug config version lib dist clean distclean install uninstall
 

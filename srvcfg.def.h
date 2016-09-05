@@ -1,3 +1,8 @@
+!!! #################################################
+!!! # IMPORTANT NOTE: DO NOT EDIT THIS TEMPLATE!    #
+!!! # Run `make config´ and edit srvcfg.h instead,  #
+!!! # or just run `make´ to use the defaults.       #
+!!! #################################################
 /*
  * srvcfg.h
  *

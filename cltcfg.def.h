@@ -1,3 +1,8 @@
+!!! #################################################
+!!! # IMPORTANT NOTE: DO NOT EDIT THIS TEMPLATE!    #
+!!! # Run `make config´ and edit cltcfg.h instead,  #
+!!! # or just run `make´ to use the defaults.       #
+!!! #################################################
 /*
  * cltcfg.h
  *

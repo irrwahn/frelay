@@ -34,19 +34,23 @@ reachable by all clients.)
 * Frelay is *not* a way to securely transfer files. Do *not* use it to
 transmit sensitive data!
 
-* Frelay is *not* a chat software. (Although the `PING` command can be
-abused to send short text messages to another client.)
-
-* Frelay does *not* provide any means to subdivide users in distinct
-groups, i.e. it has no notion of concepts like channels or rooms.
+* Frelay is *not* a chat software (although the `PING` command can be
+abused to send short text messages to another client), and it does *not*
+provide any means to subdivide users in distinct groups, i.e. it has no
+notion of concepts like 'channels' or 'rooms'.
 
 
 ## Installation
 
 The C code has no dependencies beyond the C standard library; it should
 build cleanly with both `gcc` and `clang` in C99 mode. The frelay-gui
-front-end depends on `python3` and `python3-tk`, preferably version 3.4
-or higher.
+front-end depends on `python3` and `python3-tk` (preferably version 3.4
+or higher) being installed on the run-time system.
+
+Hint: After running `make config` the build environment settings can be
+tweaked by editing `config.mk`, compile time defaults for frelaysrv and
+frelayclt can be customized by editing `srvcfg.h` and `cltcfg.h`,
+respectively.
 
 #### Linux
 
@@ -61,8 +65,6 @@ $ make install
 $ git clone https://github.com/irrwahn/frelay.git
 $ gmake install
 ```
-
-Note: The build environment can be tweaked by editing `config.mk`.
 
 
 ## Usage
@@ -85,7 +87,7 @@ each other, and in turn decide to accept or decline an offer.
 
 ## Future features
 
-Features, that *might* be added in future versions, include:
+Features that *might* be added in future versions include:
 
 * Multicast and omnicast file transfers
 * Support for MingW builds

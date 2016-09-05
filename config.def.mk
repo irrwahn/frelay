@@ -10,7 +10,7 @@ export LD      := $(CC)
 export STRIP   := strip
 export AR      := ar -rs
 
-# Only edit these flags, if you really know what you're doing!
+# Do not edit these flags unless you really know what you're doing!
 export CFLAGS  := -std=c99 -pedantic -Wall -Wextra -I./lib -MMD -MP
 export CRFLAGS := -O2 -DNDEBUG
 export CDFLAGS := -O0 -DDEBUG -g3 -pg -ggdb
