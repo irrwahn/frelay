@@ -57,6 +57,7 @@ CLTDEP  := $(CLTOBJ:%.o=%.d)
 BINDIR = $(PREFIX)/bin
 ICONDIR = $(PREFIX)/share/icons/hicolor/scalable/apps
 DOCDIR = $(PREFIX)/share/doc/frelay
+MANDIR = $(PREFIX)/share/man/man1
 EXAMPLEDIR = $(DOCDIR)/examples
 
 all: release
@@ -116,15 +117,21 @@ install: release
 	@$(CPV) pygui/icon_src/frelay.svg $(ICONDIR)
 	@$(MKDIR) $(DOCDIR)
 	@$(CPV) CREDITS $(DOCDIR)
-	@#TODO: README, man, ...
+	@$(CPV) README.md $(DOCDIR)
+	@$(MKDIR) $(MANDIR)
+	$(GZIP_C) doc/frelay-gui.1 > $(MANDIR)/frelay-gui.1.gz
+	$(GZIP_C) doc/frelayclt.1 > $(MANDIR)/frelayclt.1.gz
+	$(GZIP_C) doc/frelaysrv.1 > $(MANDIR)/frelaysrv.1.gz
 	@$(MKDIR) $(EXAMPLEDIR)
 	@$(CPV) frelayclt.sample.conf frelaysrv.sample.conf $(EXAMPLEDIR)
 	@$(CPV) pygui/frelay-gui.sample.conf pygui/autoaccept.sh pygui/offer.sh $(EXAMPLEDIR)
 
 uninstall:
 	@echo Uninstalling from $(PREFIX) ...
-	@$(RMV) $(BINDIR)/frelayclt $(BINDIR)/frelaysrv $(BINDIR)/frelay-gui
-	@$(RMV) $(DOCDIR)
+	-@$(RMV) $(BINDIR)/frelayclt $(BINDIR)/frelaysrv $(BINDIR)/frelay-gui
+	-@$(RMV) $(MANDIR)/frelay-gui.1.gz $(MANDIR)/frelayclt.1.gz $(MANDIR)/frelaysrv.1.gz
+	-@$(RMV) $(EXAMPLEDIR)
+	-@$(RMV) $(DOCDIR)
 
 # Generate user editable config files from template:
 config: $(BLDCFG) srvcfg.h cltcfg.h

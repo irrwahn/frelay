@@ -1,0 +1,45 @@
+.TH FRELAYCLT "1" "September 2016" "frelayclt 0.0.1" "User Commands"
+.SH NAME
+frelayclt \- relayed file transfer command line client
+.SH SYNOPSIS
+.B frelayclt
+[\fI\,OPTION\/\fR]... [\fI\,host \/\fR[\fI\,port\/\fR]] [\fI\,OPTION\/\fR]...
+.SH DESCRIPTION
+Frelay is a simple software to transfer individual files between clients
+connected to an intermediate relay server. It consists of a server
+component, an interactive command line client, and an optional GUI client
+front-end.
+.TP
+\fBFrelayclt\fR is the command line client.
+.SH OPTIONS
+.TP
+\fB\-a\fR
+connect automatically on startup
+.TP
+\fB\-c\fR \fI\,FILE\/\fR
+read configuration from specified file
+.TP
+\fB\-w\fR \fI\,FILE\/\fR
+write configuration to specified file
+.TP
+\fB\-p\fR \fI\,STRING\/\fR
+set password
+.TP
+\fB\-u\fR \fI\,STRING\/\fR
+set username
+.TP
+\fB\-n\fR
+no clobber (do not overwrite files)
+.TP
+\fB\-h\fR
+print help text and exit
+.TP
+\fB\-v\fR
+print version information and exit
+.SH "REPORTING BUGS"
+Report bugs on: https://github.com/irrwahn/frelay/issues
+.br
+Frelay home page: https://github.com/irrwahn/frelay
+.SH COPYRIGHT
+Copyright \(co 2016 Urban Wallasch
+.br

@@ -28,6 +28,9 @@ util.c
 util.h
 version.in
 version.sh
+doc/frelay-gui.1
+doc/frelayclt.1
+doc/frelaysrv.1
 doc/protocol.txt
 lib/Makefile
 lib/bendian.h

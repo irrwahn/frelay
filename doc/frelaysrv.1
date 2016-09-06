@@ -1,0 +1,39 @@
+.TH FRELAYSRV "1" "September 2016" "frelaysrv 0.0.1" "User Commands"
+.SH NAME
+frelaysrv \- relayed file transfer server
+.SH SYNOPSIS
+.B frelaysrv
+[\fI\,OPTION\/\fR]...
+.SH DESCRIPTION
+Frelay is a simple software to transfer individual files between clients
+connected to an intermediate relay server. It consists of a server
+component, an interactive command line client, and an optional GUI client
+front-end.
+.TP
+\fBFrelaysrv\fR is the server component.
+.SH OPTIONS
+.TP
+\fB\-c\fR  \fI\,FILE\/\fR
+read configuration from specified file
+.TP
+\fB\-i\fR  \fI\,INTERFACE\/\fR
+specify IP address to bind to
+.TP
+\fB\-p\fR  \fI\,PORT\/\fR
+specify TCP listen port
+.TP
+\fB\-u\fR  \fI\,FILE\/\fR
+specify user database file
+.TP
+\fB\-h\fR
+print help text and exit
+.TP
+\fB\-v\fR
+print version information and exit
+.SH "REPORTING BUGS"
+Report bugs on: https://github.com/irrwahn/frelay/issues
+.br
+Frelay home page: https://github.com/irrwahn/frelay
+.SH COPYRIGHT
+Copyright \(co 2016 Urban Wallasch
+.br

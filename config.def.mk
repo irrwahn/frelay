@@ -25,6 +25,7 @@ export RMV     := rm -rfv
 export MKDIR   := mkdir -p
 export TOUCH   := touch
 export LN      := ln -sf
+export GZIP_C  := gzip -c
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),FreeBSD)
     export TAR := gtar
