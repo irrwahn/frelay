@@ -45,9 +45,15 @@
  * [ http://burtleburtle.net/bob/rand/smallprng.html ]
  * [ https://web.archive.org/web/20151002090926/http://www.burtleburtle.net/bob/rand/smallprng.html ]
  *
- * Pros: Simple, good average cycle length, decent avalanche, fast mixing.
+ * Pros:
+ *  + simple
+ *  + good average cycle length
+ *  + decent avalanche
+ *  + fast mixing.
  *
- * Cons: Conceptually limited to values no wider than 64 bits.
+ * Cons:
+ *  - conceptually limited to values no wider than 64 bits
+ *  - not fit for any cryptographic purpose
  */
 
 #if ULONG_MAX > 18446744073709551615UL  /* 2**64-1 */
@@ -69,7 +75,7 @@ uint64_t prng_random_r( prng_random_ctx_t *ctx )
     return ctx->d & PRNG_RANDOM_MAX;
 }
 
-uint64_t prng_random()
+uint64_t prng_random( void )
 {
     return prng_random_r( &ctx_unsafe );
 }

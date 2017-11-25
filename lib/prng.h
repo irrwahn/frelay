@@ -34,6 +34,10 @@
  *
  */
 
+/*
+ * CAVEAT: It is strongly recommended against using this pseudo random
+ * generator implementation for any cryptographic purpose!
+ */
 
 #ifndef PRNG_H_INCLUDED
 #define PRNG_H_INCLUDED
