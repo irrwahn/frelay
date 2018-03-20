@@ -1,0 +1,7 @@
+*[ado]
+cltcfg.h
+config.mk
+frelayclt
+frelaysrv
+srvcfg.h
+version.h
