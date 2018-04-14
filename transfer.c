@@ -141,7 +141,8 @@ static char *human_timespan( time_t t )
     if ( d )  n += snprintf( buf + n, sizeof buf - n, "%dd", d );
     if ( h )  n += snprintf( buf + n, sizeof buf - n, "%dh", h );
     if ( m )  n += snprintf( buf + n, sizeof buf - n, "%dm", m );
-    if ( s )  n += snprintf( buf + n, sizeof buf - n, "%ds", s );
+    if ( s || m + h + d == 0 )
+        n += snprintf( buf + n, sizeof buf - n, "%ds", s );
     return buf;
 }
 
