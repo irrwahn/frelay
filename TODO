@@ -15,8 +15,6 @@ GUI: Help dialog.
 
 CLIENT: Do not require mandatory quoting in 'OFFER' command (~ line 734).
 
-GUI: Add frelay-gui.desktop file
-
 GENERAL: Release v0.0.1
 
 

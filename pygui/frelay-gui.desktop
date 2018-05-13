@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=frelay-gui
+Comment=Frelay file transfer utility GUI
+Exec=frelay-gui
+Icon=frelay
+Path=
+Terminal=false
+StartupNotify=false
+Categories=Application;Network;Internet;

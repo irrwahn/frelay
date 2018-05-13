@@ -59,6 +59,7 @@ ICONDIR = $(PREFIX)/share/icons/hicolor/scalable/apps
 DOCDIR = $(PREFIX)/share/doc/frelay
 MANDIR = $(PREFIX)/share/man/man1
 EXAMPLEDIR = $(DOCDIR)/examples
+APPDIR = $(PREFIX)/share/applications
 
 all: release
 
@@ -125,6 +126,8 @@ install: release
 	@$(MKDIR) $(EXAMPLEDIR)
 	@$(CPV) frelayclt.sample.conf frelaysrv.sample.conf $(EXAMPLEDIR)
 	@$(CPV) pygui/frelay-gui.sample.conf pygui/autoaccept.sh pygui/offer.sh $(EXAMPLEDIR)
+	@$(MKDIR) $(APPDIR)
+	@$(CPV) pygui/frelay-gui.desktop $(APPDIR)
 
 uninstall:
 	@echo Uninstalling from $(PREFIX) ...
