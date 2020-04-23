@@ -908,7 +908,7 @@ static int process_stdin( int *srvfd )
             if ( 0 != chdir( cp ) )
                 printcon( PFX_CERR, "%s\n", strerror( errno ) );
         }
-        /* fall- through to CMD_PWD */
+        /* fall through */
     case CMD_PWD:   /* pwd */
         if ( !cfg.istty[STDOUT_FILENO] )
             printcon( PFX_WDIR, "%s\n", getcwd( line, sizeof line ) );
@@ -1277,7 +1277,7 @@ static int process_srvmsg( mbuf_t **pp )
     case MSG_TYPE_AUTH_ERR:
         if ( CLT_LOGIN_OK == cfg.st )
             cfg.st = CLT_PRE_LOGIN;
-        /* Fall through to default! */
+        /* fall through */
     default:
         if ( MCLASS_IS_ERR( mtype )
             && 0 == mbuf_getnextattrib( *pp, &at, &al, &av )
