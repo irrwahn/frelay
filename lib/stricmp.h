@@ -36,7 +36,7 @@
 #ifndef STRICMP_H_INCLUDED
 #define STRICMP_H_INCLUDED
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -45,7 +45,7 @@ extern "C" {
 extern int stricmp( const char *s1, const char *s2 );
 extern int strnicmp( const char *s1, const char *s2, size_t n );
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 } /* extern "C" */
 #endif
 

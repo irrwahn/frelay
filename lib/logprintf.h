@@ -41,7 +41,7 @@
 #ifndef LOGGER_H_INCLUDED
 #define LOGGER_H_INCLUDED
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -157,7 +157,7 @@ void xlogprintf_( const char *file, const char *func, int line, int pri, const c
 #define xlogprintf(PRI, ...)    xlogprintf_( __FILE__, __func__, __LINE__, (PRI), __VA_ARGS__ )
 
 
-#ifdef _cplusplus
+#ifdef __cplusplus
 } /* extern "C" */
 #endif
 
